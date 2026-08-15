@@ -1,0 +1,189 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* Core surfaces — obsidian / graphite with a faint indigo cast */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Gold = intelligence, priority, activation */
+  --color-gold: var(--gold);
+  --color-gold-foreground: var(--gold-foreground);
+  --color-gold-muted: var(--gold-muted);
+
+  /* Violet = AION identity, deeper cognition */
+  --color-violet: var(--violet);
+  --color-violet-foreground: var(--violet-foreground);
+  --color-violet-muted: var(--violet-muted);
+
+  /* Semantic state (never color-only — always paired with label/icon) */
+  --color-positive: var(--positive);
+  --color-caution: var(--caution);
+  --color-critical: var(--critical);
+
+  --color-primary: var(--gold);
+  --color-primary-foreground: var(--gold-foreground);
+  --color-accent: var(--violet);
+  --color-accent-foreground: var(--violet-foreground);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-newsreader), ui-serif, Georgia, serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --animate-breathe: breathe 6s ease-in-out infinite;
+  --animate-orbit: orbit 24s linear infinite;
+  --animate-orbit-reverse: orbit-reverse 32s linear infinite;
+  --animate-spin-slow: spin 40s linear infinite;
+  --animate-rise: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-fade: fade 0.5s ease both;
+  --animate-pulse-soft: pulse-soft 2.4s ease-in-out infinite;
+}
+
+:root {
+  --radius: 0.75rem;
+
+  --background: oklch(0.15 0.009 285);
+  --foreground: oklch(0.93 0.012 75);
+  --surface: oklch(0.185 0.01 285);
+  --surface-raised: oklch(0.215 0.011 285);
+  --card: oklch(0.185 0.01 285);
+  --card-foreground: oklch(0.93 0.012 75);
+  --popover: oklch(0.2 0.011 285);
+  --popover-foreground: oklch(0.93 0.012 75);
+
+  --muted: oklch(0.24 0.011 285);
+  --muted-foreground: oklch(0.66 0.012 285);
+  --border: oklch(0.28 0.012 285);
+  --border-strong: oklch(0.36 0.014 285);
+  --input: oklch(0.24 0.011 285);
+  --ring: oklch(0.8 0.1 85);
+
+  --gold: oklch(0.82 0.105 85);
+  --gold-foreground: oklch(0.18 0.02 85);
+  --gold-muted: oklch(0.72 0.07 85);
+
+  --violet: oklch(0.66 0.13 292);
+  --violet-foreground: oklch(0.97 0.01 292);
+  --violet-muted: oklch(0.6 0.09 292);
+
+  --positive: oklch(0.74 0.13 155);
+  --caution: oklch(0.82 0.12 85);
+  --critical: oklch(0.66 0.17 22);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    background-color: var(--background);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+  }
+  ::selection {
+    background-color: color-mix(in oklch, var(--gold) 30%, transparent);
+    color: var(--foreground);
+  }
+  /* Refined scrollbars for the console feel */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
+  }
+}
+
+@keyframes breathe {
+  0%, 100% {
+    opacity: 0.55;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes orbit-reverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@keyframes waveform {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+
+.aion-grain {
+  background-image: radial-gradient(
+    circle at 50% 40%,
+    color-mix(in oklch, var(--violet) 8%, transparent),
+    transparent 60%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
