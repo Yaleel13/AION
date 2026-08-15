@@ -24,9 +24,3 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["aion"]
-
-# Vercel Python builder: select the production FastAPI application explicitly.
-# Without this, the builder finds both aion/main.py and tests/test_endpoints.py
-# exposing `app` and cannot choose an entrypoint.
-[tool.vercel]
-entrypoint = "aion.main:app"
