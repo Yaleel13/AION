@@ -35,13 +35,13 @@ export function DataWidget({ data }: { data: DataWidgetData }) {
         ))}
       </div>
 
-      <div className="mt-4 flex h-24 items-end gap-1.5" aria-hidden>
+      <div className="mt-4 flex h-24 items-stretch gap-1.5" aria-hidden>
         {data.series.map((s) => (
-          <div key={s.label} className="flex flex-1 flex-col items-center gap-1.5">
+          <div key={s.label} className="flex h-full flex-1 flex-col items-center gap-1.5">
             <div className="flex w-full flex-1 items-end">
               <div
                 className="w-full rounded-t-sm bg-gradient-to-t from-violet/40 to-gold/70 transition-all"
-                style={{ height: `${(s.value / max) * 100}%` }}
+                style={{ height: `${Math.max((s.value / max) * 100, 4)}%` }}
               />
             </div>
             <span className="text-[0.6rem] text-muted-foreground">{s.label}</span>

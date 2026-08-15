@@ -20,6 +20,7 @@ interface CommandComposerProps {
   listening: boolean
   disabled?: boolean
   placeholder?: string
+  onOpenConnections?: () => void
 }
 
 const advancedCapabilities = [
@@ -36,6 +37,7 @@ export function CommandComposer({
   listening,
   disabled,
   placeholder = "Speak to AION…",
+  onOpenConnections,
 }: CommandComposerProps) {
   const [value, setValue] = useState("")
   const [menuOpen, setMenuOpen] = useState(false)
@@ -69,6 +71,19 @@ export function CommandComposer({
         <>
           <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} aria-hidden />
           <div className="absolute bottom-full left-0 z-20 mb-3 w-64 animate-rise overflow-hidden rounded-xl border border-border bg-popover/95 p-1 shadow-2xl backdrop-blur-md">
+            {onOpenConnections && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false)
+                  onOpenConnections()
+                }}
+                className="mb-1 flex w-full items-center gap-3 rounded-lg border-b border-border/60 px-3 py-2.5 text-left text-sm text-foreground/85 transition-colors hover:bg-muted"
+              >
+                <Plus className="h-4 w-4 text-gold" />
+                Connect AION…
+              </button>
+            )}
             {advancedCapabilities.map((c) => (
               <button
                 key={c.label}
