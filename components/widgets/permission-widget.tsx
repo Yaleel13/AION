@@ -2,7 +2,13 @@ import { ShieldCheck, Lock, Check } from "lucide-react"
 import type { PermissionWidgetData } from "@/lib/aion/types"
 import { WidgetShell, WidgetAction } from "./widget-shell"
 
-export function PermissionWidget({ data }: { data: PermissionWidgetData }) {
+export function PermissionWidget({
+  data,
+  onCommand,
+}: {
+  data: PermissionWidgetData
+  onCommand?: (text: string) => void
+}) {
   return (
     <WidgetShell
       icon={<ShieldCheck className="h-3.5 w-3.5" />}
@@ -38,8 +44,15 @@ export function PermissionWidget({ data }: { data: PermissionWidgetData }) {
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <WidgetAction primary>Allow session</WidgetAction>
-        <WidgetAction>Review permissions</WidgetAction>
+        <WidgetAction
+          primary
+          onClick={() => onCommand?.(`Allow this session against ${data.target}.`)}
+        >
+          Allow session
+        </WidgetAction>
+        <WidgetAction onClick={() => onCommand?.("Review the requested permissions in detail.")}>
+          Review permissions
+        </WidgetAction>
       </div>
     </WidgetShell>
   )

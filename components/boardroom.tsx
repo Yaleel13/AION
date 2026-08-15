@@ -230,7 +230,11 @@ export function Boardroom({
                     </li>
                   ))}
                 </ul>
-                <button className="mt-3 inline-flex items-center gap-1 rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-gold-foreground transition-colors hover:bg-gold/90">
+                <button
+                  type="button"
+                  onClick={() => onSubmit(`Review the decision: ${d.title}.`)}
+                  className="mt-3 inline-flex items-center gap-1 rounded-md bg-gold px-3 py-1.5 text-xs font-medium text-gold-foreground transition-colors hover:bg-gold/90"
+                >
                   Review
                   <ArrowRight className="h-3 w-3" />
                 </button>

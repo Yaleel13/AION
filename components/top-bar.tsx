@@ -19,11 +19,17 @@ export function TopBar({
   mode,
   hasNotifications,
   onNewConversation,
+  onNotifications,
+  onSettings,
+  onAccount,
 }: {
   state: PresenceState
   mode: InterfaceMode
   hasNotifications?: boolean
   onNewConversation: () => void
+  onNotifications?: () => void
+  onSettings?: () => void
+  onAccount?: () => void
 }) {
   const busy = state !== "idle" && state !== "complete"
 
@@ -63,6 +69,7 @@ export function TopBar({
         </button>
         <button
           type="button"
+          onClick={onNotifications}
           className="relative flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           aria-label="Notifications"
         >
@@ -73,6 +80,7 @@ export function TopBar({
         </button>
         <button
           type="button"
+          onClick={onSettings}
           className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           aria-label="Settings"
         >
@@ -80,6 +88,7 @@ export function TopBar({
         </button>
         <button
           type="button"
+          onClick={onAccount}
           className={cn(
             "ml-1 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet/80 to-gold/70 text-xs font-medium text-background",
           )}

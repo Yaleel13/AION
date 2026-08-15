@@ -137,9 +137,9 @@ export function routeCommand(input: string): AionTurn {
           ],
           confidence: "moderate",
           sources: [
-            { title: "Nature Aging — meta-analysis", url: "#" },
-            { title: "NIH longitudinal cohort", url: "#" },
-            { title: "Cell Metabolism review", url: "#" },
+            { title: "Nature Aging — meta-analysis", url: "https://www.nature.com/nataging/" },
+            { title: "NIH longitudinal cohort", url: "https://www.nih.gov/" },
+            { title: "Cell Metabolism review", url: "https://www.cell.com/cell-metabolism/home" },
           ],
         },
       ],
@@ -202,6 +202,23 @@ export function routeCommand(input: string): AionTurn {
           ],
         },
       ],
+    }
+  }
+
+  // Permission — grant / review requested access
+  if (has("allow this session", "allow session", "grant access", "review the requested permissions")) {
+    if (has("review the requested permissions")) {
+      return {
+        working: "thinking",
+        reply:
+          "Here's the full breakdown. The three abilities I requested are read-and-act only — I can inspect files, run terminal commands and review logs. Anything that modifies production, deletes resources or spends money stays locked behind a separate, explicit approval each time.",
+      }
+    }
+    return {
+      working: "executing",
+      reply:
+        "Access granted for this session. I'll work within those bounds and pause for your explicit approval before anything irreversible.",
+      context: "Session access · granted",
     }
   }
 
@@ -286,6 +303,31 @@ export function routeCommand(input: string): AionTurn {
           updated: "Updated 18m ago",
         },
       ],
+    }
+  }
+
+  // Logs — stream deployment / production logs into the terminal
+  if (has("logs", "log output", "tail the log")) {
+    return {
+      working: "executing",
+      reply:
+        "Streaming the latest logs for aion-service. Everything's nominal except the Resend webhook warning — I've flagged it below in the terminal.",
+      effect: "open-terminal",
+      context: "aion-service · logs",
+    }
+  }
+
+  // Document — open / preview / download a document
+  if (has("open the document", "preview the document", "download the document", "read the document")) {
+    const action = has("download the document")
+      ? "queued for download"
+      : has("preview the document")
+        ? "opened in preview"
+        : "opened"
+    return {
+      working: "thinking",
+      reply: `Done — the document is ${action}. Say the word and I'll email or send it to whoever needs it.`,
+      context: "Document · Cerebral Synergy investor update",
     }
   }
 

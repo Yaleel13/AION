@@ -2,7 +2,13 @@ import { FileText } from "lucide-react"
 import type { DocumentWidgetData } from "@/lib/aion/types"
 import { WidgetShell, WidgetAction } from "./widget-shell"
 
-export function DocumentWidget({ data }: { data: DocumentWidgetData }) {
+export function DocumentWidget({
+  data,
+  onCommand,
+}: {
+  data: DocumentWidgetData
+  onCommand?: (text: string) => void
+}) {
   return (
     <WidgetShell
       icon={<FileText className="h-3.5 w-3.5" />}
@@ -21,10 +27,16 @@ export function DocumentWidget({ data }: { data: DocumentWidgetData }) {
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <WidgetAction primary>Open</WidgetAction>
-        <WidgetAction>Preview</WidgetAction>
-        <WidgetAction>Download</WidgetAction>
-        <WidgetAction>Send</WidgetAction>
+        <WidgetAction primary onClick={() => onCommand?.(`Open the document "${data.title}".`)}>
+          Open
+        </WidgetAction>
+        <WidgetAction onClick={() => onCommand?.(`Preview the document "${data.title}".`)}>
+          Preview
+        </WidgetAction>
+        <WidgetAction onClick={() => onCommand?.(`Download the document "${data.title}".`)}>
+          Download
+        </WidgetAction>
+        <WidgetAction onClick={() => onCommand?.(`Email me the "${data.title}".`)}>Send</WidgetAction>
       </div>
     </WidgetShell>
   )
