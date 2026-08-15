@@ -148,6 +148,9 @@ export function AionShell() {
         mode={mode}
         hasNotifications
         onNewConversation={handleNewConversation}
+        onNotifications={() => handleSend("What needs my attention today?")}
+        onSettings={() => setConnectionOpen(true)}
+        onAccount={() => handleSend("Open the Boardroom.")}
       />
 
       {mode === "boardroom" ? (
@@ -188,7 +191,7 @@ export function AionShell() {
             )}
 
             <div className="flex-1 overflow-y-auto pb-2">
-              <Conversation messages={messages} working={working} />
+              <Conversation messages={messages} working={working} onCommand={handleSend} />
             </div>
 
             <div className="shrink-0 px-4 pb-6 pt-2">

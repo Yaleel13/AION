@@ -14,9 +14,11 @@ const workingLabel: Partial<Record<PresenceState, string>> = {
 export function Conversation({
   messages,
   working,
+  onCommand,
 }: {
   messages: MessageType[]
   working: PresenceState
+  onCommand?: (text: string) => void
 }) {
   const endRef = useRef<HTMLDivElement>(null)
 
@@ -29,7 +31,7 @@ export function Conversation({
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 px-4 pb-4">
       {messages.map((m) => (
-        <Message key={m.id} message={m} />
+        <Message key={m.id} message={m} onCommand={onCommand} />
       ))}
 
       {isWorking && (

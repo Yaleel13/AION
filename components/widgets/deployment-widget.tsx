@@ -9,8 +9,15 @@ const statusMeta = {
   error: { tone: "critical" as const, label: "Error" },
 }
 
-export function DeploymentWidget({ data }: { data: DeploymentWidgetData }) {
+export function DeploymentWidget({
+  data,
+  onCommand,
+}: {
+  data: DeploymentWidgetData
+  onCommand?: (text: string) => void
+}) {
   const meta = statusMeta[data.status]
+  const deploymentUrl = data.url.startsWith("http") ? data.url : `https://${data.url}`
   return (
     <WidgetShell
       icon={<Rocket className="h-3.5 w-3.5" />}
@@ -24,7 +31,14 @@ export function DeploymentWidget({ data }: { data: DeploymentWidgetData }) {
     >
       <div className="flex items-center gap-2 text-sm">
         <Globe className="h-4 w-4 text-gold" />
-        <span className="font-mono text-foreground">{data.url}</span>
+        <a
+          href={deploymentUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-mono text-foreground underline-offset-4 hover:text-gold hover:underline"
+        >
+          {data.url}
+        </a>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -44,8 +58,12 @@ export function DeploymentWidget({ data }: { data: DeploymentWidgetData }) {
       </div>
 
       <div className="mt-4 flex gap-2">
-        <WidgetAction primary>Visit deployment</WidgetAction>
-        <WidgetAction>View logs</WidgetAction>
+        <WidgetAction primary href={deploymentUrl}>
+          Visit deployment
+        </WidgetAction>
+        <WidgetAction onClick={() => onCommand?.("Show me the production logs.")}>
+          View logs
+        </WidgetAction>
       </div>
     </WidgetShell>
   )

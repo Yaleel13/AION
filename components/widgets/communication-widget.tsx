@@ -10,7 +10,13 @@ const channelMeta = {
   call: { icon: Phone, label: "Call briefing" },
 }
 
-export function CommunicationWidget({ data }: { data: CommunicationWidgetData }) {
+export function CommunicationWidget({
+  data,
+  onCommand,
+}: {
+  data: CommunicationWidgetData
+  onCommand?: (text: string) => void
+}) {
   const callSelected = data.channels.find((c) => c.channel === "call")?.selected
   return (
     <WidgetShell
@@ -48,7 +54,9 @@ export function CommunicationWidget({ data }: { data: CommunicationWidgetData })
 
       {callSelected && !data.sent && (
         <div className="mt-4">
-          <WidgetAction primary>Start call</WidgetAction>
+          <WidgetAction primary onClick={() => onCommand?.("Call me and walk me through it.")}>
+            Start call
+          </WidgetAction>
         </div>
       )}
     </WidgetShell>

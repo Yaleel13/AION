@@ -41,6 +41,8 @@ export function ResearchWidget({ data }: { data: ResearchWidgetData }) {
           <a
             key={i}
             href={s.url}
+            target="_blank"
+            rel="noopener noreferrer"
             className="group inline-flex items-center gap-1 rounded-md bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
             {s.title}

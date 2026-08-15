@@ -48,22 +48,31 @@ export function WidgetAction({
   children,
   primary = false,
   onClick,
+  href,
 }: {
   children: ReactNode
   primary?: boolean
   onClick?: () => void
+  /** When provided, the action renders as an external link opening in a new tab. */
+  href?: string
 }) {
+  const className = cn(
+    "inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-surface",
+    primary
+      ? "bg-gold text-gold-foreground hover:bg-gold/90"
+      : "border border-border-strong text-foreground/80 hover:bg-muted hover:text-foreground",
+  )
+
+  if (href) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className={className}>
+        {children}
+      </a>
+    )
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-surface",
-        primary
-          ? "bg-gold text-gold-foreground hover:bg-gold/90"
-          : "border border-border-strong text-foreground/80 hover:bg-muted hover:text-foreground",
-      )}
-    >
+    <button type="button" onClick={onClick} className={className}>
       {children}
     </button>
   )

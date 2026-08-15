@@ -10,7 +10,13 @@ const stateMeta: Record<ProjectState, { label: string; tone: "positive" | "cauti
   paused: { label: "Paused", tone: "neutral" },
 }
 
-export function ProjectWidget({ data }: { data: ProjectWidgetData }) {
+export function ProjectWidget({
+  data,
+  onCommand,
+}: {
+  data: ProjectWidgetData
+  onCommand?: (text: string) => void
+}) {
   const meta = stateMeta[data.state]
   return (
     <WidgetShell
@@ -49,7 +55,16 @@ export function ProjectWidget({ data }: { data: ProjectWidgetData }) {
       )}
 
       <div className="mt-4 flex items-center gap-2">
-        <WidgetAction primary>
+        <WidgetAction
+          primary
+          onClick={() =>
+            onCommand?.(
+              data.blockers > 0
+                ? `Repair the ${data.name} webhook failure now.`
+                : `Open ${data.name} in the terminal.`,
+            )
+          }
+        >
           {data.blockers > 0 ? "Review blocker" : "Open project"}
           <ArrowRight className="ml-1 inline h-3 w-3" />
         </WidgetAction>

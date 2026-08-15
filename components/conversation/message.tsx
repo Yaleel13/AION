@@ -2,7 +2,13 @@ import type { Message as MessageType } from "@/lib/aion/types"
 import { WidgetRenderer } from "@/components/widgets/widget-renderer"
 import { cn } from "@/lib/utils"
 
-export function Message({ message }: { message: MessageType }) {
+export function Message({
+  message,
+  onCommand,
+}: {
+  message: MessageType
+  onCommand?: (text: string) => void
+}) {
   if (message.role === "user") {
     return (
       <div className="flex animate-rise justify-end">
@@ -37,7 +43,7 @@ export function Message({ message }: { message: MessageType }) {
       {message.widgets && message.widgets.length > 0 && (
         <div className="ml-[18px] grid gap-3">
           {message.widgets.map((w, i) => (
-            <WidgetRenderer key={i} widget={w} />
+            <WidgetRenderer key={i} widget={w} onCommand={onCommand} />
           ))}
         </div>
       )}

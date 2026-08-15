@@ -13,7 +13,13 @@ function StepIcon({ status }: { status: ExecutionStep["status"] }) {
   return <Circle className="h-3.5 w-3.5 text-muted-foreground/50" />
 }
 
-export function ExecutionWidget({ data }: { data: ExecutionWidgetData }) {
+export function ExecutionWidget({
+  data,
+  onCommand,
+}: {
+  data: ExecutionWidgetData
+  onCommand?: (text: string) => void
+}) {
   // Gently advance the "working" step to "done" over time for a live feel.
   const [steps, setSteps] = useState(data.steps)
 
@@ -60,8 +66,12 @@ export function ExecutionWidget({ data }: { data: ExecutionWidgetData }) {
 
       {needsApproval && (
         <div className="mt-4 flex items-center gap-2">
-          <WidgetAction primary>Approve &amp; deploy</WidgetAction>
-          <WidgetAction>Hold</WidgetAction>
+          <WidgetAction primary onClick={() => onCommand?.("Approve and deploy it.")}>
+            Approve &amp; deploy
+          </WidgetAction>
+          <WidgetAction onClick={() => onCommand?.("Hold on this for now — don't ship yet.")}>
+            Hold
+          </WidgetAction>
         </div>
       )}
     </WidgetShell>

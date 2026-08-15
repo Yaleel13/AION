@@ -8,8 +8,15 @@ const ciMeta = {
   running: { icon: Loader2, className: "text-caution animate-spin", label: "CI running" },
 }
 
-export function RepositoryWidget({ data }: { data: RepositoryWidgetData }) {
+export function RepositoryWidget({
+  data,
+  onCommand,
+}: {
+  data: RepositoryWidgetData
+  onCommand?: (text: string) => void
+}) {
   const Ci = ciMeta[data.ci]
+  const repoUrl = `https://github.com/${data.repo}`
   return (
     <WidgetShell
       icon={<GitBranch className="h-3.5 w-3.5" />}
@@ -22,7 +29,14 @@ export function RepositoryWidget({ data }: { data: RepositoryWidgetData }) {
       }
     >
       <div className="flex items-center justify-between gap-3">
-        <h3 className="font-mono text-sm text-foreground">{data.repo}</h3>
+        <a
+          href={repoUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-mono text-sm text-foreground underline-offset-4 hover:text-gold hover:underline"
+        >
+          {data.repo}
+        </a>
         <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-0.5 font-mono text-xs text-muted-foreground">
           <GitBranch className="h-3 w-3" />
           {data.branch}
@@ -52,8 +66,10 @@ export function RepositoryWidget({ data }: { data: RepositoryWidgetData }) {
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <WidgetAction primary>Open in terminal</WidgetAction>
-        <WidgetAction>View pull requests</WidgetAction>
+        <WidgetAction primary onClick={() => onCommand?.("Open it in the terminal.")}>
+          Open in terminal
+        </WidgetAction>
+        <WidgetAction href={`${repoUrl}/pulls`}>View pull requests</WidgetAction>
       </div>
     </WidgetShell>
   )
