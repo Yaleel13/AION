@@ -119,7 +119,7 @@ export function AionShell() {
         busyRef.current = false
       }
     },
-    [messages, pushMessage],
+    [messages, mode, pushMessage],
   )
 
   const handleNewConversation = useCallback(() => {
