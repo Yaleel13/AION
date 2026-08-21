@@ -2,7 +2,6 @@
 
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
 
 from aion.main import app
@@ -14,7 +13,43 @@ client = TestClient(app)
 def test_health():
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    data = response.json()
+    assert data["status"] == "ok"
+    assert data["runtime"] == "agent-v1"
+    assert "openai_configured" in data
+
+
+@patch("aion.main.config.OPENAI_API_KEY", "test-key")
+@patch("aion.main.run_aion", new_callable=AsyncMock)
+def test_agent_endpoint(mock_run):
+    mock_run.return_value = {
+        "agent": "AION",
+        "session_id": "test-session",
+        "response": "Runtime operational.",
+        "requires_approval": False,
+        "usage": {
+            "requests": 1,
+            "input_tokens": 10,
+            "output_tokens": 5,
+            "total_tokens": 15,
+        },
+    }
+    response = client.post(
+        "/agent",
+        json={"message": "Check your runtime status", "session_id": "test-session"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["agent"] == "AION"
+    assert data["session_id"] == "test-session"
+    assert data["response"] == "Runtime operational."
+    assert data["requires_approval"] is False
+
+
+def test_agent_endpoint_no_key():
+    with patch("aion.main.config.OPENAI_API_KEY", ""):
+        response = client.post("/agent", json={"message": "Hello"})
+    assert response.status_code == 503
 
 
 @patch("aion.main.config.OPENAI_API_KEY", "test-key")

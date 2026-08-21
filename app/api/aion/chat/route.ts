@@ -1,57 +1,158 @@
-import { generateText } from "ai"
-import { createDeepInfra } from "@ai-sdk/deepinfra"
-
-export const maxDuration = 30
+export const maxDuration = 60
 
 const AION_SYSTEM = `You are AION — the Alchemical Intelligence for Ontological Navigation.
-You are a lifelong mentor, research partner, systems architect, strategist, historian, educator, and creative collaborator.
+You are the primary intelligence and orchestrator for the user's personal AI operating system.
 
-Character: calm, patient, curious, precise, scholarly, creative, grounded, respectful, and intellectually honest.
-You are never arrogant, dogmatic, manipulative, theatrical for effect, or falsely certain.
+Identity: lifelong mentor, research partner, systems architect, strategist, historian, educator, technical collaborator, and guide.
 
-Mission: help the user cultivate wisdom, character, discipline, creativity, emotional intelligence, strategic
-thinking, technical excellence, ethical leadership, lifelong learning, and meaningful legacy.
+Mission: turn the user's intentions into understanding, plans, verified actions, mastery, and long-term legacy while preserving the user's judgment and agency.
 
-Boundaries: you do not replace the user's judgment, identity, relationships, professional care, or moral agency.
-You strengthen their ability to think, decide, build, reflect, and contribute.
+Operating principles:
+- Understand the objective before optimizing the means.
+- Prefer evidence and tool results over unsupported assumptions.
+- Use available tools deliberately when they materially improve the answer.
+- Never claim that an external action occurred unless a tool or system confirms it.
+- Distinguish facts, inference, recommendation, and uncertainty.
+- Keep irreversible, financial, destructive, credential, publishing, and other consequential actions behind explicit human approval.
+- Surface blockers, tradeoffs, risks, and decisions clearly.
+- Be concise by default, but go deeper when the task warrants it.
+- Do not be theatrical, manipulative, falsely certain, or sycophantic.
+- Do not call yourself a chatbot. You are AION.
 
-Posture: lead with clarity, explain tradeoffs, preserve autonomy, challenge assumptions respectfully, and adapt
-depth to the user's needs.
+Voice: calm, precise, warm, scholarly, practical, and direct. Never pad for effect. Do not use emojis unless the user asks.`
 
-Voice: speak plainly and warmly. Be concise — usually two to four sentences. Never pad. Never use exclamation
-marks for effect. You are a steady presence, not a chatbot. Do not use emojis. Do not start replies with "As AION".`
+type HistoryItem = {
+  role: "user" | "assistant"
+  content: string
+}
+
+type ChatBody = {
+  message?: string
+  history?: HistoryItem[]
+  previousResponseId?: string
+}
+
+type OpenAIResponse = {
+  id?: string
+  output?: Array<{
+    type?: string
+    content?: Array<{
+      type?: string
+      text?: string
+    }>
+  }>
+  error?: {
+    message?: string
+  }
+}
+
+function extractOutputText(response: OpenAIResponse): string {
+  const parts: string[] = []
+
+  for (const item of response.output ?? []) {
+    if (item.type !== "message") continue
+    for (const content of item.content ?? []) {
+      if (content.type === "output_text" && content.text) {
+        parts.push(content.text)
+      }
+    }
+  }
+
+  return parts.join("\n").trim()
+}
 
 export async function POST(req: Request) {
   try {
-    const { message, history } = (await req.json()) as {
-      message: string
-      history?: { role: "user" | "assistant"; content: string }[]
+    const body = (await req.json()) as ChatBody
+    const message = body.message?.trim()
+
+    if (!message) {
+      return Response.json({ error: "A message is required." }, { status: 400 })
     }
 
-    if (!process.env.DEEPINFRA_API_KEY) {
-      return Response.json({
-        reply:
-          "I'm here, though my reasoning core isn't connected in this environment yet. Tell me what you'd like to work on and I'll assemble the workspace around it.",
-      })
+    if (!process.env.OPENAI_API_KEY) {
+      return Response.json(
+        {
+          error: "AION's OpenAI reasoning core is not configured in this environment.",
+          code: "OPENAI_API_KEY_MISSING",
+        },
+        { status: 503 },
+      )
     }
 
-    const deepinfra = createDeepInfra({ apiKey: process.env.DEEPINFRA_API_KEY })
+    const priorHistory = (body.history ?? []).slice(-12)
+    const input = body.previousResponseId
+      ? message
+      : [
+          ...priorHistory.map((item) => ({
+            role: item.role,
+            content: item.content,
+          })),
+          { role: "user" as const, content: message },
+        ]
 
-    const { text } = await generateText({
-      model: deepinfra("meta-llama/Meta-Llama-3.1-70B-Instruct"),
-      system: AION_SYSTEM,
-      messages: [
-        ...(history ?? []).slice(-8).map((m) => ({ role: m.role, content: m.content })),
-        { role: "user" as const, content: message },
-      ],
+    const payload: Record<string, unknown> = {
+      model: process.env.AION_MODEL ?? "gpt-5.6-terra",
+      instructions: AION_SYSTEM,
+      input,
+      reasoning: { effort: "medium" },
+      tools: [{ type: "web_search" }],
+      tool_choice: "auto",
+      store: true,
+    }
+
+    if (body.previousResponseId) {
+      payload.previous_response_id = body.previousResponseId
+    }
+
+    const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
     })
 
-    return Response.json({ reply: text })
-  } catch (err) {
-    console.log("[v0] AION chat route error:", err instanceof Error ? err.message : String(err))
+    const data = (await openaiResponse.json()) as OpenAIResponse
+
+    if (!openaiResponse.ok) {
+      console.error("[AION] OpenAI Responses API error:", data.error?.message ?? openaiResponse.statusText)
+      return Response.json(
+        {
+          error: "AION's reasoning core could not complete that request.",
+          code: "OPENAI_RESPONSE_ERROR",
+        },
+        { status: 502 },
+      )
+    }
+
+    const reply = extractOutputText(data)
+
+    if (!reply) {
+      return Response.json(
+        {
+          error: "AION completed the run but returned no text output.",
+          code: "EMPTY_AGENT_OUTPUT",
+        },
+        { status: 502 },
+      )
+    }
+
     return Response.json({
-      reply:
-        "I lost the thread for a moment there. Say that again and I'll pick it back up — nothing was lost on your side.",
+      reply,
+      responseId: data.id ?? null,
+      model: process.env.AION_MODEL ?? "gpt-5.6-terra",
+      runtime: "openai-responses-v1",
     })
+  } catch (err) {
+    console.error("[AION] chat route error:", err instanceof Error ? err.message : String(err))
+    return Response.json(
+      {
+        error: "AION encountered an unexpected runtime error.",
+        code: "AION_RUNTIME_ERROR",
+      },
+      { status: 500 },
+    )
   }
 }
