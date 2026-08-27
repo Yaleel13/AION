@@ -10,16 +10,26 @@ from typing import Any, Iterable
 from aion.moltbook.security import utc_now_iso
 
 
-DEFAULT_DB_PATH = "/tmp/aion_phase2.db"
+def default_phase2_db_path() -> str:
+    """Prefer durable AION_DATA_DIR; fall back to legacy /tmp only if unset fails."""
+    try:
+        from aion.durable.paths import resolve_durable_paths
+
+        return str(resolve_durable_paths().phase2_db)
+    except Exception:
+        return "/tmp/aion_phase2.db"
+
+
+DEFAULT_DB_PATH = "/tmp/aion_phase2.db"  # legacy; prefer default_phase2_db_path()
 
 
 class Phase2Store:
     """Append-friendly SQLite store. Audit rows are never updated or deleted."""
 
-    def __init__(self, path: str = DEFAULT_DB_PATH):
-        self.path = path
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(path, check_same_thread=False)
+    def __init__(self, path: str | None = None):
+        self.path = path or default_phase2_db_path()
+        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+        self._conn = sqlite3.connect(self.path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._init_schema()
 
