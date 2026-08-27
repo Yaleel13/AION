@@ -1,8 +1,8 @@
 import {
   OWNER_SESSION_COOKIE,
+  createOwnerSessionValue,
   hasValidOwnerSession,
   ownerSessionConfigured,
-  ownerSessionValue,
   verifyOwnerToken,
 } from "@/lib/aion/owner-session"
 
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "Invalid owner token." }, { status: 403 })
   }
 
-  const session = ownerSessionValue()
+  const session = createOwnerSessionValue(COOKIE_MAX_AGE_SECONDS)
   if (!session) {
     return Response.json({ error: "AION owner authentication is not configured." }, { status: 503 })
   }
