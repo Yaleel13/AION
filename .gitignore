@@ -23,3 +23,7 @@ htmlcov/
 !*.key.example
 # Phase 2 local databases
 *.db
+# Private owner charter / founder messages (public repo)
+identity/OWNER_PRIVATE_CONTEXT.md
+data/owner_private/
+data/activation/

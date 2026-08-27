@@ -149,9 +149,15 @@ class ControlledAutonomyEngine:
             raise MoltbookOutboundDisabledError(
                 f"Read-only fallback active: {self.policy.suspension_reason}"
             )
-        if self.policy.mode is not AutonomyMode.ACTIVE or not self.policy.experiment_active():
+        if self.policy.mode is not AutonomyMode.ACTIVE:
             raise MoltbookOutboundDisabledError(
                 "Controlled autonomy inactive or experiment window closed"
+            )
+        # Live writes require an open experiment window. Dry-run may proceed
+        # before MOLTBOOK_EXPERIMENT_STARTED_AT is set (production verification).
+        if not self.dry_run and not self.policy.experiment_active():
+            raise MoltbookOutboundDisabledError(
+                "Experiment window not started or closed; live writes blocked"
             )
 
         if self.autonomy_store.has_idempotency(idempotency_key):
