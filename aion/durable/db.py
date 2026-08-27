@@ -31,6 +31,14 @@ def _is_postgres_url(url: str) -> bool:
     return scheme in {"postgres", "postgresql", "postgresql+psycopg"}
 
 
+def _serverless_runtime() -> bool:
+    return bool(
+        os.getenv("VERCEL")
+        or os.getenv("AWS_LAMBDA_FUNCTION_NAME")
+        or os.getenv("FUNCTIONS_WORKER_RUNTIME")
+    )
+
+
 @dataclass
 class DbStatus:
     backend: str
@@ -50,11 +58,21 @@ class DbStatus:
 def storage_status() -> DbStatus:
     url = database_url()
     if not url:
+        if _serverless_runtime():
+            return DbStatus(
+                backend="sqlite_ephemeral",
+                configured=False,
+                schema=None,
+                detail=(
+                    "AION_DATABASE_URL unset on serverless runtime; local SQLite "
+                    "may be discarded between invocations"
+                ),
+            )
         return DbStatus(
             backend="sqlite",
             configured=True,
             schema=None,
-            detail="AION_DATABASE_URL unset; using durable SQLite files",
+            detail="AION_DATABASE_URL unset; using SQLite under AION_DATA_DIR",
         )
     if not _is_postgres_url(url):
         return DbStatus(
