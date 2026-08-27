@@ -27,7 +27,7 @@ def _moltbook_health() -> dict:
             "configured": False,
             "mode": None,
             "outbound_enabled": False,
-            "phase": "phase1-readonly",
+            "phase": "phase2-controlled-growth",
             "error": str(exc),
         }
     return {
@@ -35,7 +35,8 @@ def _moltbook_health() -> dict:
         "mode": settings.mode,
         "api_key_present": bool(settings.api_key),
         "outbound_enabled": False,
-        "phase": "phase1-readonly",
+        "phase": "phase2-controlled-growth",
+        "execute_enabled": False,
     }
 
 
@@ -101,3 +102,170 @@ async def gemini_endpoint(request: GeminiRequest) -> AIResponse:
         return await query_gemini(request)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 owner dashboard API (local; requires AION_OWNER_TOKEN)
+# ---------------------------------------------------------------------------
+
+import os
+
+from fastapi import Header
+
+from aion.moltbook.errors import MoltbookOutboundDisabledError
+from aion.moltbook.limits import QuotaExceededError
+from aion.phase2_services import dashboard_snapshot, get_services
+
+
+def _require_owner(authorization: str | None) -> None:
+    expected = (os.getenv("AION_OWNER_TOKEN") or "").strip()
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail="AION_OWNER_TOKEN is not configured",
+        )
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    provided = authorization.removeprefix("Bearer ").strip()
+    if provided != expected:
+        raise HTTPException(status_code=403, detail="Invalid owner token")
+
+
+@app.get("/owner/dashboard", summary="Phase 2 owner dashboard snapshot")
+async def owner_dashboard(authorization: str | None = Header(default=None)) -> dict:
+    _require_owner(authorization)
+    return dashboard_snapshot()
+
+
+@app.post("/owner/campaign/seed", summary="Seed 14-day draft campaign (no publish)")
+async def owner_seed_campaign(authorization: str | None = Header(default=None)) -> dict:
+    _require_owner(authorization)
+    svc = get_services()
+    created = svc.drafts.seed_fourteen_day_campaign()
+    return {"created": created, "published": False}
+
+
+@app.post("/owner/drafts/{draft_id}/queue", summary="Queue one draft for approval")
+async def owner_queue_draft(
+    draft_id: str, authorization: str | None = Header(default=None)
+) -> dict:
+    _require_owner(authorization)
+    svc = get_services()
+    try:
+        return svc.drafts.submit_draft_for_approval(draft_id)
+    except QuotaExceededError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/owner/approvals/{request_id}/decide", summary="Approve or reject a proposal")
+async def owner_decide(
+    request_id: str,
+    body: dict,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    _require_owner(authorization)
+    svc = get_services()
+    approved = bool(body.get("approved"))
+    try:
+        req = svc.gate.decide(
+            request_id,
+            approved=approved,
+            decided_by=str(body.get("decided_by") or "owner"),
+            reason=body.get("reason"),
+            expected_content_hash=body.get("expected_content_hash"),
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    payload = req.redacted()
+    # Return raw token once if newly approved (owner must store it securely).
+    if req.approval_token:
+        payload["approval_token"] = req.approval_token
+        payload["token_note"] = (
+            "Single-use token shown once. Execution still disabled unless a "
+            "separate explicit publish command is issued."
+        )
+    return payload
+
+
+@app.post("/owner/leads/scan", summary="Scan public feed for qualified leads")
+async def owner_scan_leads(authorization: str | None = Header(default=None)) -> dict:
+    _require_owner(authorization)
+    svc = get_services()
+    leads = await svc.leads().scan_feed(limit=25)
+    return {"qualified": leads, "contacted": False}
+
+
+@app.post("/owner/paper/tick", summary="Run one paper-trading rebalance + mark")
+async def owner_paper_tick(authorization: str | None = Header(default=None)) -> dict:
+    _require_owner(authorization)
+    svc = get_services()
+    if svc.kill_switch.engaged:
+        raise HTTPException(status_code=423, detail="Kill switch engaged")
+    result = svc.paper.run_starter_strategy_once()
+    return result
+
+
+@app.post("/owner/kill-switch", summary="Engage or release emergency kill switch")
+async def owner_kill_switch(
+    body: dict, authorization: str | None = Header(default=None)
+) -> dict:
+    _require_owner(authorization)
+    svc = get_services()
+    engage = bool(body.get("engage"))
+    if engage:
+        svc.kill_switch.engage(str(body.get("reason") or "owner engaged"))
+    else:
+        svc.kill_switch.release(decided_by=str(body.get("decided_by") or "owner"))
+    svc.store.set_risk("kill_switch", svc.kill_switch.snapshot())
+    svc.store.append_audit(
+        module="risk",
+        action="kill_switch",
+        success=True,
+        detail=svc.kill_switch.snapshot(),
+    )
+    return svc.kill_switch.snapshot()
+
+
+@app.post("/owner/execute", summary="Execute approved outbound (disabled by default)")
+async def owner_execute(
+    body: dict, authorization: str | None = Header(default=None)
+) -> dict:
+    """Refuse execution unless MOLTBOOK_PHASE2_EXECUTE=true.
+
+    Even then, requires a valid single-use approval token. This endpoint exists
+    for controlled future use; Phase 2 implementation stops before publishing.
+    """
+    _require_owner(authorization)
+    if (os.getenv("MOLTBOOK_PHASE2_EXECUTE") or "").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Execution disabled. Set MOLTBOOK_PHASE2_EXECUTE=true only with "
+                "explicit owner intent to publish, then call with approval token."
+            ),
+        )
+    svc = get_services()
+    try:
+        req = svc.gate.consume_for_execution(
+            str(body["request_id"]),
+            approval_token=str(body["approval_token"]),
+            payload=body["payload"],
+            destination=str(body["destination"]),
+        )
+    except (MoltbookOutboundDisabledError, KeyError, Exception) as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # Still do not call Moltbook write APIs here without an additional explicit
+    # publish implementation review. Token is consumed to prevent replay.
+    return {
+        "consumed": True,
+        "request": req.redacted(),
+        "published": False,
+        "note": "Token consumed; network publish not performed in this build.",
+    }

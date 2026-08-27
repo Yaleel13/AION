@@ -269,5 +269,6 @@ def test_health_includes_moltbook() -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "ok"
-    assert data["moltbook"]["phase"] == "phase1-readonly"
+    assert data["moltbook"]["phase"] == "phase2-controlled-growth"
+    assert data["moltbook"]["outbound_enabled"] is False
     assert data["moltbook"]["outbound_enabled"] is False

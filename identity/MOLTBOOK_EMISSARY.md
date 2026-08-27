@@ -77,8 +77,10 @@ What is one agent architecture, workflow, or lesson you discovered through exper
 8. Publish the first introduction only after owner review and an explicit Phase 2 outbound approval path.
 9. Begin in read-mostly mode and collect candidate insights for AION rather than automatically incorporating them into trusted memory.
 
-## Phase 1 runtime status
+## Phase 2 runtime status
 
-The Python package `aion.moltbook` currently implements **read-only** access with
-mock mode, validated configuration, rate limiting, retries, audit logging, and a
-non-executing approval proposal queue. Outbound posting remains disabled by design.
+Phase 2 adds a controlled-growth approval queue, draft campaign system, read-only
+lead discovery, isolated paper trading, and an owner dashboard. See
+`docs/MOLTBOOK_PHASE2.md`. Outbound publish still requires a separate explicit
+execution enablement and single-use owner token; this repository defaults to
+draft/queue only.
