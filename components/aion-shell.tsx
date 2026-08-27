@@ -22,7 +22,7 @@ const GREETING: Message = {
   id: "aion-greeting",
   role: "aion",
   content:
-    "Good morning, Yaleel. (Demo / fixture greeting — not live overnight telemetry.) I kept watch overnight. Three things moved while you were away — none of them a fire. Where would you like to begin?",
+    "Good morning, Yaleel. This interface is connected to AION's reasoning runtime. Ask me what you want to understand, decide, research, or work on.",
   serif: true,
 }
 
@@ -37,6 +37,7 @@ export function AionShell() {
   const [terminalOpen, setTerminalOpen] = useState(false)
   const [connectionOpen, setConnectionOpen] = useState(false)
   const [listening, setListening] = useState(false)
+  const [previousResponseId, setPreviousResponseId] = useState<string | null>(null)
   const busyRef = useRef(false)
 
   const presence: PresenceState = listening && working === "idle" ? "listening" : working
@@ -55,43 +56,45 @@ export function AionShell() {
       const turn = routeCommand(trimmed)
       setWorking(turn.working)
 
-      // Boardroom focus detection — highlight a venture when named.
-      const q = trimmed.toLowerCase()
-      const ventureMatch = ["YaliTek", "Elaria", "Cerebral Synergy", "AION"].find((v) =>
-        q.includes(v.toLowerCase()),
-      )
-      if (ventureMatch && (mode === "boardroom" || turn.effect === "open-boardroom")) {
-        setFocus({
-          venture: ventureMatch,
-          reasoning: `You asked me to concentrate on ${ventureMatch}. I've surfaced its open decisions, live signals and the single next action that moves it forward.`,
-        })
-      } else if (turn.effect === "open-boardroom") {
-        setFocus(null)
-      }
+      // Keep only deterministic local UI controls scripted. Anything that claims
+      // external state, research, metrics, messages, repairs, or deployments must
+      // come from the real runtime instead of the fixture router.
+      const isLocalUiControl =
+        turn.effect === "open-boardroom" ||
+        String(turn.effect) === "close-boardroom" ||
+        turn.effect === "open-terminal" ||
+        turn.effect === "close-terminal"
 
-      // Side effects
-      if (turn.effect === "open-boardroom") {
-        setTimeout(() => setMode("boardroom"), 650)
-      } else if (String(turn.effect) === "close-boardroom") {
-        setMode("conversation")
-      } else if (turn.effect === "open-terminal") {
-        setTimeout(() => setTerminalOpen(true), 450)
-      } else if (turn.effect === "close-terminal") {
-        setTerminalOpen(false)
-      }
-      if (turn.context) setContext(turn.context)
+      if (isLocalUiControl) {
+        const q = trimmed.toLowerCase()
+        const ventureMatch = ["YaliTek", "Elaria", "Cerebral Synergy", "AION"].find((v) =>
+          q.includes(v.toLowerCase()),
+        )
+        if (ventureMatch && (mode === "boardroom" || turn.effect === "open-boardroom")) {
+          setFocus({
+            venture: ventureMatch,
+            reasoning: `You asked me to concentrate on ${ventureMatch}.`,
+          })
+        } else if (turn.effect === "open-boardroom") {
+          setFocus(null)
+        }
 
-      const isScripted = Boolean(turn.widgets || turn.effect || turn.serif)
+        if (turn.effect === "open-boardroom") {
+          setMode("boardroom")
+        } else if (String(turn.effect) === "close-boardroom") {
+          setMode("conversation")
+        } else if (turn.effect === "open-terminal") {
+          setTerminalOpen(true)
+        } else if (turn.effect === "close-terminal") {
+          setTerminalOpen(false)
+        }
+        if (turn.context) setContext(turn.context)
 
-      await new Promise((r) => setTimeout(r, 850))
-
-      if (isScripted) {
         pushMessage({
           id: uid(),
           role: "aion",
           content: turn.reply,
           serif: turn.serif,
-          widgets: turn.widgets,
         })
         setWorking("complete")
         setTimeout(() => setWorking("idle"), 500)
@@ -99,33 +102,53 @@ export function AionShell() {
         return
       }
 
-      // Free-form — reach the real AION reasoning core.
       try {
         const res = await fetch("/api/aion/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message: trimmed,
-            history: messages
-              .filter((m) => m.role === "user" || m.role === "aion")
-              .map((m) => ({ role: m.role === "aion" ? "assistant" : "user", content: m.content })),
+            history: previousResponseId
+              ? undefined
+              : messages
+                  .filter((m) => m.role === "user" || m.role === "aion")
+                  .map((m) => ({ role: m.role === "aion" ? "assistant" : "user", content: m.content })),
+            previousResponseId: previousResponseId ?? undefined,
           }),
         })
-        const data = (await res.json()) as { reply?: string }
-        pushMessage({ id: uid(), role: "aion", content: data.reply || turn.reply })
-      } catch {
-        pushMessage({ id: uid(), role: "aion", content: turn.reply })
+
+        const data = (await res.json()) as {
+          reply?: string
+          responseId?: string | null
+          error?: string
+          code?: string
+        }
+
+        if (!res.ok || !data.reply) {
+          throw new Error(data.error || `AION runtime request failed (${res.status})`)
+        }
+
+        if (data.responseId) setPreviousResponseId(data.responseId)
+        pushMessage({ id: uid(), role: "aion", content: data.reply })
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : "Unknown runtime error"
+        pushMessage({
+          id: uid(),
+          role: "aion",
+          content: `I couldn't complete that through the live AION runtime. ${detail}`,
+        })
       } finally {
         setWorking("complete")
         setTimeout(() => setWorking("idle"), 500)
         busyRef.current = false
       }
     },
-    [messages, mode, pushMessage],
+    [messages, mode, previousResponseId, pushMessage],
   )
 
   const handleNewConversation = useCallback(() => {
     setMessages([GREETING])
+    setPreviousResponseId(null)
     setContext(null)
     setTerminalOpen(false)
     setMode("conversation")
@@ -170,14 +193,12 @@ export function AionShell() {
         </div>
       ) : (
         <div className="relative flex flex-1 overflow-hidden">
-          {/* Conversation column */}
           <div
             className={cn(
               "flex min-w-0 flex-1 flex-col transition-all duration-500 ease-out",
               terminalOpen ? "lg:max-w-[54%]" : "max-w-full",
             )}
           >
-            {/* Presence core — the always-present signature element */}
             <div
               className={cn(
                 "flex shrink-0 items-center justify-center transition-all duration-700",
@@ -210,7 +231,6 @@ export function AionShell() {
             </div>
           </div>
 
-          {/* Terminal split-view */}
           {terminalOpen && (
             <div className="hidden w-full p-3 lg:block lg:max-w-[46%]">
               <TerminalWorkspace onClose={() => setTerminalOpen(false)} />
