@@ -23,9 +23,19 @@ from aion.moltbook.security import utc_now, utc_now_iso
 Asset = Literal["BTC", "ETH", "USD"]
 Side = Literal["buy", "sell"]
 
-DEFAULT_PAPER_DB = "/tmp/aion_paper_trading.db"
+def _default_paper_db() -> str:
+    try:
+        from aion.durable.paths import resolve_durable_paths
+
+        return str(resolve_durable_paths().paper_db)
+    except Exception:
+        return "/tmp/aion_paper_trading.db"
+
+
+DEFAULT_PAPER_DB = "/tmp/aion_paper_trading.db"  # legacy; prefer _default_paper_db()
 STARTING_CASH = 1000.0
 ALLOWED_ASSETS = frozenset({"BTC", "ETH"})
+LIVE_PRICE_SOURCES = frozenset({"coingecko_public"})
 
 
 class PaperTradingError(RuntimeError):
@@ -92,11 +102,20 @@ class PaperTradingEngine:
 
     def __init__(self, config: PaperConfig | None = None, prices: PriceProvider | None = None):
         self.config = config or PaperConfig()
-        self.prices = prices or PriceProvider(mode=os.getenv("AION_PAPER_PRICE_MODE", "mock"))
+        if not self.config.db_path or self.config.db_path == DEFAULT_PAPER_DB:
+            # Prefer durable path when caller did not override.
+            if config is None or config.db_path == DEFAULT_PAPER_DB:
+                self.config.db_path = _default_paper_db()
+        default_mode = os.getenv("AION_PAPER_PRICE_MODE", "live_public")
+        self.prices = prices or PriceProvider(mode=default_mode)
         Path(self.config.db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(self.config.db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._init()
+
+    @staticmethod
+    def _is_live_source(source: str) -> bool:
+        return source in LIVE_PRICE_SOURCES
 
     def _init(self) -> None:
         self._conn.executescript(
@@ -131,6 +150,27 @@ class PaperTradingEngine:
             );
             """
         )
+        trade_cols = {r[1] for r in self._conn.execute("PRAGMA table_info(trades)").fetchall()}
+        snap_cols = {
+            r[1] for r in self._conn.execute("PRAGMA table_info(snapshots)").fetchall()
+        }
+        if "price_source" not in trade_cols:
+            self._conn.execute(
+                "ALTER TABLE trades ADD COLUMN price_source TEXT NOT NULL DEFAULT 'unknown'"
+            )
+        if "is_live_market_data" not in trade_cols:
+            self._conn.execute(
+                "ALTER TABLE trades ADD COLUMN is_live_market_data INTEGER NOT NULL DEFAULT 0"
+            )
+        if "price_source" not in snap_cols:
+            self._conn.execute(
+                "ALTER TABLE snapshots ADD COLUMN price_source TEXT NOT NULL DEFAULT 'unknown'"
+            )
+        if "is_live_market_data" not in snap_cols:
+            self._conn.execute(
+                "ALTER TABLE snapshots ADD COLUMN is_live_market_data INTEGER NOT NULL DEFAULT 0"
+            )
+        self._conn.commit()
         cur = self._conn.execute("SELECT value FROM meta WHERE key='initialized'")
         if cur.fetchone() is None:
             self._conn.execute(
@@ -215,7 +255,10 @@ class PaperTradingEngine:
                 pass
 
         self._ensure_benchmarks()
-        px = self.prices.get_prices()[asset].usd
+        quote = self.prices.get_prices()[asset]
+        px = quote.usd
+        price_source = quote.source
+        is_live = 1 if self._is_live_source(price_source) else 0
         slip = px * (self.config.slippage_bps / 10_000.0)
         effective = px + slip if side == "buy" else px - slip
         notional = effective * qty
@@ -238,10 +281,24 @@ class PaperTradingEngine:
 
         self._conn.execute(
             """
-            INSERT INTO trades(timestamp, asset, side, qty, price, fee, slippage, note)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO trades(
+              timestamp, asset, side, qty, price, fee, slippage, note,
+              price_source, is_live_market_data
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (utc_now_iso(), asset, side, qty, effective, fee, slip, note),
+            (
+                utc_now_iso(),
+                asset,
+                side,
+                qty,
+                effective,
+                fee,
+                slip,
+                note,
+                price_source,
+                is_live,
+            ),
         )
         self._conn.commit()
         return redact_value(
@@ -255,6 +312,9 @@ class PaperTradingEngine:
                 "cash": self._cash(),
                 "mode": "paper",
                 "live_order": False,
+                "price_source": price_source,
+                "is_live_market_data": bool(is_live),
+                "mock_or_fallback": not bool(is_live),
             }
         )
 
@@ -269,17 +329,24 @@ class PaperTradingEngine:
         bench_btc_units = float(self._get_meta("bench_btc_units") or 0)
         hold_btc = bench_btc_units * px["BTC"].usd
         hold_cash = start
+        price_source = px["BTC"].source
+        is_live = self._is_live_source(price_source)
         detail = {
             "btc_qty": btc_qty,
             "eth_qty": eth_qty,
             "btc_px": px["BTC"].usd,
             "eth_px": px["ETH"].usd,
-            "price_source": px["BTC"].source,
+            "price_source": price_source,
+            "is_live_market_data": is_live,
+            "mock_or_fallback": not is_live,
         }
         self._conn.execute(
             """
-            INSERT INTO snapshots(timestamp, equity, cash, btc_px, eth_px, detail_json)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO snapshots(
+              timestamp, equity, cash, btc_px, eth_px, detail_json,
+              price_source, is_live_market_data
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 utc_now_iso(),
@@ -288,6 +355,8 @@ class PaperTradingEngine:
                 px["BTC"].usd,
                 px["ETH"].usd,
                 json.dumps(detail),
+                price_source,
+                1 if is_live else 0,
             ),
         )
         self._conn.commit()
@@ -301,6 +370,8 @@ class PaperTradingEngine:
             "benchmark_hold_cash_equity": round(hold_cash, 4),
             "benchmark_hold_cash_return_pct": 0.0,
             "positions": detail,
+            "price_source": price_source,
+            "is_live_market_data": is_live,
             "disclaimer": (
                 "Paper results only. Not expected future profit. "
                 "No live orders, wallets, or exchange trading keys used."
@@ -308,38 +379,56 @@ class PaperTradingEngine:
         }
 
     def performance_report(self) -> dict[str, Any]:
-        rows = self._conn.execute(
-            "SELECT timestamp, equity FROM snapshots ORDER BY id ASC"
+        # Official performance uses live-market-data snapshots only so mock/fallback
+        # prices cannot contaminate readiness metrics.
+        live_rows = self._conn.execute(
+            """
+            SELECT timestamp, equity FROM snapshots
+            WHERE is_live_market_data=1
+            ORDER BY id ASC
+            """
         ).fetchall()
+        all_rows = self._conn.execute(
+            "SELECT timestamp, equity, is_live_market_data, price_source FROM snapshots ORDER BY id ASC"
+        ).fetchall()
+        mock_rows = [r for r in all_rows if not int(r["is_live_market_data"] or 0)]
         trades = self._conn.execute("SELECT COUNT(*) AS c FROM trades").fetchone()["c"]
-        if len(rows) < 2:
-            mtm = self.mark_to_market()
+        live_trades = self._conn.execute(
+            "SELECT COUNT(*) AS c FROM trades WHERE is_live_market_data=1"
+        ).fetchone()["c"]
+        mock_trades = self._conn.execute(
+            "SELECT COUNT(*) AS c FROM trades WHERE is_live_market_data=0"
+        ).fetchone()["c"]
+
+        def _metrics(rows: list) -> dict[str, Any]:
+            if len(rows) < 2:
+                return {
+                    "snapshots": len(rows),
+                    "max_drawdown_pct": 0.0,
+                    "volatility_pct": 0.0,
+                }
+            equities = [float(r["equity"]) for r in rows]
+            peak = equities[0]
+            max_dd = 0.0
+            for e in equities:
+                peak = max(peak, e)
+                dd = (peak - e) / peak if peak else 0.0
+                max_dd = max(max_dd, dd)
+            rets = []
+            for i in range(1, len(equities)):
+                if equities[i - 1] > 0:
+                    rets.append(equities[i] / equities[i - 1] - 1.0)
+            vol = (
+                (math.sqrt(sum(r * r for r in rets) / len(rets)) * 100.0) if rets else 0.0
+            )
             return {
-                "days_sampled": 1,
-                "trades": trades,
-                "latest": mtm,
-                "max_drawdown_pct": 0.0,
-                "volatility_pct": 0.0,
-                "win_rate": None,
-                "ready_for_live_proposal": False,
-                "min_days_required": 30,
-                "disclaimer": mtm["disclaimer"],
+                "snapshots": len(rows),
+                "max_drawdown_pct": round(max_dd * 100.0, 4),
+                "volatility_pct": round(vol, 4),
             }
 
-        equities = [float(r["equity"]) for r in rows]
-        peak = equities[0]
-        max_dd = 0.0
-        for e in equities:
-            peak = max(peak, e)
-            dd = (peak - e) / peak if peak else 0.0
-            max_dd = max(max_dd, dd)
-        rets = []
-        for i in range(1, len(equities)):
-            if equities[i - 1] > 0:
-                rets.append(equities[i] / equities[i - 1] - 1.0)
-        vol = (math.sqrt(sum(r * r for r in rets) / len(rets)) * 100.0) if rets else 0.0
-
-        # Win rate from round-trips is approximate: fraction of sell trades with positive note tag.
+        live_metrics = _metrics(live_rows)
+        mock_metrics = _metrics(mock_rows)
         sells = self._conn.execute(
             "SELECT note FROM trades WHERE side='sell'"
         ).fetchall()
@@ -351,17 +440,31 @@ class PaperTradingEngine:
             started = started.replace(tzinfo=timezone.utc)
         days = max(1, (utc_now() - started).days)
         latest = self.mark_to_market()
+        # Readiness only counts calendar days when live market data was used.
+        live_days = live_metrics["snapshots"]  # coarse proxy until daily rollup exists
         return {
             "days_sampled": days,
-            "snapshots": len(rows),
+            "snapshots": len(all_rows),
             "trades": trades,
             "latest": latest,
-            "max_drawdown_pct": round(max_dd * 100.0, 4),
-            "volatility_pct": round(vol, 4),
+            "max_drawdown_pct": live_metrics["max_drawdown_pct"],
+            "volatility_pct": live_metrics["volatility_pct"],
             "win_rate": win_rate,
-            "ready_for_live_proposal": days >= 30,
+            "ready_for_live_proposal": days >= 30 and live_metrics["snapshots"] >= 30,
             "min_days_required": 30,
             "disclaimer": latest["disclaimer"],
+            "market_data_separation": {
+                "live": {
+                    **live_metrics,
+                    "trades": live_trades,
+                    "approx_live_marks": live_days,
+                },
+                "mock_or_fallback": {
+                    **mock_metrics,
+                    "trades": mock_trades,
+                    "excluded_from_official_performance": True,
+                },
+            },
         }
 
     def run_starter_strategy_once(self) -> dict[str, Any]:

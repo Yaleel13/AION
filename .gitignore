@@ -23,6 +23,8 @@ htmlcov/
 !*.key.example
 # Phase 2 local databases
 *.db
+# Durable local AION data (SQLite, activation, scheduler, migration receipts)
+data/aion/
 # Private owner charter / founder messages (public repo)
 identity/OWNER_PRIVATE_CONTEXT.md
 data/owner_private/

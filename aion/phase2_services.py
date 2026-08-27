@@ -13,7 +13,9 @@ from aion.moltbook.controlled_autonomy import ControlledAutonomyEngine
 from aion.moltbook.drafts import CampaignDraftService
 from aion.moltbook.leads import LeadDiscoveryService, SEARCH_CATEGORIES
 from aion.moltbook.security import KillSwitch
-from aion.moltbook.store import DEFAULT_DB_PATH, Phase2Store
+from aion.durable.paths import resolve_durable_paths
+from aion.durable.scheduler_store import SchedulerStore
+from aion.moltbook.store import Phase2Store
 from aion.paper_trading import PaperConfig, PaperTradingEngine
 
 
@@ -25,6 +27,7 @@ class Phase2Services:
     drafts: CampaignDraftService
     paper: PaperTradingEngine
     autonomy: ControlledAutonomyEngine
+    scheduler: SchedulerStore
 
     def leads(self) -> LeadDiscoveryService:
         return LeadDiscoveryService(self.store, create_client())
@@ -32,16 +35,17 @@ class Phase2Services:
 
 @lru_cache(maxsize=1)
 def get_services() -> Phase2Services:
-    db = os.getenv("AION_PHASE2_DB", DEFAULT_DB_PATH)
+    paths = resolve_durable_paths()
+    db = os.getenv("AION_PHASE2_DB") or str(paths.phase2_db)
     store = Phase2Store(db)
     kill = KillSwitch.from_env()
     store.set_risk("kill_switch", kill.snapshot())
     gate = Phase2ApprovalGate(store, kill_switch=kill)
     drafts = CampaignDraftService(store, gate)
-    paper = PaperTradingEngine(
-        PaperConfig(db_path=os.getenv("AION_PAPER_DB", "/tmp/aion_paper_trading.db"))
-    )
+    paper_db = os.getenv("AION_PAPER_DB") or str(paths.paper_db)
+    paper = PaperTradingEngine(PaperConfig(db_path=paper_db))
     autonomy = ControlledAutonomyEngine.create(store, kill_switch=kill)
+    scheduler = SchedulerStore(store)
     return Phase2Services(
         store=store,
         kill_switch=kill,
@@ -49,6 +53,7 @@ def get_services() -> Phase2Services:
         drafts=drafts,
         paper=paper,
         autonomy=autonomy,
+        scheduler=scheduler,
     )
 
 
