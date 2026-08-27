@@ -1,3 +1,5 @@
+import { generateText } from "ai"
+
 export const maxDuration = 60
 
 const AION_SYSTEM = `You are AION — the Alchemical Intelligence for Ontological Navigation.
@@ -52,13 +54,30 @@ function extractOutputText(response: OpenAIResponse): string {
   for (const item of response.output ?? []) {
     if (item.type !== "message") continue
     for (const content of item.content ?? []) {
-      if (content.type === "output_text" && content.text) {
-        parts.push(content.text)
-      }
+      if (content.type === "output_text" && content.text) parts.push(content.text)
     }
   }
 
   return parts.join("\n").trim()
+}
+
+async function runGateway(message: string, history: HistoryItem[]) {
+  const model = process.env.AION_GATEWAY_MODEL ?? "openai/gpt-5.4"
+  const result = await generateText({
+    model,
+    system: AION_SYSTEM,
+    messages: [
+      ...history.slice(-12).map((item) => ({ role: item.role, content: item.content })),
+      { role: "user" as const, content: message },
+    ],
+  })
+
+  return Response.json({
+    reply: result.text,
+    responseId: null,
+    model,
+    runtime: "vercel-ai-gateway-oidc",
+  })
 }
 
 export async function POST(req: Request) {
@@ -70,29 +89,35 @@ export async function POST(req: Request) {
       return Response.json({ error: "A message is required." }, { status: 400 })
     }
 
+    const priorHistory = (body.history ?? []).slice(-12)
+
+    // Prefer direct OpenAI when the owner configures it: this preserves Responses
+    // API server-side continuity and native web_search. Vercel AI Gateway is a
+    // real, OIDC-authenticated fallback so production chat is not key-dependent.
     if (!process.env.OPENAI_API_KEY) {
-      return Response.json(
-        {
-          error: "AION's OpenAI reasoning core is not configured in this environment.",
-          code: "OPENAI_API_KEY_MISSING",
-        },
-        { status: 503 },
-      )
+      try {
+        return await runGateway(message, priorHistory)
+      } catch (err) {
+        console.error("[AION] AI Gateway error:", err instanceof Error ? err.message : String(err))
+        return Response.json(
+          {
+            error: "AION's reasoning core is not available. Configure OpenAI or enable Vercel AI Gateway for this project.",
+            code: "AION_REASONING_PROVIDER_UNAVAILABLE",
+          },
+          { status: 503 },
+        )
+      }
     }
 
-    const priorHistory = (body.history ?? []).slice(-12)
     const input = body.previousResponseId
       ? message
       : [
-          ...priorHistory.map((item) => ({
-            role: item.role,
-            content: item.content,
-          })),
+          ...priorHistory.map((item) => ({ role: item.role, content: item.content })),
           { role: "user" as const, content: message },
         ]
 
     const payload: Record<string, unknown> = {
-      model: process.env.AION_MODEL ?? "gpt-5.6-terra",
+      model: process.env.AION_MODEL ?? "gpt-5.4",
       instructions: AION_SYSTEM,
       input,
       reasoning: { effort: "medium" },
@@ -101,9 +126,7 @@ export async function POST(req: Request) {
       store: true,
     }
 
-    if (body.previousResponseId) {
-      payload.previous_response_id = body.previousResponseId
-    }
+    if (body.previousResponseId) payload.previous_response_id = body.previousResponseId
 
     const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -119,22 +142,15 @@ export async function POST(req: Request) {
     if (!openaiResponse.ok) {
       console.error("[AION] OpenAI Responses API error:", data.error?.message ?? openaiResponse.statusText)
       return Response.json(
-        {
-          error: "AION's reasoning core could not complete that request.",
-          code: "OPENAI_RESPONSE_ERROR",
-        },
+        { error: "AION's reasoning core could not complete that request.", code: "OPENAI_RESPONSE_ERROR" },
         { status: 502 },
       )
     }
 
     const reply = extractOutputText(data)
-
     if (!reply) {
       return Response.json(
-        {
-          error: "AION completed the run but returned no text output.",
-          code: "EMPTY_AGENT_OUTPUT",
-        },
+        { error: "AION completed the run but returned no text output.", code: "EMPTY_AGENT_OUTPUT" },
         { status: 502 },
       )
     }
@@ -142,16 +158,13 @@ export async function POST(req: Request) {
     return Response.json({
       reply,
       responseId: data.id ?? null,
-      model: process.env.AION_MODEL ?? "gpt-5.6-terra",
+      model: process.env.AION_MODEL ?? "gpt-5.4",
       runtime: "openai-responses-v1",
     })
   } catch (err) {
     console.error("[AION] chat route error:", err instanceof Error ? err.message : String(err))
     return Response.json(
-      {
-        error: "AION encountered an unexpected runtime error.",
-        code: "AION_RUNTIME_ERROR",
-      },
+      { error: "AION encountered an unexpected runtime error.", code: "AION_RUNTIME_ERROR" },
       { status: 500 },
     )
   }
