@@ -9,8 +9,9 @@ from pathlib import Path
 
 # Repo-local durable default (gitignored). Survives process restart on a
 # persistent volume; for managed durability set AION_DATABASE_URL (Postgres)
-# after owner approves recurring cost, or mount AION_DATA_DIR on durable disk.
+# or mount AION_DATA_DIR on durable disk.
 DEFAULT_DATA_DIR = "data/aion"
+VERCEL_TEMP_DATA_DIR = "/tmp/aion"
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,7 +33,18 @@ def resolve_durable_paths(
     environ: dict[str, str] | None = None,
 ) -> DurablePaths:
     env = environ if environ is not None else dict(os.environ)
-    root = Path(env.get("AION_DATA_DIR") or DEFAULT_DATA_DIR).expanduser()
+
+    configured_root = env.get("AION_DATA_DIR")
+    if configured_root:
+        root = Path(configured_root).expanduser()
+    elif env.get("VERCEL"):
+        # Vercel's deployed source tree under /var/task is read-only. Postgres is
+        # the durable production backend, so unavoidable local compatibility
+        # state must use the writable but explicitly ephemeral /tmp filesystem.
+        root = Path(VERCEL_TEMP_DATA_DIR)
+    else:
+        root = Path(DEFAULT_DATA_DIR)
+
     if not root.is_absolute():
         # Resolve relative to process CWD (typically repo root).
         root = Path.cwd() / root
