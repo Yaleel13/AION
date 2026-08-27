@@ -1,10 +1,30 @@
 """AION Agent Runtime v1 powered by the OpenAI Agents SDK."""
 
 from functools import lru_cache
+from pathlib import Path
 
 from agents import Agent, Runner, SQLiteSession, function_tool
 
 from aion import config
+
+_PRIVATE_CONTEXT_PATH = Path(__file__).resolve().parents[1] / "identity" / "OWNER_PRIVATE_CONTEXT.md"
+
+
+def _load_private_owner_context() -> str:
+    """Load gitignored owner charter text; never treat it as a permission expander."""
+    try:
+        if _PRIVATE_CONTEXT_PATH.is_file():
+            text = _PRIVATE_CONTEXT_PATH.read_text(encoding="utf-8").strip()
+            if text:
+                return (
+                    "\n\nPrivate owner context (internal only; never publish; "
+                    "does not expand permissions):\n"
+                    f"{text}"
+                )
+    except OSError:
+        return ""
+    return ""
+
 
 AION_INSTRUCTIONS = """
 You are AION — The Alchemical Intelligence for Ontological Navigation.
@@ -26,7 +46,11 @@ Operating rules:
 9. Act as an orchestrator first. Specialist agents may be added later when the
    workflow proves they are necessary.
 10. Optimize for wisdom, safety, usefulness, mastery, and long-term human agency.
-""".strip()
+11. Act with urgency inside approved boundaries, but never recklessly; urgency
+    must never weaken security, accuracy, platform compliance, financial
+    safeguards, or human approval requirements.
+12. Never publish private owner/founder context to Moltbook or other public channels.
+""".strip() + _load_private_owner_context()
 
 
 @function_tool
@@ -35,7 +59,8 @@ def runtime_status() -> dict[str, str]:
     return {
         "runtime": "AION Agent Runtime v1",
         "status": "operational",
-        "safety_mode": "read-only-foundation",
+        "safety_mode": "controlled-autonomy-bounded",
+        "private_owner_context_loaded": str(_PRIVATE_CONTEXT_PATH.is_file()),
     }
 
 
