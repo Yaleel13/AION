@@ -102,6 +102,28 @@ class AutonomyStore:
             self._conn.rollback()
             raise
 
+    def refund_last_quota(self, action: str) -> bool:
+        """Remove the most recent quota reservation for action (failed live attempt)."""
+        cur = self._conn.cursor()
+        cur.execute("BEGIN IMMEDIATE")
+        try:
+            row = cur.execute(
+                """
+                SELECT id FROM autonomy_quota_events
+                WHERE action=? ORDER BY id DESC LIMIT 1
+                """,
+                (action,),
+            ).fetchone()
+            if not row:
+                self._conn.rollback()
+                return False
+            cur.execute("DELETE FROM autonomy_quota_events WHERE id=?", (row["id"],))
+            self._conn.commit()
+            return True
+        except Exception:
+            self._conn.rollback()
+            raise
+
     def get_counter(self, action: str, *, window_hours: int) -> dict[str, Any]:
         since = (utc_now() - timedelta(hours=window_hours)).isoformat()
         row = self._conn.execute(
