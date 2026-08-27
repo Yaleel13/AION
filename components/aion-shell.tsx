@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { Message, PresenceState, InterfaceMode } from "@/lib/aion/types"
 import { routeCommand } from "@/lib/aion/mock"
 import { TopBar } from "@/components/top-bar"
@@ -17,6 +17,9 @@ import { cn } from "@/lib/utils"
 let idCounter = 0
 const uid = () => `m${++idCounter}-${Date.now()}`
 
+const CONVERSATION_STORAGE_KEY = "aion.conversation.v1"
+const MAX_PERSISTED_MESSAGES = 50
+
 /** Demo / fixture greeting — not derived from overnight telemetry. */
 const GREETING: Message = {
   id: "aion-greeting",
@@ -24,6 +27,12 @@ const GREETING: Message = {
   content:
     "Good morning, Yaleel. This interface is connected to AION's reasoning runtime. Ask me what you want to understand, decide, research, or work on.",
   serif: true,
+}
+
+type StoredConversation = {
+  version: 1
+  messages: Message[]
+  previousResponseId: string | null
 }
 
 const busyStates: PresenceState[] = ["thinking", "researching", "executing"]
@@ -38,7 +47,41 @@ export function AionShell() {
   const [connectionOpen, setConnectionOpen] = useState(false)
   const [listening, setListening] = useState(false)
   const [previousResponseId, setPreviousResponseId] = useState<string | null>(null)
+  const [conversationHydrated, setConversationHydrated] = useState(false)
   const busyRef = useRef(false)
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(CONVERSATION_STORAGE_KEY)
+      if (raw) {
+        const stored = JSON.parse(raw) as Partial<StoredConversation>
+        if (stored.version === 1 && Array.isArray(stored.messages) && stored.messages.length > 0) {
+          setMessages(stored.messages.slice(-MAX_PERSISTED_MESSAGES))
+          setPreviousResponseId(typeof stored.previousResponseId === "string" ? stored.previousResponseId : null)
+        }
+      }
+    } catch (error) {
+      console.warn("[AION] Could not restore browser conversation:", error)
+    } finally {
+      setConversationHydrated(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!conversationHydrated) return
+
+    const stored: StoredConversation = {
+      version: 1,
+      messages: messages.slice(-MAX_PERSISTED_MESSAGES),
+      previousResponseId,
+    }
+
+    try {
+      window.localStorage.setItem(CONVERSATION_STORAGE_KEY, JSON.stringify(stored))
+    } catch (error) {
+      console.warn("[AION] Could not persist browser conversation:", error)
+    }
+  }, [conversationHydrated, messages, previousResponseId])
 
   const presence: PresenceState = listening && working === "idle" ? "listening" : working
 
@@ -153,6 +196,11 @@ export function AionShell() {
     setTerminalOpen(false)
     setMode("conversation")
     setWorking("idle")
+    try {
+      window.localStorage.removeItem(CONVERSATION_STORAGE_KEY)
+    } catch (error) {
+      console.warn("[AION] Could not clear browser conversation:", error)
+    }
   }, [])
 
   const handleConnect = useCallback(
