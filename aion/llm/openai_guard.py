@@ -232,9 +232,9 @@ class OpenAIGuard:
                 reasons=["daily_cost_ceiling"],
             )
 
-        sys = scrub_secrets(system_prompt or "")
-        user = scrub_secrets(message or "")
-        reasons = contains_forbidden_context(sys) + contains_forbidden_context(user)
+        raw_sys = system_prompt or ""
+        raw_user = message or ""
+        reasons = contains_forbidden_context(raw_sys) + contains_forbidden_context(raw_user)
         if reasons:
             return GuardedResult(
                 ok=False,
@@ -248,6 +248,9 @@ class OpenAIGuard:
                 usage={},
                 reasons=sorted(set(reasons)),
             )
+
+        sys = scrub_secrets(raw_sys)
+        user = scrub_secrets(raw_user)
 
         # Truncate oversized input rather than sending unbounded prompts.
         max_chars = self.config.max_input_tokens * 4
