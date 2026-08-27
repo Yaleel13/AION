@@ -50,71 +50,109 @@ def deobfuscate_challenge(text: str) -> str:
 
 
 def _word_pattern(word: str) -> str:
-    # Allow duplicated letters introduced by shatter obfuscation (twenntyy → twenty).
     return "".join(f"{re.escape(ch)}+" for ch in word)
 
 
-def _extract_numbers(text: str) -> list[float]:
-    """Find number words in order; support compounds like twenty+five."""
-    compact = text.replace(" ", "")
-    matches: list[tuple[int, int, float]] = []
+def _token_value(token: str) -> float | None:
     for word, value in _NUMBER_WORDS:
-        for m in re.finditer(_word_pattern(word), compact):
-            matches.append((m.start(), m.end(), float(value)))
-    matches.sort(key=lambda x: (x[0], -(x[1] - x[0])))
+        if re.fullmatch(_word_pattern(word), token):
+            return float(value)
+    return None
 
-    # Greedy non-overlapping, preferring longer spans already via sort secondary.
-    picked: list[tuple[int, int, float]] = []
-    for start, end, value in matches:
-        if any(not (end <= p0 or start >= p1) for p0, p1, _ in picked):
-            continue
-        picked.append((start, end, value))
-    picked.sort(key=lambda x: x[0])
 
+def _pair_value(a: str, b: str) -> float | None:
+    """Match number words split across adjacent tokens (twen + ty, sevent + een)."""
+    joined = a + b
+    for word, value in _NUMBER_WORDS:
+        if re.fullmatch(_word_pattern(word), joined):
+            return float(value)
+    return None
+
+
+def _extract_numbers(text: str) -> list[float]:
+    tokens = [t for t in text.split() if t]
     numbers: list[float] = []
     i = 0
-    while i < len(picked):
-        _s, e, val = picked[i]
-        # Compound tens + ones if adjacent / overlapping gap small.
-        if i + 1 < len(picked) and val >= 20 and val % 10 == 0 and picked[i + 1][2] < 10:
-            if picked[i + 1][0] <= e + 2:
-                numbers.append(val + picked[i + 1][2])
+    while i < len(tokens):
+        # Prefer two-token number words first.
+        if i + 1 < len(tokens):
+            paired = _pair_value(tokens[i], tokens[i + 1])
+            if paired is not None:
+                # Optional ones digit after a tens word.
+                if (
+                    paired >= 20
+                    and paired % 10 == 0
+                    and i + 2 < len(tokens)
+                ):
+                    ones = _token_value(tokens[i + 2])
+                    if ones is not None and ones < 10:
+                        numbers.append(paired + ones)
+                        i += 3
+                        continue
+                numbers.append(paired)
                 i += 2
                 continue
-        numbers.append(val)
+        single = _token_value(tokens[i])
+        if single is not None:
+            if (
+                single >= 20
+                and single % 10 == 0
+                and i + 1 < len(tokens)
+            ):
+                ones = _token_value(tokens[i + 1])
+                if ones is not None and ones < 10:
+                    numbers.append(single + ones)
+                    i += 2
+                    continue
+            numbers.append(single)
         i += 1
     return numbers
 
 
 def solve_challenge_text(challenge_text: str) -> str:
-    """Return answer formatted to 2 decimal places."""
+    """Deterministic solver; return answer formatted to 2 decimal places."""
     text = deobfuscate_challenge(challenge_text)
     numbers = _extract_numbers(text)
-    if len(numbers) < 2:
+    if len(numbers) != 2:
         raise MoltbookError(
-            redact_text(f"Could not parse two numbers from challenge: {text[:120]}")
+            redact_text(
+                f"Ambiguous number parse ({numbers}) from challenge: {text[:160]}"
+            )
         )
 
     a, b = numbers[0], numbers[1]
-    if re.search(r"\b(divided by|divide[sd]?|over)\b", text):
+    if re.search(r"\b(times|multipl(?:y|ies|ied)|product of)\b", text):
+        result = a * b
+    elif re.search(r"\b(divided by|divide[sd]?|over)\b", text):
         if b == 0:
             raise MoltbookError("Challenge divide-by-zero")
         result = a / b
-    elif re.search(r"\b(times|multipl(?:y|ies|ied)|product of)\b", text):
-        result = a * b
     elif re.search(
-        r"\b(slows? by|slower by|minus|subtract(?:s|ed)?|less|loses?|decreas(?:e|es|ed))\b",
+        r"\b(slows? by|slower by|minus|subtract(?:s|ed)?|less|loses?|"
+        r"decreas(?:e|es|ed)|difference)\b",
         text,
     ):
         result = a - b
     elif re.search(
-        r"\b(plus|add(?:s|ed)?|gains?|faster by|increas(?:e|es|ed)|more)\b", text
+        r"\b(plus|add(?:s|ed)?|gains?|faster by|increas(?:e|es|ed)|more|"
+        r"total|sum|combined|altogether|together)\b",
+        text,
     ):
+        result = a + b
+    elif re.search(r"\band\b", text) and re.search(
+        r"\b(force|total|neutrons?|meters?|shells?|claws?|adds?|drag|factor)\b",
+        text,
+    ):
+        # "force of X and ... factor of Y multiplied" handled by multiply branch first.
         result = a + b
     else:
         result = a - b
 
     return f"{result:.2f}"
+
+
+def solve_challenge(challenge_text: str) -> str:
+    return solve_challenge_text(challenge_text)
 
 
 async def verify_content(
@@ -129,7 +167,7 @@ async def verify_content(
     challenge = verification.get("challenge_text") or ""
     if not code or not challenge:
         raise MoltbookError("Missing verification challenge fields")
-    answer = solve_challenge_text(challenge)
+    answer = solve_challenge(challenge)
     async with httpx.AsyncClient(timeout=timeout) as http:
         resp = await http.post(
             f"{base_url}/verify",
@@ -141,7 +179,7 @@ async def verify_content(
         raise MoltbookError(
             redact_text(
                 f"verification failed {resp.status_code}: {str(body)[:240]} "
-                f"(answer={answer})"
+                f"(answer={answer}; challenge={deobfuscate_challenge(challenge)[:120]})"
             )
         )
     return {"answer": answer, "verify_response": body}
