@@ -445,7 +445,11 @@ class ControlledAutonomyEngine:
                 else body.get("verification") if isinstance(body.get("verification"), dict) else None
             )
             pending = bool(verification) or comment.get("verification_status") == "pending"
-            if pending and verification:
+            if pending:
+                if not verification:
+                    raise MoltbookError(
+                        "Comment pending verification but challenge payload missing"
+                    )
                 await verify_content(
                     base_url=client.settings.base_url,
                     headers=headers,
@@ -475,6 +479,7 @@ class ControlledAutonomyEngine:
             self._persist_policy()
             return result
         except Exception as exc:  # noqa: BLE001
+            self.autonomy_store.refund_last_quota(action)
             self.policy.record_error()
             self._persist_policy()
             raise
