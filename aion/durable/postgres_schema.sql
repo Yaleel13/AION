@@ -190,3 +190,11 @@ CREATE TABLE IF NOT EXISTS aion.paper_snapshots (
   price_source TEXT NOT NULL DEFAULT 'unknown',
   is_live_market_data BOOLEAN NOT NULL DEFAULT FALSE
 );
+
+-- Least-privilege app role (password set out-of-band; never commit it).
+-- Pooler username form: aion_app.<project-ref>
+-- GRANT CONNECT ON DATABASE postgres TO aion_app;
+-- GRANT USAGE ON SCHEMA aion TO aion_app;
+-- GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA aion TO aion_app;
+-- GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA aion TO aion_app;
+-- ALTER ROLE aion_app SET search_path TO aion, public;
