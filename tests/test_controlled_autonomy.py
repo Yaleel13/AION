@@ -102,7 +102,12 @@ def test_blocks_prompt_injection_inbound() -> None:
 
 
 @pytest.mark.asyncio
-async def test_inactive_engine_refuses_writes(store: Phase2Store) -> None:
+async def test_inactive_engine_refuses_writes(
+    store: Phase2Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MOLTBOOK_CONTROLLED_AUTONOMY", "false")
+    monkeypatch.setenv("MOLTBOOK_AUTONOMY_DRY_RUN", "true")
+    monkeypatch.delenv("MOLTBOOK_EXPERIMENT_STARTED_AT", raising=False)
     engine = ControlledAutonomyEngine.create(
         store, kill_switch=KillSwitch(engaged=False), dry_run=True
     )
@@ -129,6 +134,45 @@ async def engine_post(engine: ControlledAutonomyEngine, **kwargs):
         idempotency_key=kwargs.get("idempotency_key"),
         inbound_context=kwargs.get("inbound_context", ""),
     )
+
+
+@pytest.mark.asyncio
+async def test_dry_run_allowed_before_experiment_clock(
+    store: Phase2Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MOLTBOOK_CONTROLLED_AUTONOMY", "true")
+    monkeypatch.setenv("MOLTBOOK_AUTONOMY_DRY_RUN", "true")
+    monkeypatch.delenv("MOLTBOOK_EXPERIMENT_STARTED_AT", raising=False)
+    engine = ControlledAutonomyEngine.create(
+        store, kill_switch=KillSwitch(engaged=False), dry_run=True
+    )
+    assert engine.policy.experiment_started_at is None
+    result = await engine.execute_post(
+        submolt="general",
+        title="Pre-clock dry run",
+        content=GOOD_POST,
+        idempotency_key="preclock-1",
+    )
+    assert result["dry_run"] is True
+    assert result["published"] is False
+
+
+@pytest.mark.asyncio
+async def test_live_requires_experiment_clock(
+    store: Phase2Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MOLTBOOK_CONTROLLED_AUTONOMY", "true")
+    monkeypatch.delenv("MOLTBOOK_EXPERIMENT_STARTED_AT", raising=False)
+    engine = ControlledAutonomyEngine.create(
+        store, kill_switch=KillSwitch(engaged=False), dry_run=False
+    )
+    with pytest.raises(MoltbookOutboundDisabledError, match="Experiment window"):
+        await engine.execute_post(
+            submolt="general",
+            title="Live without clock",
+            content=GOOD_POST,
+            idempotency_key="live-noclock",
+        )
 
 
 @pytest.mark.asyncio
@@ -337,7 +381,9 @@ def test_owner_dashboard_includes_autonomy(
     monkeypatch.setenv("AION_PHASE2_DB", str(tmp_path / "dash.db"))
     monkeypatch.setenv("AION_PAPER_DB", str(tmp_path / "paper.db"))
     monkeypatch.setenv("AION_KILL_SWITCH", "false")
-    monkeypatch.delenv("MOLTBOOK_CONTROLLED_AUTONOMY", raising=False)
+    monkeypatch.setenv("MOLTBOOK_CONTROLLED_AUTONOMY", "false")
+    monkeypatch.setenv("MOLTBOOK_AUTONOMY_DRY_RUN", "true")
+    monkeypatch.delenv("MOLTBOOK_EXPERIMENT_STARTED_AT", raising=False)
     phase2_services.reset_services_cache()
 
     client = TestClient(app)

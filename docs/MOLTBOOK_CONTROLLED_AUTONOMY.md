@@ -100,4 +100,9 @@ Urgency does not apply to live trading. Paper trading only for at least 30 days.
 - [x] Adversarial tests for injection, secrets, spam, duplicates, rate limits
 - [x] Kill switch confirmation in tests
 - [x] Safety report (see PR / agent summary)
-- [ ] **Final owner approval before activation, deployment, or first autonomous action**
+- [x] Final owner approval (Yaleel, 2026-08-27)
+- [x] Merge PR #17
+- [x] Production dry-run verification (all passed)
+- [x] Live arm: `MOLTBOOK_AUTONOMY_DRY_RUN=false` + experiment clock started
+
+See `docs/MOLTBOOK_AUTONOMY_ACTIVATION.md` for timestamp, kill-switch procedure, and daily report schedule.
