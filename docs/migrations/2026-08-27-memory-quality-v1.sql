@@ -36,3 +36,15 @@ revoke all on table aion.memory_facts from public, anon, authenticated;
 revoke all on sequence aion.memory_facts_id_seq from public, anon, authenticated;
 grant select, insert, update, delete on table aion.memory_facts to aion_app;
 grant usage, select on sequence aion.memory_facts_id_seq to aion_app;
+
+-- Public storage telemetry intentionally exposes only schema name, table count,
+-- and check time. The count is explicit because anon/authenticated roles do not
+-- have visibility into the private aion schema and must not receive it merely
+-- to compute status dynamically.
+create or replace view public.aion_storage_status
+with (security_invoker = true)
+as
+select
+  'aion'::text as schema_name,
+  26::integer as table_count,
+  timezone('utc', now())::text as checked_at_utc;
