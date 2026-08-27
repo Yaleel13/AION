@@ -21,6 +21,8 @@ class SchedulerStore:
         self._init()
 
     def _init(self) -> None:
+        if getattr(self._conn, "backend", "sqlite") == "postgres":
+            return
         self._conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS scheduler_locks (

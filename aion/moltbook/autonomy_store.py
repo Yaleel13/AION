@@ -21,6 +21,8 @@ class AutonomyStore:
         self._init()
 
     def _init(self) -> None:
+        if getattr(self._conn, "backend", "sqlite") == "postgres":
+            return
         self._conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS autonomy_quota_events (
@@ -83,6 +85,8 @@ class AutonomyStore:
             );
             """
         )
+        if getattr(self._conn, "backend", "sqlite") == "postgres":
+            return
         # Non-destructive migrations for DBs created before text_norm/account columns.
         cols = {
             r[1]

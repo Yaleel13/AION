@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@ai-sdk/deepinfra": "^3.0.30",
+    "@supabase/ssr": "^0.12.5",
+    "@supabase/supabase-js": "^2.112.4",
     "ai": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

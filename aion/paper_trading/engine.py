@@ -108,9 +108,11 @@ class PaperTradingEngine:
                 self.config.db_path = _default_paper_db()
         default_mode = os.getenv("AION_PAPER_PRICE_MODE", "live_public")
         self.prices = prices or PriceProvider(mode=default_mode)
-        Path(self.config.db_path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self.config.db_path, check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
+        from aion.durable.db import connect_paper, database_url
+
+        if not database_url():
+            Path(self.config.db_path).parent.mkdir(parents=True, exist_ok=True)
+        self._conn = connect_paper(self.config.db_path)
         self._init()
 
     @staticmethod
@@ -118,6 +120,13 @@ class PaperTradingEngine:
         return source in LIVE_PRICE_SOURCES
 
     def _init(self) -> None:
+        if getattr(self._conn, "backend", "sqlite") == "postgres":
+            # Ensure paper tables exist (idempotent) without SQLite PRAGMA migrations.
+            self._conn.execute(
+                "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+            )
+            self._conn.commit()
+            return
         self._conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS meta (

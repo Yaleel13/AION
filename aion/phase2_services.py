@@ -13,6 +13,7 @@ from aion.moltbook.controlled_autonomy import ControlledAutonomyEngine
 from aion.moltbook.drafts import CampaignDraftService
 from aion.moltbook.leads import LeadDiscoveryService, SEARCH_CATEGORIES
 from aion.moltbook.security import KillSwitch
+from aion.durable.db import storage_status
 from aion.durable.paths import resolve_durable_paths
 from aion.durable.scheduler_store import SchedulerStore
 from aion.moltbook.store import Phase2Store
@@ -71,6 +72,7 @@ def dashboard_snapshot() -> dict[str, Any]:
     autonomy_status = svc.autonomy.status()
     return {
         "phase": "phase2-controlled-growth",
+        "storage": storage_status().as_dict(),
         "kill_switch": svc.kill_switch.snapshot(),
         "drafts_awaiting_approval": svc.drafts.list_drafts(),
         "approvals_pending": pending,
