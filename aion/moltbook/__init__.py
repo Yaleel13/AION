@@ -12,7 +12,9 @@ from aion.moltbook.approval import (
     OutboundApprovalGate,
     Phase2ApprovalGate,
 )
+from aion.moltbook.autonomy_policy import CONTENT_GENERATION_RULES, AutonomyPolicy
 from aion.moltbook.client import MoltbookClient, create_client
+from aion.moltbook.controlled_autonomy import ControlledAutonomyEngine
 from aion.moltbook.errors import (
     MoltbookConfigError,
     MoltbookError,
@@ -24,6 +26,9 @@ from aion.moltbook.settings import MoltbookSettings, load_moltbook_settings
 __all__ = [
     "ApprovalDecision",
     "ApprovalRequest",
+    "CONTENT_GENERATION_RULES",
+    "AutonomyPolicy",
+    "ControlledAutonomyEngine",
     "MoltbookClient",
     "MoltbookConfigError",
     "MoltbookError",

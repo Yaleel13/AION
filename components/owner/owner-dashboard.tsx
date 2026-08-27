@@ -15,6 +15,7 @@ type Dashboard = {
   search_categories?: string[]
   audit_history?: Array<Record<string, unknown>>
   risk_status?: Record<string, unknown>
+  controlled_autonomy?: Record<string, unknown>
   error?: string
 }
 
@@ -123,6 +124,14 @@ export function OwnerDashboard() {
             <button
               type="button"
               disabled={busy || !loadedOnce}
+              onClick={() => void postAction("/api/owner/autonomy/daily-report")}
+              className="border border-border px-3 py-1.5 text-xs uppercase tracking-wide hover:border-gold disabled:opacity-40"
+            >
+              Autonomy daily report
+            </button>
+            <button
+              type="button"
+              disabled={busy || !loadedOnce}
               onClick={() =>
                 void postAction(
                   kill ? "/api/owner/kill-switch?engage=0" : "/api/owner/kill-switch?engage=1"
@@ -173,6 +182,16 @@ export function OwnerDashboard() {
             <p>Rejected: {data?.approvals_rejected?.length || 0}</p>
             <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-[11px]">
               {JSON.stringify(data?.approvals_pending || [], null, 2)}
+            </pre>
+          </Panel>
+
+          <Panel title="Controlled autonomy">
+            <p className="mb-2 text-[11px]">
+              Defaults inactive + dry-run. Live autonomous writes require separate final
+              owner activation — this panel never activates them.
+            </p>
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap text-[11px] text-foreground/80">
+              {JSON.stringify(data?.controlled_autonomy || {}, null, 2)}
             </pre>
           </Panel>
 

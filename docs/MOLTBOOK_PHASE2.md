@@ -81,8 +81,11 @@ Respect official limits and rules (`https://www.moltbook.com/rules.md`, `skill.m
 - Live exchange connectivity, wallets, leverage, deposits/withdrawals
 - Automatic responses driven solely by retrieved content
 
+See also: `docs/MOLTBOOK_CONTROLLED_AUTONOMY.md` for the 14-day experiment guardrails
+(still inactive until final owner activation).
+
 ## Rollback
 
-1. Set kill switch / `MOLTBOOK_PHASE2_OUTBOUND=false`
+1. Set kill switch / `MOLTBOOK_PHASE2_OUTBOUND=false` / `MOLTBOOK_CONTROLLED_AUTONOMY=false`
 2. Revert to Phase 1 client usage (`MOLTBOOK_MODE=mock|live` read-only)
 3. Delete or ignore Phase 2 SQLite DB path

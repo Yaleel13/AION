@@ -37,6 +37,7 @@ def _moltbook_health() -> dict:
         "outbound_enabled": False,
         "phase": "phase2-controlled-growth",
         "execute_enabled": False,
+        "controlled_autonomy_default": "inactive",
     }
 
 
@@ -269,3 +270,52 @@ async def owner_execute(
         "published": False,
         "note": "Token consumed; network publish not performed in this build.",
     }
+
+
+@app.get("/owner/autonomy/status", summary="Controlled autonomy status (default inactive)")
+async def owner_autonomy_status(
+    authorization: str | None = Header(default=None),
+) -> dict:
+    _require_owner(authorization)
+    return get_services().autonomy.status()
+
+
+@app.post("/owner/autonomy/daily-report", summary="Build today's autonomy daily report")
+async def owner_autonomy_daily_report(
+    authorization: str | None = Header(default=None),
+) -> dict:
+    _require_owner(authorization)
+    return get_services().autonomy.build_daily_report()
+
+
+@app.post(
+    "/owner/autonomy/dry-run/post",
+    summary="Rehearse a post under policy (requires active+dry_run; never live)",
+)
+async def owner_autonomy_dry_run_post(
+    body: dict, authorization: str | None = Header(default=None)
+) -> dict:
+    """Policy rehearsal only. Refuses unless dry_run is true.
+
+    Activation itself remains gated by MOLTBOOK_CONTROLLED_AUTONOMY and the
+    experiment clock. This endpoint never flips dry_run off.
+    """
+    _require_owner(authorization)
+    svc = get_services()
+    if not svc.autonomy.dry_run:
+        raise HTTPException(
+            status_code=403,
+            detail="Refusing: dry_run is false. Live autonomous writes need separate final approval.",
+        )
+    try:
+        return await svc.autonomy.execute_post(
+            submolt=str(body.get("submolt") or "general"),
+            title=str(body.get("title") or ""),
+            content=str(body.get("content") or ""),
+            inbound_context=str(body.get("inbound_context") or ""),
+            idempotency_key=body.get("idempotency_key"),
+        )
+    except MoltbookOutboundDisabledError as exc:
+        raise HTTPException(status_code=423, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
