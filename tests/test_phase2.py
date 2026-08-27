@@ -123,11 +123,16 @@ def test_post_quota(gate: Phase2ApprovalGate) -> None:
         summary="one",
         payload={"submolt": "general", "title": "a", "content": "b"},
     )
+    gate.propose(
+        OutboundAction.CREATE_POST,
+        summary="two",
+        payload={"submolt": "general", "title": "c", "content": "d"},
+    )
     with pytest.raises(QuotaExceededError):
         gate.propose(
             OutboundAction.CREATE_POST,
-            summary="two",
-            payload={"submolt": "general", "title": "c", "content": "d"},
+            summary="three",
+            payload={"submolt": "general", "title": "e", "content": "f"},
         )
 
 
@@ -159,12 +164,14 @@ def test_campaign_drafts_not_published(store: Phase2Store, gate: Phase2ApprovalG
     assert all(item["published"] is False for item in created)
     drafts = svc.list_drafts()
     assert len(drafts) == 14
-    # Queue only the first draft into approvals (quota = 1/day)
+    # Queue drafts into approvals until expanded post quota (2/24h) is exhausted
     queued = svc.submit_draft_for_approval(drafts[0]["draft_id"])
     assert queued["published"] is False
     assert queued["approval_request_id"]
+    queued2 = svc.submit_draft_for_approval(drafts[1]["draft_id"])
+    assert queued2["published"] is False
     with pytest.raises(QuotaExceededError):
-        svc.submit_draft_for_approval(drafts[1]["draft_id"])
+        svc.submit_draft_for_approval(drafts[2]["draft_id"])
 
 
 @pytest.mark.asyncio

@@ -187,9 +187,61 @@ export function OwnerDashboard() {
 
           <Panel title="Controlled autonomy">
             <p className="mb-2 text-[11px]">
-              Defaults inactive + dry-run. Live autonomous writes require separate final
-              owner activation — this panel never activates them.
+              Quotas are ceilings, not targets. Live writes require activation + open
+              experiment window. Platform rate limits always override owner caps.
             </p>
+            {data?.controlled_autonomy?.quota_availability ? (
+              <div className="mb-3 space-y-1 text-foreground">
+                <p>
+                  Posts:{" "}
+                  {String(
+                    (data.controlled_autonomy.quota_availability as Record<string, Record<string, unknown>>)
+                      ?.create_post?.count ?? "—"
+                  )}
+                  /
+                  {String(
+                    (data.controlled_autonomy.quota_availability as Record<string, Record<string, unknown>>)
+                      ?.create_post?.limit ?? "—"
+                  )}{" "}
+                  (24h)
+                </p>
+                <p>
+                  Comments:{" "}
+                  {String(
+                    (data.controlled_autonomy.quota_availability as Record<string, Record<string, unknown>>)
+                      ?.comment?.count ?? "—"
+                  )}
+                  /
+                  {String(
+                    (data.controlled_autonomy.quota_availability as Record<string, Record<string, unknown>>)
+                      ?.comment?.limit ?? "—"
+                  )}{" "}
+                  (24h)
+                </p>
+                <p>
+                  Follows:{" "}
+                  {String(
+                    (data.controlled_autonomy.quota_availability as Record<string, Record<string, unknown>>)
+                      ?.follow?.count ?? "—"
+                  )}
+                  /
+                  {String(
+                    (data.controlled_autonomy.quota_availability as Record<string, Record<string, unknown>>)
+                      ?.follow?.limit ?? "—"
+                  )}{" "}
+                  (7d)
+                </p>
+                <p>
+                  Auto-reduced:{" "}
+                  {String(
+                    (data.controlled_autonomy.automatic_quota_reduction as Record<string, unknown>)
+                      ?.active
+                      ? "yes"
+                      : "no"
+                  )}
+                </p>
+              </div>
+            ) : null}
             <pre className="max-h-80 overflow-auto whitespace-pre-wrap text-[11px] text-foreground/80">
               {JSON.stringify(data?.controlled_autonomy || {}, null, 2)}
             </pre>

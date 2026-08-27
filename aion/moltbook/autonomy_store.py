@@ -1,11 +1,12 @@
-"""Atomic rolling counters, blocked-action log, and experiment state for controlled autonomy."""
+"""Atomic rolling counters, pacing, account caps, and experiment state."""
 
 from __future__ import annotations
 
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from aion.moltbook.autonomy_policy import ExperimentLimits, primary_topic
 from aion.moltbook.security import utc_now, utc_now_iso
 from aion.moltbook.store import Phase2Store
 
@@ -51,6 +52,23 @@ class AutonomyStore:
               detail_json TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS autonomy_account_interactions (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              account TEXT NOT NULL,
+              action TEXT NOT NULL,
+              solicited INTEGER NOT NULL DEFAULT 0,
+              created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS autonomy_rate_limits (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              timestamp TEXT NOT NULL,
+              action TEXT,
+              status_code INTEGER,
+              retry_after_seconds REAL,
+              detail_json TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS daily_reports (
               report_date TEXT PRIMARY KEY,
               created_at TEXT NOT NULL,
@@ -64,6 +82,26 @@ class AutonomyStore:
               detail_json TEXT NOT NULL
             );
             """
+        )
+        # Non-destructive migrations for DBs created before text_norm/account columns.
+        cols = {
+            r[1]
+            for r in self._conn.execute("PRAGMA table_info(autonomy_actions)").fetchall()
+        }
+        if "text_norm" not in cols:
+            self._conn.execute("ALTER TABLE autonomy_actions ADD COLUMN text_norm TEXT")
+        if "account" not in cols:
+            self._conn.execute("ALTER TABLE autonomy_actions ADD COLUMN account TEXT")
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_autonomy_actions_time ON autonomy_actions(timestamp)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_autonomy_actions_account "
+            "ON autonomy_actions(account, timestamp)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_autonomy_account_time "
+            "ON autonomy_account_interactions(account, created_at)"
         )
         self._conn.commit()
 
@@ -133,12 +171,152 @@ class AutonomyStore:
             """,
             (action, since),
         ).fetchone()
+        oldest = self._conn.execute(
+            """
+            SELECT MIN(created_at) AS oldest FROM autonomy_quota_events
+            WHERE action=? AND created_at >= ?
+            """,
+            (action, since),
+        ).fetchone()
         return {
             "window_hours": window_hours,
             "action": action,
             "count": int(row["c"]) if row else 0,
             "since": since,
+            "oldest": oldest["oldest"] if oldest else None,
         }
+
+    def last_action_at(self, action: str) -> datetime | None:
+        row = self._conn.execute(
+            """
+            SELECT created_at FROM autonomy_quota_events
+            WHERE action=? ORDER BY id DESC LIMIT 1
+            """,
+            (action,),
+        ).fetchone()
+        if not row or not row["created_at"]:
+            return None
+        ts = datetime.fromisoformat(row["created_at"])
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        return ts
+
+    def count_actions_since(self, action: str, *, seconds: int) -> int:
+        since = (utc_now() - timedelta(seconds=seconds)).isoformat()
+        row = self._conn.execute(
+            """
+            SELECT COUNT(*) AS c FROM autonomy_quota_events
+            WHERE action=? AND created_at >= ?
+            """,
+            (action, since),
+        ).fetchone()
+        return int(row["c"]) if row else 0
+
+    def assert_pacing(self, action: str, limits: ExperimentLimits) -> None:
+        """Raise OverflowError with a pacing reason if cooldown/hourly caps block."""
+        now = utc_now()
+        last = self.last_action_at(action)
+        if action == "create_post":
+            min_gap = limits.min_seconds_between_posts
+            if last and (now - last).total_seconds() < min_gap:
+                raise OverflowError(
+                    f"pacing_cooldown:create_post need {min_gap}s between posts"
+                )
+        elif action == "comment":
+            min_gap = limits.min_seconds_between_comments
+            if last and (now - last).total_seconds() < min_gap:
+                raise OverflowError(
+                    f"pacing_cooldown:comment need {min_gap}s between comments"
+                )
+            hourly = self.count_actions_since("comment", seconds=3600)
+            if hourly >= limits.max_comments_per_hour:
+                raise OverflowError(
+                    f"pacing_hourly:comment max {limits.max_comments_per_hour}/hour"
+                )
+        elif action == "follow":
+            min_gap = limits.min_seconds_between_follows
+            if last and (now - last).total_seconds() < min_gap:
+                raise OverflowError(
+                    f"pacing_cooldown:follow need {min_gap}s between follows "
+                    "(no rapid follow bursts)"
+                )
+            hourly = self.count_actions_since("follow", seconds=3600)
+            if hourly >= limits.max_follows_per_hour:
+                raise OverflowError(
+                    f"pacing_hourly:follow max {limits.max_follows_per_hour}/hour"
+                )
+
+    def count_unsolicited_account_interactions(
+        self, account: str, *, hours: int = 24
+    ) -> int:
+        since = (utc_now() - timedelta(hours=hours)).isoformat()
+        row = self._conn.execute(
+            """
+            SELECT COUNT(*) AS c FROM autonomy_account_interactions
+            WHERE account=? AND solicited=0 AND created_at >= ?
+            """,
+            (account.lower(), since),
+        ).fetchone()
+        return int(row["c"]) if row else 0
+
+    def record_account_interaction(
+        self, account: str, *, action: str, solicited: bool = False
+    ) -> None:
+        self._conn.execute(
+            """
+            INSERT INTO autonomy_account_interactions(account, action, solicited, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (account.lower(), action, 1 if solicited else 0, utc_now_iso()),
+        )
+        self._conn.commit()
+
+    def assert_account_cap(
+        self,
+        account: str | None,
+        *,
+        limits: ExperimentLimits,
+        solicited: bool = False,
+    ) -> None:
+        if not account or solicited:
+            return
+        count = self.count_unsolicited_account_interactions(account, hours=24)
+        if count >= limits.max_unsolicited_per_account_24h:
+            raise OverflowError(
+                f"per_account_cap:{account} "
+                f"max {limits.max_unsolicited_per_account_24h} unsolicited/24h"
+            )
+
+    def recent_texts(self, *, hours: int = 24 * 14, action: str | None = None) -> list[str]:
+        since = (utc_now() - timedelta(hours=hours)).isoformat()
+        if action:
+            rows = self._conn.execute(
+                """
+                SELECT text_norm FROM autonomy_actions
+                WHERE timestamp >= ? AND success=1 AND text_norm IS NOT NULL AND action=?
+                ORDER BY id DESC LIMIT 40
+                """,
+                (since, action),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                """
+                SELECT text_norm FROM autonomy_actions
+                WHERE timestamp >= ? AND success=1 AND text_norm IS NOT NULL
+                ORDER BY id DESC LIMIT 40
+                """,
+                (since,),
+            ).fetchall()
+        return [r["text_norm"] for r in rows if r["text_norm"]]
+
+    def recent_post_topics(self, *, hours: int = 24 * 14) -> list[str]:
+        texts = self.recent_texts(hours=hours, action="create_post")
+        out: list[str] = []
+        for text in texts:
+            topic = primary_topic(text)
+            if topic:
+                out.append(topic)
+        return out
 
     def log_block(
         self,
@@ -173,12 +351,15 @@ class AutonomyStore:
         success: bool,
         url: str | None = None,
         detail: dict[str, Any] | None = None,
+        text_norm: str | None = None,
+        account: str | None = None,
     ) -> None:
         self._conn.execute(
             """
             INSERT INTO autonomy_actions(
-              timestamp, action, destination, content_hash, idempotency_key, url, success, detail_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              timestamp, action, destination, content_hash, idempotency_key, url,
+              success, detail_json, text_norm, account
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 utc_now_iso(),
@@ -189,9 +370,49 @@ class AutonomyStore:
                 url,
                 1 if success else 0,
                 json.dumps(detail or {}, default=str),
+                text_norm,
+                account.lower() if account else None,
             ),
         )
         self._conn.commit()
+
+    def log_rate_limit(
+        self,
+        *,
+        action: str | None,
+        status_code: int,
+        retry_after_seconds: float | None = None,
+        detail: dict[str, Any] | None = None,
+    ) -> None:
+        self._conn.execute(
+            """
+            INSERT INTO autonomy_rate_limits(
+              timestamp, action, status_code, retry_after_seconds, detail_json
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                utc_now_iso(),
+                action,
+                status_code,
+                retry_after_seconds,
+                json.dumps(detail or {}, default=str),
+            ),
+        )
+        self._conn.commit()
+
+    def list_rate_limits_since(self, since_iso: str) -> list[dict[str, Any]]:
+        rows = self._conn.execute(
+            """
+            SELECT * FROM autonomy_rate_limits WHERE timestamp >= ? ORDER BY id DESC
+            """,
+            (since_iso,),
+        ).fetchall()
+        out = []
+        for r in rows:
+            item = dict(r)
+            item["detail"] = json.loads(item.pop("detail_json"))
+            out.append(item)
+        return out
 
     def has_idempotency(self, key: str) -> bool:
         row = self._conn.execute(
@@ -202,7 +423,10 @@ class AutonomyStore:
     def recent_content_hashes(self, *, hours: int = 24 * 14) -> set[str]:
         since = (utc_now() - timedelta(hours=hours)).isoformat()
         rows = self._conn.execute(
-            "SELECT content_hash FROM autonomy_actions WHERE timestamp >= ?",
+            """
+            SELECT content_hash FROM autonomy_actions
+            WHERE timestamp >= ? AND success=1
+            """,
             (since,),
         ).fetchall()
         return {r["content_hash"] for r in rows}
@@ -229,6 +453,22 @@ class AutonomyStore:
         for r in rows:
             item = dict(r)
             item["reasons"] = json.loads(item.pop("reasons_json"))
+            item["detail"] = json.loads(item.pop("detail_json"))
+            out.append(item)
+        return out
+
+    def list_follows_since(self, since_iso: str) -> list[dict[str, Any]]:
+        rows = self._conn.execute(
+            """
+            SELECT * FROM autonomy_actions
+            WHERE action='follow' AND timestamp >= ? ORDER BY id DESC
+            """,
+            (since_iso,),
+        ).fetchall()
+        out = []
+        for r in rows:
+            item = dict(r)
+            item["success"] = bool(item["success"])
             item["detail"] = json.loads(item.pop("detail_json"))
             out.append(item)
         return out
@@ -267,3 +507,31 @@ class AutonomyStore:
             item["detail"] = json.loads(item.pop("detail_json"))
             out.append(item)
         return out
+
+    def quota_availability(self, limits: ExperimentLimits) -> dict[str, Any]:
+        posts = self.get_counter("create_post", window_hours=24)
+        comments = self.get_counter("comment", window_hours=24)
+        follows = self.get_counter("follow", window_hours=24 * 7)
+        comments_hour = self.count_actions_since("comment", seconds=3600)
+        follows_hour = self.count_actions_since("follow", seconds=3600)
+        return {
+            "create_post": {
+                **posts,
+                "limit": limits.max_posts_per_24h,
+                "remaining": max(0, limits.max_posts_per_24h - posts["count"]),
+            },
+            "comment": {
+                **comments,
+                "limit": limits.max_comments_per_24h,
+                "remaining": max(0, limits.max_comments_per_24h - comments["count"]),
+                "hourly_count": comments_hour,
+                "hourly_limit": limits.max_comments_per_hour,
+            },
+            "follow": {
+                **follows,
+                "limit": limits.max_follows_per_7d,
+                "remaining": max(0, limits.max_follows_per_7d - follows["count"]),
+                "hourly_count": follows_hour,
+                "hourly_limit": limits.max_follows_per_hour,
+            },
+        }

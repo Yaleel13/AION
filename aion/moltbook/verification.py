@@ -57,6 +57,17 @@ def _token_value(token: str) -> float | None:
     for word, value in _NUMBER_WORDS:
         if re.fullmatch(_word_pattern(word), token):
             return float(value)
+    # Concatenated compounds: "twentythree" → 23, "fiftyone" → 51
+    for tens_word, tens in _NUMBER_WORDS:
+        if tens < 20 or tens % 10 != 0 or tens >= 100:
+            continue
+        tens_pat = _word_pattern(tens_word)
+        m = re.fullmatch(rf"({tens_pat})(.+)", token)
+        if not m:
+            continue
+        ones = _token_value(m.group(2))
+        if ones is not None and 0 < ones < 10:
+            return float(tens + ones)
     return None
 
 
@@ -113,6 +124,14 @@ def solve_challenge_text(challenge_text: str) -> str:
     """Deterministic solver; return answer formatted to 2 decimal places."""
     text = deobfuscate_challenge(challenge_text)
     numbers = _extract_numbers(text)
+    # Elongated filler like "loooo oone" can inject a spurious 1.0; drop it when
+    # a clear two-operand force/total problem remains.
+    if (
+        len(numbers) == 3
+        and 1.0 in numbers
+        and re.search(r"\b(total|sum|combined|force|neutrons?|plus|and)\b", text)
+    ):
+        numbers = [n for n in numbers if n != 1.0]
     if len(numbers) != 2:
         raise MoltbookError(
             redact_text(

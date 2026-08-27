@@ -43,6 +43,7 @@ async def run_cycle(
 ) -> dict:
     from aion.moltbook.autonomy_policy import qualify_outbound_content
     from aion.moltbook.client import create_client
+    from aion.moltbook.controlled_autonomy import AutonomyBlockedError
     from aion.phase2_services import dashboard_snapshot, get_services, reset_services_cache
 
     reset_services_cache()
@@ -128,7 +129,7 @@ async def run_cycle(
     result["queued_outbound"] = queued
     result["counters"] = svc.autonomy.status()["counters"]
     comment_count = int(result["counters"]["comment"]["count"])
-    comment_limit = int(svc.autonomy.policy.limits.max_comments_per_24h)
+    comment_limit = int(svc.autonomy.policy.effective_limits().max_comments_per_24h)
     comment_slots = max(0, comment_limit - comment_count)
 
     if flush_queue and queued.get("type") == "queued_comment":
@@ -141,20 +142,30 @@ async def run_cycle(
                 destination=f"post:{post_id}",
             )
             if verdict.allowed and post_id and content:
-                published = await svc.autonomy.execute_comment(
-                    post_id=post_id,
-                    content=content,
-                    idempotency_key=f"queued-comment-{post_id[:8]}",
-                )
-                result["queue_flush"] = published
-                result["published"] = bool(published.get("published"))
-                if published.get("published"):
-                    svc.store.set_risk(
-                        "queued_outbound",
-                        {"status": "published", "result": published},
+                try:
+                    published = await svc.autonomy.execute_comment(
+                        post_id=post_id,
+                        content=content,
+                        idempotency_key=f"queued-comment-{post_id[:8]}",
+                        target_account=str(queued.get("in_reply_to_author") or "")
+                        or None,
+                        solicited=True,
                     )
-                    comment_slots = max(0, comment_slots - 1)
-                    result["counters"] = svc.autonomy.status()["counters"]
+                except AutonomyBlockedError as exc:
+                    result["queue_flush"] = {
+                        "skipped": "pacing_or_quota",
+                        "reason": str(exc),
+                    }
+                else:
+                    result["queue_flush"] = published
+                    result["published"] = bool(published.get("published"))
+                    if published.get("published"):
+                        svc.store.set_risk(
+                            "queued_outbound",
+                            {"status": "published", "result": published},
+                        )
+                        comment_slots = max(0, comment_slots - 1)
+                        result["counters"] = svc.autonomy.status()["counters"]
             else:
                 result["queue_flush"] = {
                     "skipped": "policy_blocked",
@@ -190,37 +201,50 @@ async def run_cycle(
                 destination=f"post:{post_id}",
             )
             if verdict.allowed and post_id and content:
-                published = await svc.autonomy.execute_comment(
-                    post_id=post_id,
-                    content=content,
-                    idempotency_key=(
-                        f"backlog-p{nxt_comment.get('priority')}-{post_id[:8]}"
-                    ),
-                )
-                result["backlog_flush"] = {
-                    "priority": nxt_comment.get("priority"),
-                    "author": nxt_comment.get("author"),
-                    "post_id": post_id,
-                    "result": published,
-                }
-                result["published"] = result["published"] or bool(
-                    published.get("published")
-                )
-                if published.get("published"):
-                    backlog = mark_backlog_status(
-                        backlog,
+                try:
+                    published = await svc.autonomy.execute_comment(
                         post_id=post_id,
-                        priority=int(nxt_comment.get("priority") or 0),
-                        status="published",
+                        content=content,
+                        idempotency_key=(
+                            f"backlog-p{nxt_comment.get('priority')}-{post_id[:8]}"
+                        ),
+                        target_account=str(nxt_comment.get("author") or "") or None,
+                        solicited=bool(
+                            nxt_comment.get("reason")
+                            in {"reply_on_our_intro", "direct_mention"}
+                        ),
                     )
-                    backlog_state = {
-                        **backlog_state,
-                        "type": "comment_backlog",
-                        "backlog": backlog,
-                        "primary_queue": svc.store.get_risk("queued_outbound") or {},
+                except AutonomyBlockedError as exc:
+                    result["backlog_flush"] = {
+                        "skipped": "pacing_or_quota",
+                        "reason": str(exc),
+                        "priority": nxt_comment.get("priority"),
                     }
-                    svc.store.set_risk("comment_backlog", backlog_state)
-                    result["counters"] = svc.autonomy.status()["counters"]
+                else:
+                    result["backlog_flush"] = {
+                        "priority": nxt_comment.get("priority"),
+                        "author": nxt_comment.get("author"),
+                        "post_id": post_id,
+                        "result": published,
+                    }
+                    result["published"] = result["published"] or bool(
+                        published.get("published")
+                    )
+                    if published.get("published"):
+                        backlog = mark_backlog_status(
+                            backlog,
+                            post_id=post_id,
+                            priority=int(nxt_comment.get("priority") or 0),
+                            status="published",
+                        )
+                        backlog_state = {
+                            **backlog_state,
+                            "type": "comment_backlog",
+                            "backlog": backlog,
+                            "primary_queue": svc.store.get_risk("queued_outbound") or {},
+                        }
+                        svc.store.set_risk("comment_backlog", backlog_state)
+                        result["counters"] = svc.autonomy.status()["counters"]
             else:
                 result["backlog_flush"] = {
                     "skipped": "policy_blocked",
@@ -252,7 +276,7 @@ async def run_cycle(
         }
     if publish_next_draft and nxt:
         post_count = int(result["counters"]["create_post"]["count"])
-        post_limit = int(svc.autonomy.policy.limits.max_posts_per_24h)
+        post_limit = int(svc.autonomy.policy.effective_limits().max_posts_per_24h)
         if post_count < post_limit and not svc.autonomy.dry_run:
             title = str(nxt.get("title") or "")
             body = str(nxt.get("body") or "")
@@ -264,27 +288,38 @@ async def run_cycle(
                 destination=f"submolt:{submolt}",
             )
             if verdict.allowed and title and body:
-                published = await svc.autonomy.execute_post(
-                    submolt=submolt,
-                    title=title,
-                    content=body,
-                    idempotency_key=f"campaign-day-{nxt.get('day_index')}-{str(nxt.get('draft_id'))[:8]}",
-                )
-                result["draft_publish"] = published
-                result["published"] = result["published"] or bool(
-                    published.get("published")
-                )
-                marker = (
-                    published.get("post_id")
-                    or published.get("url")
-                    or ("dry" if published.get("dry_run") else "attempted")
-                )
-                if published.get("published") or published.get("post_id"):
-                    svc.store.update_draft_approval(
-                        str(nxt["draft_id"]), f"autonomy:{marker}"
+                try:
+                    published = await svc.autonomy.execute_post(
+                        submolt=submolt,
+                        title=title,
+                        content=body,
+                        idempotency_key=f"campaign-day-{nxt.get('day_index')}-{str(nxt.get('draft_id'))[:8]}",
                     )
-                    result["next_post_draft"]["approval_request_id"] = f"autonomy:{marker}"
-                    result["next_post_draft"]["note"] = "Published under controlled autonomy"
+                except Exception as exc:  # noqa: BLE001 — pacing, verify, or platform
+                    result["draft_publish"] = {
+                        "skipped": "execute_error",
+                        "reason": str(exc)[:300],
+                    }
+                else:
+                    result["draft_publish"] = published
+                    result["published"] = result["published"] or bool(
+                        published.get("published")
+                    )
+                    marker = (
+                        published.get("post_id")
+                        or published.get("url")
+                        or ("dry" if published.get("dry_run") else "attempted")
+                    )
+                    if published.get("published") or published.get("post_id"):
+                        svc.store.update_draft_approval(
+                            str(nxt["draft_id"]), f"autonomy:{marker}"
+                        )
+                        result["next_post_draft"]["approval_request_id"] = (
+                            f"autonomy:{marker}"
+                        )
+                        result["next_post_draft"]["note"] = (
+                            "Published under controlled autonomy"
+                        )
             else:
                 result["draft_publish"] = {
                     "skipped": "policy_blocked",
