@@ -791,11 +791,30 @@ class ControlledAutonomyEngine:
             "lead_id": lead_id,
             "service": lead.get("relevant_service"),
             "source_url": lead.get("source_url"),
+            "stated_problem": lead.get("stated_problem"),
+            "fit_score": lead.get("fit_score"),
             "confidence": lead.get("confidence_score"),
             "suggested_response": lead.get("suggested_response"),
+            "risks": lead.get("risks"),
             "requires_owner_before": rules["leads"]["requires_owner_approval"],
         }
         self.autonomy_store.log_lead_alert(lead_id, detail)
+        email_result: dict[str, Any] = {"sent": False, "reason": "not_attempted"}
+        try:
+            from aion.owner_alerts import OwnerAlertService
+
+            email_result = OwnerAlertService().send_lead_alert({**lead, **detail})
+        except Exception as exc:  # noqa: BLE001 — never fail lead persistence on mail
+            email_result = {
+                "sent": False,
+                "reason": f"alert_error:{type(exc).__name__}",
+            }
+        detail["email"] = {
+            "sent": bool(email_result.get("sent")),
+            "reason": email_result.get("reason"),
+            "provider": email_result.get("provider"),
+            "prospect_contacted": False,
+        }
         self.store.append_audit(
             module="autonomy",
             action="lead_alert",

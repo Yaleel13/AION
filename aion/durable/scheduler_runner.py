@@ -91,6 +91,15 @@ class ExperimentOpsScheduler:
         }
         alert_id = self.scheduler.log_health_alert("missed_cycle", detail)
         detail["alert_id"] = alert_id
+        try:
+            from aion.owner_alerts import OwnerAlertService
+
+            mail = OwnerAlertService().send_health_alert("missed_cycle", detail)
+            detail["email"] = {"sent": bool(mail.get("sent")), "reason": mail.get("reason")}
+            if mail.get("sent"):
+                self.scheduler.mark_alert_delivered(alert_id)
+        except Exception:
+            detail["email"] = {"sent": False, "reason": "alert_error"}
         return detail
 
     def _enter_readonly_on_failures(self, fails: int) -> dict[str, Any] | None:
