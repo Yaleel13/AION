@@ -52,3 +52,40 @@ def select_next_campaign_draft(
     if not awaiting:
         return None
     return sorted(awaiting, key=lambda d: int(d.get("day_index") or 0))[0]
+
+
+def select_next_backlog_comment(
+    backlog: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Pick the highest-priority ready, policy-allowed backlog comment with content."""
+    ready = [
+        item
+        for item in backlog
+        if item.get("status") == "ready"
+        and item.get("policy_allowed")
+        and item.get("content")
+        and item.get("post_id")
+        and item.get("priority") is not None
+    ]
+    if not ready:
+        return None
+    return sorted(ready, key=lambda item: int(item.get("priority") or 10_000))[0]
+
+
+def mark_backlog_status(
+    backlog: list[dict[str, Any]],
+    *,
+    post_id: str,
+    priority: int | None,
+    status: str,
+) -> list[dict[str, Any]]:
+    """Return a copy of backlog with matching item status updated."""
+    out: list[dict[str, Any]] = []
+    for item in backlog:
+        copy = dict(item)
+        same_post = str(copy.get("post_id") or "") == str(post_id)
+        same_priority = priority is None or int(copy.get("priority") or -1) == int(priority)
+        if same_post and same_priority and copy.get("content"):
+            copy["status"] = status
+        out.append(copy)
+    return out
