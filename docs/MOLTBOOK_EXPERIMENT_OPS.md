@@ -27,7 +27,8 @@ Each cycle:
 3. **Leads** — scan public feed; customize YaliTek response drafts; alert owner at confidence ≥ 0.7
 4. **Daily report** — posts/comments/follows, blocks, leads, recommendations
 5. **Queue flush** — publish queued comments only when comment quota allows (`--flush-queue`)
-6. **Next draft** — publish the next campaign draft only when post quota allows (`--publish-next-draft`)
+6. **Comment backlog** — after the primary queued reply, publish the next prioritized ready backlog comment if a slot remains
+7. **Next draft** — publish the next campaign draft only when post quota allows (`--publish-next-draft`)
 
 ## Quota-bound holds
 
@@ -39,6 +40,9 @@ Outbound Moltbook writes still obey:
 
 When caps are full, the cycle stays read/prepare-only and keeps the next draft + queued reply ready
 (with refreshed `seconds_remaining`). Re-run the same command after slots free.
+
+Prioritized backlog (stored in Phase 2 risk state as `comment_backlog`) prefers replies to
+inbound engagement (intro comments, mentions) before cold-thread comments.
 
 ## Still requires owner approval
 

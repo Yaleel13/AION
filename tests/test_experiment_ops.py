@@ -6,7 +6,9 @@ from datetime import datetime, timezone
 
 from aion.moltbook.experiment_ops import (
     customize_lead_response,
+    mark_backlog_status,
     refresh_queue_timing,
+    select_next_backlog_comment,
     select_next_campaign_draft,
 )
 
@@ -54,3 +56,42 @@ def test_refresh_queue_timing_updates_seconds() -> None:
     refreshed = refresh_queue_timing(queued, now=now)
     assert refreshed["publish_when"]["seconds_remaining"] == 79935
     assert refreshed["publish_when"]["first_slot_frees_at"] == "2026-08-28T10:12:15+00:00"
+
+
+def test_select_next_backlog_comment_by_priority() -> None:
+    backlog = [
+        {
+            "priority": 5,
+            "status": "ready",
+            "policy_allowed": True,
+            "post_id": "p5",
+            "content": "later",
+        },
+        {
+            "priority": 2,
+            "status": "ready",
+            "policy_allowed": True,
+            "post_id": "p2",
+            "content": "sooner",
+        },
+        {
+            "priority": 1,
+            "status": "primary_queue",
+            "policy_allowed": True,
+            "post_id": "p1",
+            "content": None,
+        },
+    ]
+    nxt = select_next_backlog_comment(backlog)
+    assert nxt is not None
+    assert nxt["post_id"] == "p2"
+
+
+def test_mark_backlog_status() -> None:
+    backlog = [
+        {"priority": 2, "post_id": "p2", "content": "x", "status": "ready"},
+        {"priority": 3, "post_id": "p3", "content": "y", "status": "ready"},
+    ]
+    updated = mark_backlog_status(backlog, post_id="p2", priority=2, status="published")
+    assert updated[0]["status"] == "published"
+    assert updated[1]["status"] == "ready"
