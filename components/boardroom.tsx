@@ -146,7 +146,11 @@ export function Boardroom({
           BOARDROOM
         </h1>
         <p className="mt-1 text-xs uppercase tracking-[0.24em] text-muted-foreground">
-          Strategic Command
+          Strategic Command · Demo / fixture
+        </p>
+        <p className="mt-2 max-w-xl text-[0.7rem] text-muted-foreground/80">
+          KPI and overnight narrative below are scripted fixtures — not live production
+          telemetry. See the Runtime banner for real gates.
         </p>
       </div>
 

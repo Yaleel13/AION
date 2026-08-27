@@ -1,3 +1,9 @@
+/**
+ * Demo / fixture Boardroom copy — not live telemetry.
+ * Real gates come from GET /api/runtime/status.
+ */
+export const BOARDROOM_DATA_SOURCE = "demo_fixture" as const
+
 export type Health = "strong" | "steady" | "watch" | "risk"
 
 export interface Venture {

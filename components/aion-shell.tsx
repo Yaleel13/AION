@@ -11,16 +11,18 @@ import { TerminalWorkspace } from "@/components/terminal-workspace"
 import { Boardroom } from "@/components/boardroom"
 import { ConnectionSheet } from "@/components/connection-sheet"
 import { ProjectContext } from "@/components/project-context"
+import { RuntimeStatusBanner } from "@/components/runtime-status-banner"
 import { cn } from "@/lib/utils"
 
 let idCounter = 0
 const uid = () => `m${++idCounter}-${Date.now()}`
 
+/** Demo / fixture greeting — not derived from overnight telemetry. */
 const GREETING: Message = {
   id: "aion-greeting",
   role: "aion",
   content:
-    "Good morning, Yaleel. I kept watch overnight. Three things moved while you were away — none of them a fire. Where would you like to begin?",
+    "Good morning, Yaleel. (Demo / fixture greeting — not live overnight telemetry.) I kept watch overnight. Three things moved while you were away — none of them a fire. Where would you like to begin?",
   serif: true,
 }
 
@@ -143,6 +145,7 @@ export function AionShell() {
 
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden bg-background">
+      <RuntimeStatusBanner />
       <TopBar
         state={presence}
         mode={mode}
