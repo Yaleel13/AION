@@ -33,6 +33,22 @@ class MoltbookSettings:
     audit_log_path: str | None = None
     user_agent: str = "AION-Moltbook-Emissary/0.2-phase1-readonly"
 
+    def __repr__(self) -> str:
+        # Never include the raw API key in logs, debug dumps, or tracebacks.
+        key_state = "set" if self.api_key else "unset"
+        return (
+            "MoltbookSettings("
+            f"mode={self.mode!r}, "
+            f"api_key=<{key_state}>, "
+            f"base_url={self.base_url!r}, "
+            f"timeout_seconds={self.timeout_seconds!r}, "
+            f"max_retries={self.max_retries!r}, "
+            f"rate_limit_per_minute={self.rate_limit_per_minute!r}, "
+            f"outbound_enabled={self.outbound_enabled!r}, "
+            f"audit_log_path={self.audit_log_path!r}, "
+            f"user_agent={self.user_agent!r})"
+        )
+
     @property
     def is_mock(self) -> bool:
         return self.mode == "mock"
