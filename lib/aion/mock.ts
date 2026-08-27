@@ -18,9 +18,10 @@ export interface AionTurn {
 const ventures = ["YaliTek", "Elaria", "Cerebral Synergy", "AION"]
 
 /**
- * A lightweight intent router. This stands in for the AION service
- * (/api/aion/chat) and returns realistic, scripted orchestration so the
- * interface can demonstrate how AION assembles a workspace around a command.
+ * Demo intent router for the boardroom UI.
+ * Scripted replies and widgets are illustrative fixtures only — they are not
+ * live GitHub, Vercel, email, or production telemetry. Free-form chat should
+ * go through /api/aion/chat when available.
  */
 export function routeCommand(input: string): AionTurn {
   const q = input.toLowerCase().trim()
@@ -46,9 +47,9 @@ export function routeCommand(input: string): AionTurn {
     return {
       working: "executing",
       reply:
-        "Opening a terminal session against Yaleel13/AION. I'll narrate what I run here as I go — nothing executes on production without your approval.",
+        "Opening a demonstration terminal for Yaleel13/AION. This UI script is illustrative — it does not run remote commands.",
       effect: "open-terminal",
-      context: "AION Repository",
+      context: "AION Repository (demo)",
     }
   }
 
@@ -56,24 +57,24 @@ export function routeCommand(input: string): AionTurn {
   if (has("repo", "github", "repository", "aion repo")) {
     return {
       working: "researching",
-      reply: "Here's the current state of Yaleel13/AION.",
-      context: "AION Repository",
+      reply:
+        "Here's a demonstration repository card for Yaleel13/AION. Treat the commit/PR details as sample UI data unless I fetch them live.",
+      context: "AION Repository (demo)",
       widgets: [
         {
           kind: "repository",
           repo: "Yaleel13/AION",
           branch: "main",
           lastCommit: {
-            message: "Add epistemic intelligence skill layer",
-            sha: "a3f19c2",
+            message: "Sample commit for boardroom demo",
+            sha: "demo000",
             author: "Yaleel13",
-            when: "3h ago",
+            when: "demo",
           },
           pullRequests: [
-            { title: "Wire /api/aion/context to memory graph", number: 42, state: "review" },
-            { title: "Terminal session transport", number: 41, state: "open" },
+            { title: "Sample PR — not a live GitHub item", number: 0, state: "open" },
           ],
-          ci: "passing",
+          ci: "unknown",
         },
       ],
     }
@@ -83,15 +84,16 @@ export function routeCommand(input: string): AionTurn {
   if (has("deploy", "deployment", "vercel", "production status")) {
     return {
       working: "researching",
-      reply: "Production is healthy. Here's the latest deployment for the AION service.",
+      reply:
+        "I don't have live deployment telemetry in this scripted view. Here's a placeholder card so you can see how a status widget would look.",
       widgets: [
         {
           kind: "deployment",
           project: "aion-service",
           status: "ready",
-          url: "aion.yalitek.com",
-          commit: "a3f19c2",
-          health: "All checks passing · p95 142ms",
+          url: "demo.local",
+          commit: "demo000",
+          health: "Demo placeholder — not live production health",
         },
       ],
     }
@@ -102,16 +104,16 @@ export function routeCommand(input: string): AionTurn {
     return {
       working: "executing",
       reply:
-        "I've traced the failure to the Resend webhook handler. Here's the repair in progress — I'll hold before deploying.",
+        "This is a demonstration repair checklist only. I have not inspected production logs or prepared a real patch.",
       widgets: [
         {
           kind: "execution",
-          title: "Repairing /api/resend/webhook",
+          title: "Demo repair flow (not live)",
           steps: [
-            { label: "Inspect repository", status: "done" },
-            { label: "Identify handler", status: "done" },
-            { label: "Compare production logs", status: "done" },
-            { label: "Prepare patch", status: "working" },
+            { label: "Inspect repository", status: "pending" },
+            { label: "Identify handler", status: "pending" },
+            { label: "Compare production logs", status: "pending" },
+            { label: "Prepare patch", status: "pending" },
             { label: "Deploy", status: "pending" },
           ],
         },
@@ -119,49 +121,48 @@ export function routeCommand(input: string): AionTurn {
     }
   }
 
-  // Research
+  // Research (demo card — not a live literature review)
   if (has("research", "look into", "investigate", "find out", "study")) {
     return {
       working: "researching",
-      reply: "I've gathered the essentials. Here's what holds up to scrutiny.",
+      reply:
+        "Here's a demonstration research card so you can see the layout. It is not a live literature review — ask in free-form chat when you want a real pass.",
       widgets: [
         {
           kind: "research",
-          topic: input.replace(/research/i, "").trim() || "Applied longevity protocols",
+          topic: input.replace(/research/i, "").trim() || "Sample research topic",
           summary:
-            "The strongest evidence clusters around three interventions. The rest is promising but under-powered.",
+            "Demo summary only. Replace with tool-backed findings before citing any claim.",
           findings: [
-            "Consistent aerobic base training shows the largest all-cause effect size.",
-            "Time-restricted eating helps metabolic markers; effect on lifespan is unproven in humans.",
-            "Most supplement claims rest on animal models that have not replicated in people.",
+            "Fixture finding A — illustrative, not verified in this path.",
+            "Fixture finding B — illustrative, not verified in this path.",
+            "Fixture finding C — illustrative, not verified in this path.",
           ],
-          confidence: "moderate",
+          confidence: "low",
           sources: [
-            { title: "Nature Aging — meta-analysis", url: "https://www.nature.com/nataging/" },
-            { title: "NIH longitudinal cohort", url: "https://www.nih.gov/" },
-            { title: "Cell Metabolism review", url: "https://www.cell.com/cell-metabolism/home" },
+            { title: "Source placeholder", url: "https://example.com" },
           ],
         },
       ],
     }
   }
 
-  // Email / text / call — communication layer
+  // Email / text / call — communication layer (demo only; no messages are sent)
   if (has("email me", "email this", "send me", "email the")) {
     return {
       working: "executing",
-      reply: "Prepared and sent. You'll also find it here.",
+      reply:
+        "I can draft that here. This demo path does not send email — connect a live mail tool before treating delivery as real.",
       widgets: [
         {
           kind: "communication",
-          title: "Executive Strategy Report",
+          title: "Draft ready (not sent)",
           channels: [
             { channel: "here", selected: true },
-            { channel: "email", selected: true },
+            { channel: "email", selected: false },
             { channel: "text", selected: false },
             { channel: "call", selected: false },
           ],
-          sent: { channel: "Email", at: "7:42 AM" },
         },
       ],
     }
@@ -170,11 +171,12 @@ export function routeCommand(input: string): AionTurn {
   if (has("text me", "sms", "notify me")) {
     return {
       working: "thinking",
-      reply: "Understood — I'll text you the moment the deployment reports healthy.",
+      reply:
+        "Noted. I don't have a live SMS channel in this demo UI, so I won't claim a text was sent.",
       widgets: [
         {
           kind: "communication",
-          title: "Deployment health watch",
+          title: "Notification preference (demo)",
           channels: [
             { channel: "here", selected: false },
             { channel: "email", selected: false },
@@ -189,16 +191,17 @@ export function routeCommand(input: string): AionTurn {
   if (has("call me", "call briefing", "walk me through", "phone")) {
     return {
       working: "thinking",
-      reply: "A call briefing is ready whenever you are. I'll walk you through it line by line.",
+      reply:
+        "I can walk you through a briefing here in chat. This demo does not place phone calls.",
       widgets: [
         {
           kind: "communication",
-          title: "Call briefing ready",
+          title: "Briefing in chat (demo)",
           channels: [
-            { channel: "here", selected: false },
+            { channel: "here", selected: true },
             { channel: "email", selected: false },
             { channel: "text", selected: false },
-            { channel: "call", selected: true },
+            { channel: "call", selected: false },
           ],
         },
       ],
@@ -211,14 +214,14 @@ export function routeCommand(input: string): AionTurn {
       return {
         working: "thinking",
         reply:
-          "Here's the full breakdown. The three abilities I requested are read-and-act only — I can inspect files, run terminal commands and review logs. Anything that modifies production, deletes resources or spends money stays locked behind a separate, explicit approval each time.",
+          "In a live session I would request only scoped read/act abilities and keep production changes, deletions, and spend behind separate approval. This UI is still demonstration-only.",
       }
     }
     return {
       working: "executing",
       reply:
-        "Access granted for this session. I'll work within those bounds and pause for your explicit approval before anything irreversible.",
-      context: "Session access · granted",
+        "Demo acknowledgement only — this click does not grant real production credentials. Live access still requires an explicit owner-configured integration.",
+      context: "Session access · demo",
     }
   }
 
@@ -238,96 +241,92 @@ export function routeCommand(input: string): AionTurn {
     }
   }
 
-  // Review a business / venture / project widget
+  // Review a business / venture / project widget (demo scenario)
   if (has("review my business", "yalitek", "open yalitek", "work on", "project")) {
     const name = has("yalitek") ? "YaliTek" : ventures[0]
     return {
       working: "researching",
-      reply: `Here's where ${name} stands right now.`,
-      context: `Working in: ${name} Production`,
+      reply: `Here's a demonstration project card for ${name}. It is sample UI data, not a live ops readout.`,
+      context: `Demo context: ${name}`,
       widgets: [
         {
           kind: "project",
           name,
           state: "attention",
           services: ["GitHub", "Vercel", "Supabase", "Stripe"],
-          lastDeployment: "Successful · 2h ago",
-          activity: "6 commits today · 1 new customer",
-          blockers: 1,
-          nextAction: "Resolve the Resend webhook failure before the next release.",
+          lastDeployment: "Demo placeholder",
+          activity: "Demo activity — not live",
+          blockers: 0,
+          nextAction: "Connect live project telemetry before acting on this card.",
         },
       ],
     }
   }
 
-  // Attention / focus / what needs my attention — priority widgets
+  // Attention / focus — demo priority widgets
   if (has("attention", "focus", "what should i", "today", "priorities", "prepare me")) {
     return {
       working: "thinking",
-      reply: "Three things deserve your attention this morning. In order.",
+      reply:
+        "This is a demonstration priority stack for layout only. It is not a live morning brief from production systems.",
       widgets: [
         {
           kind: "project",
           name: "YaliTek",
           state: "attention",
           services: ["Vercel", "Resend"],
-          lastDeployment: "Successful · 2h ago",
-          activity: "1 blocker detected",
-          blockers: 1,
-          nextAction: "A webhook is failing silently. I can repair it now.",
+          lastDeployment: "Demo placeholder",
+          activity: "Demo blocker card",
+          blockers: 0,
+          nextAction: "Replace with owner-dashboard data before prioritizing real work.",
         },
         {
           kind: "data",
-          title: "Elaria — weekly signal",
+          title: "Elaria — demo metrics",
           metrics: [
-            { label: "Active users", value: "2,410", delta: "+12%", direction: "up" },
-            { label: "Retention", value: "48%", delta: "+3pts", direction: "up" },
-            { label: "MRR", value: "$8.2k", delta: "-2%", direction: "down" },
+            { label: "Active users", value: "—" },
+            { label: "Retention", value: "—" },
+            { label: "MRR", value: "—" },
           ],
           series: [
-            { label: "Mon", value: 40 },
-            { label: "Tue", value: 52 },
-            { label: "Wed", value: 49 },
-            { label: "Thu", value: 63 },
-            { label: "Fri", value: 71 },
-            { label: "Sat", value: 68 },
-            { label: "Sun", value: 80 },
+            { label: "Mon", value: 0 },
+            { label: "Tue", value: 0 },
+            { label: "Wed", value: 0 },
+            { label: "Thu", value: 0 },
+            { label: "Fri", value: 0 },
+            { label: "Sat", value: 0 },
+            { label: "Sun", value: 0 },
           ],
         },
         {
           kind: "document",
-          title: "Cerebral Synergy — investor update",
-          type: "Draft · awaiting your review",
-          excerpt:
-            "Q3 momentum held. Two decisions are queued for you before this goes out to the syndicate.",
-          updated: "Updated 18m ago",
+          title: "Sample document card",
+          type: "Demo · not a live draft",
+          excerpt: "Placeholder excerpt for boardroom document widgets.",
+          updated: "Demo",
         },
       ],
     }
   }
 
-  // Logs — stream deployment / production logs into the terminal
+  // Logs — open demo terminal only
   if (has("logs", "log output", "tail the log")) {
     return {
       working: "executing",
       reply:
-        "Streaming the latest logs for aion-service. Everything's nominal except the Resend webhook warning — I've flagged it below in the terminal.",
+        "Opening the demonstration terminal. It does not stream live production logs.",
       effect: "open-terminal",
-      context: "aion-service · logs",
+      context: "demo terminal · not live logs",
     }
   }
 
-  // Document — open / preview / download a document
+  // Document — demo only
   if (has("open the document", "preview the document", "download the document", "read the document")) {
-    const action = has("download the document")
-      ? "queued for download"
-      : has("preview the document")
-        ? "opened in preview"
-        : "opened"
     return {
       working: "thinking",
-      reply: `Done — the document is ${action}. Say the word and I'll email or send it to whoever needs it.`,
-      context: "Document · Cerebral Synergy investor update",
+      reply:
+        "There is no live document attached in this demo path. Point me at a real file or draft when you want to work with one.",
+      context: "Document · demo",
     }
   }
 

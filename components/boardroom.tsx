@@ -178,7 +178,7 @@ export function Boardroom({
         </Panel>
 
         {/* Active Ventures */}
-        <Panel title="Active Ventures" subtitle={`${ventures.length} connected`} className="lg:col-span-2">
+        <Panel title="Active Ventures" subtitle={`${ventures.length} demo fixtures`} className="lg:col-span-2">
           <div className="grid gap-2.5 sm:grid-cols-2">
             {ventures.map((v) => (
               <VentureCard key={v.name} v={v} focused={focus?.venture === v.name} />
@@ -187,7 +187,7 @@ export function Boardroom({
         </Panel>
 
         {/* Signals */}
-        <Panel title="Signals" subtitle="Live">
+        <Panel title="Signals" subtitle="Demo">
           <ul className="space-y-2.5">
             {signals.map((s, i) => {
               const Icon = signalIcon[s.source] ?? BookOpen
@@ -200,7 +200,7 @@ export function Boardroom({
                     <p className="text-sm leading-snug text-foreground/90">{s.message}</p>
                     <p className="mt-0.5 flex items-center gap-1.5 text-[0.7rem] text-muted-foreground">
                       <StatusDot tone={s.tone} />
-                      {s.source} · {s.when} ago
+                      {s.source} · {s.when}
                     </p>
                   </div>
                 </li>

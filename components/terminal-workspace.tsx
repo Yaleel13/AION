@@ -11,21 +11,24 @@ interface Line {
 }
 
 const script: Line[] = [
-  { text: "aion@remote:~/Yaleel13/AION$ git status", tone: "prompt" },
-  { text: "On branch main", tone: "output" },
-  { text: "Your branch is up to date with 'origin/main'.", tone: "muted" },
+  { text: "# Demonstration terminal only — commands are not executed remotely", tone: "muted" },
+  { text: "aion@demo:~/Yaleel13/AION$ git remote -v | head -1", tone: "prompt" },
+  { text: "origin  https://github.com/Yaleel13/AION (fetch)", tone: "output" },
   { text: "", tone: "output" },
-  { text: "aion@remote:~/Yaleel13/AION$ python -m pytest tests/ -q", tone: "prompt" },
-  { text: "collected 8 items", tone: "muted" },
-  { text: "tests/test_endpoints.py ........                          [100%]", tone: "success" },
-  { text: "8 passed in 1.24s", tone: "success" },
+  { text: "aion@demo:~/Yaleel13/AION$ python -m pytest tests/ --collect-only -q", tone: "prompt" },
+  { text: "79 tests collected", tone: "success" },
   { text: "", tone: "output" },
-  { text: "aion@remote:~/Yaleel13/AION$ curl -s localhost:8000/health", tone: "prompt" },
-  { text: '{"status":"ok"}', tone: "output" },
+  { text: "aion@demo:~/Yaleel13/AION$ curl -s localhost:8000/health", tone: "prompt" },
+  {
+    text: '{"status":"ok","runtime":"agent-v1","openai_configured":false,"moltbook":{"mode":"mock","phase":"phase2-controlled-growth","execute_enabled":false,"controlled_autonomy_default":"inactive"}}',
+    tone: "output",
+  },
   { text: "", tone: "output" },
-  { text: "aion@remote:~/Yaleel13/AION$ tail -n 2 logs/resend-webhook.log", tone: "prompt" },
-  { text: "WARN  signature verification skipped — handler returned early", tone: "warn" },
-  { text: "→ AION: this is the source of the silent failure. Patch prepared, awaiting approval.", tone: "muted" },
+  { text: "aion@demo:~/Yaleel13/AION$ echo \"demo complete\"", tone: "prompt" },
+  {
+    text: "→ AION: this transcript is a UI fixture. Connect a real terminal integration before treating output as live.",
+    tone: "muted",
+  },
 ]
 
 const toneClass: Record<NonNullable<Line["tone"]>, string> = {

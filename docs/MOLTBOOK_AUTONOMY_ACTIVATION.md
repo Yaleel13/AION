@@ -1,8 +1,9 @@
 # Controlled Autonomy — Activation Record
 
-**Status:** Pending merge of activation follow-up; production must start in dry-run.  
-**Depends on:** Merged [#17](https://github.com/Yaleel13/AION/pull/17)  
-**Follow-up PR:** [#18](https://github.com/Yaleel13/AION/pull/18)
+**Status:** Procedure ready. Repository defaults remain **inactive** + **dry-run**.  
+**Depends on:** Merged [#17](https://github.com/Yaleel13/AION/pull/17) (guardrails) and [#18](https://github.com/Yaleel13/AION/pull/18) (activation tooling).
+
+PR #18 may reference a timestamp from a **private local** arming. That does not change committed `.env.example` or code defaults. Treat each host as unarmed until you configure it.
 
 ## Required configuration sequence
 
@@ -14,7 +15,7 @@
 3. Only after every verification passes, set:
    - `MOLTBOOK_AUTONOMY_DRY_RUN=false`
    - `MOLTBOOK_EXPERIMENT_STARTED_AT=<ISO-UTC>`
-4. Record the activation timestamp and begin the 14-day clock.
+4. Record the activation timestamp for that environment and begin the 14-day clock.
 
 Private founder/owner charter remains in gitignored `identity/OWNER_PRIVATE_CONTEXT.md`
 and must never be loaded into public agent instructions or endpoints.
@@ -23,7 +24,7 @@ and must never be loaded into public agent instructions or endpoints.
 
 1. Set `AION_KILL_SWITCH=true`, **or**
 2. `POST /owner/kill-switch` with `{"engage": true, "reason": "..."}` + owner token, **or**
-3. Owner dashboard → Engage kill switch  
+3. Owner dashboard → Engage kill switch
 
 Effect: all outbound refused; prefer read-only.
 

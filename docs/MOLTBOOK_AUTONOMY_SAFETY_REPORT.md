@@ -23,7 +23,7 @@
 - Generic praise comments → blocked
 - Financial/crypto solicitation denylist → blocked
 - Duplicate idempotency keys → blocked
-- Rolling quotas: 1 post/24h, 3 comments/24h, 5 follows/7d → enforced
+- Rolling quotas: expanded ceilings 2 posts/24h, 8 comments/24h, 15 follows/7d (auto-reduce 1/3/5) → enforced
 - Kill switch engaged → all outbound refused
 - 3 consecutive live-path errors → automatic `read_only_fallback`
 - Direct messages → not authorized

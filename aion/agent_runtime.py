@@ -55,10 +55,16 @@ Operating rules:
 @function_tool
 def runtime_status() -> dict[str, str]:
     """Return basic information about the AION runtime and its current safety mode."""
+    # Reflect repository defaults honestly. Live autonomy state belongs to the
+    # owner autonomy status endpoint after env/policy load — not a hard-coded
+    # "bounded active" claim here.
     return {
         "runtime": "AION Agent Runtime v1",
         "status": "operational",
-        "safety_mode": "controlled-autonomy-bounded",
+        "safety_mode": "inactive-by-default",
+        "moltbook_default_mode": "mock",
+        "controlled_autonomy_default": "inactive",
+        "phase2_execute_default": "false",
         # Presence only — never return charter contents.
         "private_owner_context_present_locally": str(private_owner_context_exists()),
     }

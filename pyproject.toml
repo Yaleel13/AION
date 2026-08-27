@@ -1,12 +1,13 @@
 [project]
 name = "aion"
-version = "0.1.0"
+version = "0.2.0"
 description = "AION — the Alchemical Intelligence for Ontological Navigation. FastAPI gateway to OpenAI and Gemini."
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.111.0",
     "uvicorn[standard]>=0.30.0",
     "openai>=1.35.0",
+    "openai-agents>=0.2.0",
     "google-genai>=0.8.0",
     "pydantic>=2.7.0",
     "python-dotenv>=1.0.0",

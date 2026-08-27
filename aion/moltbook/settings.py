@@ -31,7 +31,7 @@ class MoltbookSettings:
     rate_limit_per_minute: int = 30
     outbound_enabled: bool = False
     audit_log_path: str | None = None
-    user_agent: str = "AION-Moltbook-Emissary/0.2-phase1-readonly"
+    user_agent: str = "AION-Moltbook-Emissary/0.2-phase2-controlled-growth"
 
     def __repr__(self) -> str:
         # Never include the raw API key in logs, debug dumps, or tracebacks.

@@ -4,12 +4,12 @@ import { useEffect } from "react"
 import { Github, TerminalSquare, HardDrive, Cloud, Server, Upload, X } from "lucide-react"
 
 const options = [
-  { icon: Github, title: "GitHub Repository", desc: "Read, review and open pull requests" },
-  { icon: TerminalSquare, title: "Terminal Session", desc: "Run commands with your approval" },
-  { icon: HardDrive, title: "Local Project", desc: "Work against a project on this machine" },
-  { icon: Server, title: "Remote Workspace", desc: "Attach to a live remote environment" },
-  { icon: Cloud, title: "Cloud Deployment", desc: "Inspect Vercel or other hosting" },
-  { icon: Upload, title: "Upload Files", desc: "Add documents, data or media" },
+  { icon: Github, title: "GitHub Repository", desc: "Planned: read, review and open pull requests" },
+  { icon: TerminalSquare, title: "Terminal Session", desc: "Planned: run commands with your approval" },
+  { icon: HardDrive, title: "Local Project", desc: "Planned: work against a project on this machine" },
+  { icon: Server, title: "Remote Workspace", desc: "Planned: attach to a live remote environment" },
+  { icon: Cloud, title: "Cloud Deployment", desc: "Planned: inspect Vercel or other hosting" },
+  { icon: Upload, title: "Upload Files", desc: "Planned: add documents, data or media" },
 ]
 
 export function ConnectionSheet({

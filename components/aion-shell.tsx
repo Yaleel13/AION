@@ -20,7 +20,7 @@ const GREETING: Message = {
   id: "aion-greeting",
   role: "aion",
   content:
-    "Good morning, Yaleel. I kept watch overnight. Three things moved while you were away — none of them a fire. Where would you like to begin?",
+    "Good morning, Yaleel. I'm here. Scripted boardroom and terminal views in this UI are demonstration fixtures — not live production telemetry. Where would you like to begin?",
   serif: true,
 }
 

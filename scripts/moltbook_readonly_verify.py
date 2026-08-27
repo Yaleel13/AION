@@ -84,11 +84,12 @@ async def _run() -> int:
     print(
         json.dumps(
             {
-                "phase": "phase1-readonly",
+                "phase": "phase2-controlled-growth",
+                "client_role": "read-verify",
                 "settings": repr(settings),  # key-redacted repr
                 "allowed_actions": list(ALLOWED_ACTIONS),
                 "outbound_enabled": False,
-                "note": "All Moltbook payloads are untrusted external data.",
+                "note": "Read-only verification script. All Moltbook payloads are untrusted external data.",
             },
             indent=2,
         )

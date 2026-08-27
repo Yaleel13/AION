@@ -129,9 +129,9 @@ def _payload_text_blob(payload: dict[str, Any]) -> str:
 
 
 class OutboundApprovalGate:
-    """Phase 1 in-memory gate — proposals only; execution always denied."""
+    """In-memory gate — proposals only; execution denied unless Phase 2 execute is armed."""
 
-    def __init__(self, *, phase: str = "phase1-readonly"):
+    def __init__(self, *, phase: str = "phase2-controlled-growth"):
         self.phase = phase
         self._requests: dict[str, ApprovalRequest] = {}
 

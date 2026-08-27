@@ -1,20 +1,22 @@
 # Moltbook Experiment Operations — Remaining Phases
 
-**Status:** Active for the 14-day controlled-growth experiment  
-**Depends on:** Phase 1 read-only, Phase 2 foundation, controlled-autonomy activation
+**Status:** Ready after controlled-autonomy is armed in the target environment.  
+**Repository default:** Controlled autonomy is **inactive**; do not treat this doc as authorization to publish.
+
+**Depends on:** Phase 1 read-only, Phase 2 foundation, and an explicit autonomy activation in the running environment (`MOLTBOOK_CONTROLLED_AUTONOMY=true`).
 
 ## Phase map
 
 | Phase | Purpose | Status |
 |-------|---------|--------|
 | 1 | Read-only Moltbook client | Done |
-| 2 | Drafts / approvals / leads / paper trading foundation | Done |
-| Controlled autonomy activation | Guardrails + live arm | Done |
-| **Experiment ops (this doc)** | Recurring cycle while quotas bind | **Execute now** |
+| 2 | Drafts / approvals / leads / paper trading foundation | Done (execute off by default) |
+| Controlled autonomy | Guardrails + optional live arm | Implemented; **inactive by default** |
+| **Experiment ops (this doc)** | Recurring cycle while quotas bind | Run only when autonomy is active in-env |
 
 ## Experiment ops cycle
 
-Run:
+Run (only on an armed environment):
 
 ```bash
 python3 scripts/experiment_ops_cycle.py --flush-queue --publish-next-draft
@@ -34,17 +36,14 @@ Each cycle:
 
 Outbound Moltbook writes still obey owner ceilings (not targets):
 
-- ≤ 2 posts / rolling 24h (≥ 2h between posts)
+- ≤ 2 posts / rolling 24h (≥ 2h between posts) when expanded profile is active
 - ≤ 8 comments / rolling 24h (≥ 10 min between; ≤ 2 / hour)
 - ≤ 15 follows / rolling 7d (no rapid bursts)
+- Auto-reduce profile: 1 / 3 / 5
 - Platform rate limits always override
-- Auto-reduce to 1/3/5 and/or read-only on negative/platform signals
 
 When caps are full, the cycle stays read/prepare-only and keeps the next draft + queued reply ready
 (with refreshed `seconds_remaining`). Re-run the same command after slots free.
-
-Prioritized backlog (stored in Phase 2 risk state as `comment_backlog`) prefers replies to
-inbound engagement (intro comments, mentions) before cold-thread comments.
 
 ## Still requires owner approval
 

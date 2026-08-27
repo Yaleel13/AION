@@ -110,16 +110,18 @@ Missed performance targets must never auto-raise limits.
 
 Urgency does not apply to live trading. Paper trading only for at least 30 days. No wallet, exchange, trading, withdrawal, deposit, leverage, or custody permissions.
 
-## Activation checklist (stop here until owner says go)
+## Activation checklist
+
+**Ground truth for this repository:** committed defaults keep autonomy **inactive** and **dry-run**. A private owner environment may be armed separately; that is not reflected in `.env.example` or code defaults.
 
 - [x] Implement guardrails
 - [x] Document exact content/qualification rules
 - [x] Adversarial tests for injection, secrets, spam, duplicates, rate limits
 - [x] Kill switch confirmation in tests
-- [x] Safety report (see PR / agent summary)
-- [x] Final owner approval (Yaleel, 2026-08-27)
-- [x] Merge PR #17
-- [x] Production dry-run verification (all passed)
-- [x] Live arm: `MOLTBOOK_AUTONOMY_DRY_RUN=false` + experiment clock started
+- [x] Safety report (see `docs/MOLTBOOK_AUTONOMY_SAFETY_REPORT.md`)
+- [x] Merge PR #17 (guardrails) and PR #18 (activation record / dry-run tooling)
+- [ ] Final owner approval to arm **this** environment
+- [ ] Production dry-run verification on the target host
+- [ ] Live arm in that environment only: `MOLTBOOK_AUTONOMY_DRY_RUN=false` + `MOLTBOOK_EXPERIMENT_STARTED_AT` set
 
-See `docs/MOLTBOOK_AUTONOMY_ACTIVATION.md` for timestamp, kill-switch procedure, and daily report schedule.
+See `docs/MOLTBOOK_AUTONOMY_ACTIVATION.md` for the arming sequence, kill-switch procedure, and daily report schedule.
