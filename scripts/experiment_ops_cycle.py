@@ -355,22 +355,48 @@ def main() -> int:
         help="Attempt to publish the next campaign draft if post quota allows",
     )
     parser.add_argument(
+        "--no-scheduler",
+        action="store_true",
+        help="Run raw cycle without durable lock/health wrapper (debug only)",
+    )
+    parser.add_argument(
         "--out",
-        default="/tmp/aion_experiment_ops_cycle.json",
-        help="Write JSON summary to this path",
+        default="",
+        help="Write JSON summary path (default: $AION_DATA_DIR/scheduler/last_cycle.json)",
     )
     args = parser.parse_args()
 
     import asyncio
 
-    payload = asyncio.run(
-        run_cycle(
+    from aion.durable.paths import resolve_durable_paths
+    from aion.durable.scheduler_runner import ExperimentOpsScheduler
+    from aion.phase2_services import get_services, reset_services_cache
+
+    paths = resolve_durable_paths()
+    out = args.out or str(paths.scheduler_dir / "last_cycle.json")
+
+    async def _run() -> dict:
+        if args.no_scheduler:
+            return await run_cycle(
+                flush_queue=args.flush_queue,
+                publish_next_draft=args.publish_next_draft,
+            )
+        reset_services_cache()
+        svc = get_services()
+        scheduler = ExperimentOpsScheduler(svc.scheduler, kill_switch=svc.kill_switch)
+        return await scheduler.run_once(
+            run_cycle,
             flush_queue=args.flush_queue,
             publish_next_draft=args.publish_next_draft,
         )
-    )
-    Path(args.out).write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+
+    payload = asyncio.run(_run())
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    Path(out).write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
     print(json.dumps(payload, indent=2, default=str))
+    # Non-zero only on hard cycle failure (not lock skip / kill switch).
+    if payload.get("success") is False:
+        return 1
     return 0
 
 

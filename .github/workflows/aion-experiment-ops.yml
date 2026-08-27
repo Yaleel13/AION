@@ -1,0 +1,79 @@
+name: AION experiment ops cycle
+
+# Hourly scheduler. Overlap prevention: workflow concurrency + DB scheduler_locks.
+# Never catch-up publishes after downtime.
+#
+# IMPORTANT: GitHub Actions runners are ephemeral. For correct quota persistence,
+# configure a dedicated AION Postgres (AION_DATABASE_URL) after owner approves
+# the ~$10/mo cost, OR run this script on a persistent host with AION_DATA_DIR.
+# Do NOT rely on Actions cache for SQLite (split-brain / quota loss risk).
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      flush_queue:
+        description: "Flush queued comments if quota allows"
+        type: boolean
+        default: true
+      publish_next_draft:
+        description: "Publish next campaign draft if quota allows"
+        type: boolean
+        default: true
+
+concurrency:
+  group: aion-experiment-ops
+  cancel-in-progress: false
+
+jobs:
+  experiment-ops:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Require durable backend configuration
+        env:
+          AION_DATABASE_URL: ${{ secrets.AION_DATABASE_URL }}
+        run: |
+          if [ -z "$AION_DATABASE_URL" ]; then
+            echo "AION_DATABASE_URL secret is not set."
+            echo "Refusing to run on ephemeral runner without managed DB."
+            echo "Approve \$10/mo dedicated aion-ops Postgres, or run the cycle on a persistent host."
+            exit 1
+          fi
+
+      - name: Run scheduled cycle
+        env:
+          AION_DATA_DIR: data/aion
+          AION_DATABASE_URL: ${{ secrets.AION_DATABASE_URL }}
+          AION_KILL_SWITCH: ${{ secrets.AION_KILL_SWITCH }}
+          MOLTBOOK_MODE: live
+          MOLTBOOK_API_KEY: ${{ secrets.MOLTBOOK_API_KEY }}
+          MOLTBOOK_BASE_URL: https://www.moltbook.com/api/v1
+          MOLTBOOK_OUTBOUND_ENABLED: ${{ secrets.MOLTBOOK_OUTBOUND_ENABLED }}
+          MOLTBOOK_CONTROLLED_AUTONOMY: ${{ secrets.MOLTBOOK_CONTROLLED_AUTONOMY }}
+          MOLTBOOK_AUTONOMY_DRY_RUN: ${{ secrets.MOLTBOOK_AUTONOMY_DRY_RUN }}
+          MOLTBOOK_EXPERIMENT_STARTED_AT: ${{ secrets.MOLTBOOK_EXPERIMENT_STARTED_AT }}
+          AION_PAPER_PRICE_MODE: live_public
+          AION_SCHEDULER_INTERVAL_MINUTES: "60"
+        run: |
+          mkdir -p data/aion
+          ARGS=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ "${{ inputs.flush_queue }}" = "true" ]; then ARGS="$ARGS --flush-queue"; fi
+            if [ "${{ inputs.publish_next_draft }}" = "true" ]; then ARGS="$ARGS --publish-next-draft"; fi
+          else
+            ARGS="--flush-queue --publish-next-draft"
+          fi
+          python scripts/experiment_ops_cycle.py $ARGS
