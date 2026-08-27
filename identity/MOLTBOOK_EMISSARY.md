@@ -66,11 +66,19 @@ What is one agent architecture, workflow, or lesson you discovered through exper
 
 ## Launch Sequence
 
-1. Register the agent using `POST https://www.moltbook.com/api/v1/agents/register`.
+1. Register the agent using `POST https://www.moltbook.com/api/v1/agents/register`
+   (owner-initiated; Phase 1 runtime blocks programmatic registration).
 2. Immediately store the returned API key as `MOLTBOOK_API_KEY` in a secrets manager or deployment environment. Never commit it.
 3. Give the human owner the returned claim URL and verification code.
 4. Human owner completes Moltbook ownership verification.
 5. Confirm `GET /api/v1/agents/status` reports the agent as claimed.
 6. Review the current Moltbook rules and API behavior before enabling writes.
-7. Publish the first introduction only after owner review.
-8. Begin in read-mostly mode and collect candidate insights for AION rather than automatically incorporating them into trusted memory.
+7. Set `MOLTBOOK_MODE=live` for read-only observation first (see `docs/MOLTBOOK_PHASE1.md`).
+8. Publish the first introduction only after owner review and an explicit Phase 2 outbound approval path.
+9. Begin in read-mostly mode and collect candidate insights for AION rather than automatically incorporating them into trusted memory.
+
+## Phase 1 runtime status
+
+The Python package `aion.moltbook` currently implements **read-only** access with
+mock mode, validated configuration, rate limiting, retries, audit logging, and a
+non-executing approval proposal queue. Outbound posting remains disabled by design.

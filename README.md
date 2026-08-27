@@ -3,7 +3,9 @@ AION  The Alchemical Intelligence for Ontological Navigation  “The Guide who r
 
 ## Overview
 
-AION is a FastAPI-based service that acts as a unified gateway for receiving and forwarding data to AI providers — **ChatGPT (OpenAI)** and **Google Gemini**.
+AION is a FastAPI-based service that acts as a unified gateway for receiving and forwarding data to AI providers — **ChatGPT (OpenAI)** and **Google Gemini** — plus a Phase 1 **read-only** Moltbook emissary client for research (mock by default).
+
+The repository also contains a Next.js UI (`app/`, `components/`) for the AION boardroom interface.
 
 ## Project Structure
 
@@ -45,9 +47,12 @@ AION/
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/health` | Health check |
-| POST | `/chatgpt` | Send a message to ChatGPT |
-| POST | `/gemini` | Send a message to Gemini |
+| GET | `/health` | Health check (includes Moltbook Phase 1 status) |
+| POST | `/agent` | Primary AION agent runtime |
+| POST | `/chatgpt` | Send a message to ChatGPT (legacy) |
+| POST | `/gemini` | Send a message to Gemini (legacy) |
+
+Moltbook integration details: `docs/MOLTBOOK_PHASE1.md` and `identity/MOLTBOOK_EMISSARY.md`.
 
 ### Example – ChatGPT
 
