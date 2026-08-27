@@ -1,37 +1,53 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+function supabaseEnv() {
+  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim();
+  const key = (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "").trim();
+  return { url, key, configured: Boolean(url && key) };
+}
 
 /**
  * Refresh the Auth session cookies on each matched request.
- * Returns both the supabase client and the mutated response.
+ * If Supabase env is missing/invalid, pass through without crashing the edge
+ * middleware (MIDDLEWARE_INVOCATION_FAILED).
  */
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
+  const passthrough = NextResponse.next({
     request: {
       headers: request.headers,
     },
   });
 
-  const supabase = createServerClient(supabaseUrl!, supabaseKey!, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        supabaseResponse = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) =>
-          supabaseResponse.cookies.set(name, value, options),
-        );
-      },
-    },
-  });
+  const { url, key, configured } = supabaseEnv();
+  if (!configured) {
+    return { supabase: null, response: passthrough };
+  }
 
-  // Important: do not remove — keeps the session fresh.
-  await supabase.auth.getUser();
+  let supabaseResponse = passthrough;
 
-  return { supabase, response: supabaseResponse };
+  try {
+    const supabase = createServerClient(url, key, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          supabaseResponse = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options),
+          );
+        },
+      },
+    });
+
+    // Important: do not remove when configured — keeps the session fresh.
+    await supabase.auth.getUser();
+
+    return { supabase, response: supabaseResponse };
+  } catch {
+    // Never fail the whole site from session refresh errors.
+    return { supabase: null, response: passthrough };
+  }
 }
