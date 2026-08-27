@@ -8,6 +8,7 @@ Runs non-spammy Phase 2 + controlled-autonomy ops that are allowed now:
 3. Lead discovery + customized response drafts
 4. Daily owner report
 5. Flush queued outbound only when quotas allow
+6. Publish next campaign draft only when post quota allows
 
 Never raises quotas, sends DMs, prices work, or places live trades.
 """
@@ -16,7 +17,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -25,25 +25,20 @@ sys.path.insert(0, str(ROOT))
 
 from dotenv import load_dotenv
 
+from aion.moltbook.experiment_ops import (
+    customize_lead_response,
+    refresh_queue_timing,
+    select_next_campaign_draft,
+)
+
 load_dotenv(ROOT / ".env", override=True)
 
 
-def _customize_lead_response(lead: dict) -> str:
-    service = str(lead.get("relevant_service") or "technical help")
-    problem = str(lead.get("stated_problem") or "the issue you described")
-    return (
-        f"Public reply draft (owner approval still required before any off-platform move):\n\n"
-        f"I noticed you described a need around “{problem[:140]}”. "
-        f"One practical first step is a short, non-sensitive diagnostic: symptoms, when it started, "
-        f"and what you already tried. YaliTek Online’s relevant offering here is {service} — "
-        f"reviewed delivery, not unattended automation.\n\n"
-        f"If a public reply is appropriate, I can share a lightweight checklist first "
-        f"(useful even if you never hire anyone). I will not ask for credentials, files, "
-        f"or access in public, and I will not quote pricing here."
-    )
-
-
-async def run_cycle(*, flush_queue: bool) -> dict:
+async def run_cycle(
+    *,
+    flush_queue: bool,
+    publish_next_draft: bool,
+) -> dict:
     from aion.moltbook.autonomy_policy import qualify_outbound_content
     from aion.moltbook.client import create_client
     from aion.phase2_services import dashboard_snapshot, get_services, reset_services_cache
@@ -65,6 +60,7 @@ async def run_cycle(*, flush_queue: bool) -> dict:
     if not drafts:
         created = svc.drafts.seed_fourteen_day_campaign()
         result["drafts_seeded"] = len(created)
+        drafts = svc.drafts.list_drafts()
     else:
         result["drafts_existing"] = len(drafts)
 
@@ -97,7 +93,7 @@ async def run_cycle(*, flush_queue: bool) -> dict:
     leads = await svc.leads().scan_feed(limit=40)
     prepared = []
     for lead in leads:
-        custom = _customize_lead_response(lead)
+        custom = customize_lead_response(lead)
         lead["suggested_response"] = custom
         svc.store.upsert_lead(lead)
         item = {
@@ -124,7 +120,9 @@ async def run_cycle(*, flush_queue: bool) -> dict:
     }
 
     # 5) Optional queue flush (only if quota allows)
-    queued = svc.store.get_risk("queued_outbound") or {}
+    queued = refresh_queue_timing(svc.store.get_risk("queued_outbound") or {})
+    if queued.get("type") == "queued_comment":
+        svc.store.set_risk("queued_outbound", queued)
     result["queued_outbound"] = queued
     result["counters"] = svc.autonomy.status()["counters"]
     if flush_queue and queued.get("type") == "queued_comment":
@@ -147,25 +145,29 @@ async def run_cycle(*, flush_queue: bool) -> dict:
                 result["queue_flush"] = published
                 result["published"] = bool(published.get("published"))
                 if published.get("published"):
-                    svc.store.set_risk("queued_outbound", {"status": "published", "result": published})
+                    svc.store.set_risk(
+                        "queued_outbound",
+                        {"status": "published", "result": published},
+                    )
             else:
-                result["queue_flush"] = {"skipped": "policy_blocked", "reasons": verdict.reasons}
+                result["queue_flush"] = {
+                    "skipped": "policy_blocked",
+                    "reasons": verdict.reasons,
+                }
         else:
             result["queue_flush"] = {
                 "skipped": "comment_quota_or_dry_run",
                 "comment_count": comment_count,
                 "limit": comment_limit,
                 "dry_run": svc.autonomy.dry_run,
+                "first_slot_frees_at": (queued.get("publish_when") or {}).get(
+                    "first_slot_frees_at"
+                ),
             }
 
-    # Next draft ready for when post quota frees (not published)
-    awaiting = [
-        d
-        for d in svc.drafts.list_drafts()
-        if not d.get("approval_request_id")
-    ]
-    if awaiting:
-        nxt = sorted(awaiting, key=lambda d: int(d.get("day_index") or 0))[0]
+    # 6) Optional next-draft publish (only if post quota allows)
+    nxt = select_next_campaign_draft(drafts)
+    if nxt:
         result["next_post_draft"] = {
             "draft_id": nxt.get("draft_id"),
             "day_index": nxt.get("day_index"),
@@ -173,8 +175,57 @@ async def run_cycle(*, flush_queue: bool) -> dict:
             "submolt": nxt.get("submolt"),
             "theme": nxt.get("theme"),
             "approval_request_id": nxt.get("approval_request_id"),
-            "note": "Held until create_post quota frees; still subject to policy + verification",
+            "note": (
+                "Held until create_post quota frees; still subject to policy + verification"
+            ),
         }
+    if publish_next_draft and nxt:
+        post_count = int(result["counters"]["create_post"]["count"])
+        post_limit = int(svc.autonomy.policy.limits.max_posts_per_24h)
+        if post_count < post_limit and not svc.autonomy.dry_run:
+            title = str(nxt.get("title") or "")
+            body = str(nxt.get("body") or "")
+            submolt = str(nxt.get("submolt") or "general")
+            text = f"{title}\n{body}"
+            verdict = qualify_outbound_content(
+                action="create_post",
+                text=text,
+                destination=f"submolt:{submolt}",
+            )
+            if verdict.allowed and title and body:
+                published = await svc.autonomy.execute_post(
+                    submolt=submolt,
+                    title=title,
+                    content=body,
+                    idempotency_key=f"campaign-day-{nxt.get('day_index')}-{str(nxt.get('draft_id'))[:8]}",
+                )
+                result["draft_publish"] = published
+                result["published"] = result["published"] or bool(
+                    published.get("published")
+                )
+                marker = (
+                    published.get("post_id")
+                    or published.get("url")
+                    or ("dry" if published.get("dry_run") else "attempted")
+                )
+                if published.get("published") or published.get("post_id"):
+                    svc.store.update_draft_approval(
+                        str(nxt["draft_id"]), f"autonomy:{marker}"
+                    )
+                    result["next_post_draft"]["approval_request_id"] = f"autonomy:{marker}"
+                    result["next_post_draft"]["note"] = "Published under controlled autonomy"
+            else:
+                result["draft_publish"] = {
+                    "skipped": "policy_blocked",
+                    "reasons": verdict.reasons,
+                }
+        else:
+            result["draft_publish"] = {
+                "skipped": "post_quota_or_dry_run",
+                "post_count": post_count,
+                "limit": post_limit,
+                "dry_run": svc.autonomy.dry_run,
+            }
 
     result["dashboard"] = {
         "phase": dashboard_snapshot().get("phase"),
@@ -193,6 +244,11 @@ def main() -> int:
         help="Attempt to publish queued outbound if quotas allow",
     )
     parser.add_argument(
+        "--publish-next-draft",
+        action="store_true",
+        help="Attempt to publish the next campaign draft if post quota allows",
+    )
+    parser.add_argument(
         "--out",
         default="/tmp/aion_experiment_ops_cycle.json",
         help="Write JSON summary to this path",
@@ -201,7 +257,12 @@ def main() -> int:
 
     import asyncio
 
-    payload = asyncio.run(run_cycle(flush_queue=args.flush_queue))
+    payload = asyncio.run(
+        run_cycle(
+            flush_queue=args.flush_queue,
+            publish_next_draft=args.publish_next_draft,
+        )
+    )
     Path(args.out).write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
     print(json.dumps(payload, indent=2, default=str))
     return 0

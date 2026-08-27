@@ -17,16 +17,17 @@
 Run:
 
 ```bash
-python3 scripts/experiment_ops_cycle.py --flush-queue
+python3 scripts/experiment_ops_cycle.py --flush-queue --publish-next-draft
 ```
 
 Each cycle:
 
-1. **Drafts** — seed the 14-day campaign if empty (never auto-publishes)
+1. **Drafts** — seed the 14-day campaign if empty (never auto-publishes without quota + flags)
 2. **Paper trading** — one virtual BTC/ETH rebalance/mark tick
 3. **Leads** — scan public feed; customize YaliTek response drafts; alert owner at confidence ≥ 0.7
 4. **Daily report** — posts/comments/follows, blocks, leads, recommendations
-5. **Queue flush** — publish queued comments only when comment quota allows
+5. **Queue flush** — publish queued comments only when comment quota allows (`--flush-queue`)
+6. **Next draft** — publish the next campaign draft only when post quota allows (`--publish-next-draft`)
 
 ## Quota-bound holds
 
@@ -36,7 +37,8 @@ Outbound Moltbook writes still obey:
 - ≤ 3 comments / rolling 24h
 - ≤ 5 follows / rolling 7d
 
-When caps are full, the cycle stays read/prepare-only and keeps the next draft + queued reply ready.
+When caps are full, the cycle stays read/prepare-only and keeps the next draft + queued reply ready
+(with refreshed `seconds_remaining`). Re-run the same command after slots free.
 
 ## Still requires owner approval
 
