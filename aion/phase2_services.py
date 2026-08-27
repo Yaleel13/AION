@@ -17,6 +17,7 @@ from aion.durable.paths import resolve_durable_paths
 from aion.durable.scheduler_store import SchedulerStore
 from aion.moltbook.store import Phase2Store
 from aion.paper_trading import PaperConfig, PaperTradingEngine
+from aion.yalitek_knowledge import public_safe_summary
 
 
 @dataclass(slots=True)
@@ -88,6 +89,7 @@ def dashboard_snapshot() -> dict[str, Any]:
         "paper_trading": paper,
         "controlled_autonomy": autonomy_status,
         "search_categories": [c["service"] for c in SEARCH_CATEGORIES],
+        "yalitek_knowledge": public_safe_summary(),
         "audit_history": svc.store.list_audit(limit=50),
         "risk_status": {
             "kill_switch": svc.kill_switch.snapshot(),
