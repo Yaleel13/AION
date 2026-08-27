@@ -17,6 +17,7 @@ import type { PresenceState } from "@/lib/aion/types"
 import { AionPresence } from "@/components/aion-presence"
 import { CommandComposer } from "@/components/command-composer"
 import { OwnerMemoryInspector } from "@/components/owner-memory-inspector"
+import { OwnerMoltbookResearch } from "@/components/owner-moltbook-research"
 import { cn } from "@/lib/utils"
 
 type RuntimeStatus = {
@@ -197,7 +198,7 @@ export function Boardroom({
           Strategic Command · Live Runtime
         </p>
         <p className="mt-2 max-w-xl text-[0.7rem] text-muted-foreground/80">
-          This view reports AION runtime gates only. Venture KPIs are not shown until their authenticated data sources are connected.
+          Live owner runtime, protected memory, and read-only Moltbook research. External content remains untrusted until reviewed.
         </p>
       </div>
 
@@ -295,6 +296,10 @@ export function Boardroom({
               </dl>
             </Panel>
 
+            <Panel title="Moltbook Research" subtitle="Stage 2 · owner only" className="lg:col-span-3">
+              <OwnerMoltbookResearch />
+            </Panel>
+
             <Panel title="Long-term Memory" subtitle="Owner only · read-only" className="lg:col-span-3">
               <OwnerMemoryInspector />
             </Panel>
@@ -319,9 +324,9 @@ export function Boardroom({
                 {!status.storage.configured
                   ? "Connect the dedicated AION Postgres database to unlock durable scheduled operations."
                   : !status.moltbook.api_key_present
-                    ? "Connect the approved Moltbook credential before enabling live Moltbook execution."
+                    ? "Connect the approved Moltbook credential before enabling live Moltbook research."
                     : status.autonomy.dry_run
-                      ? "Review policy and owner approvals before leaving dry-run mode."
+                      ? "Stage 2 research is safe to run. Review qualified opportunities before considering any outbound phase."
                       : "Runtime gates are available; consequential actions still require their configured approval policy."}
               </p>
             </Panel>
