@@ -128,7 +128,7 @@ async def run_cycle(
     result["queued_outbound"] = queued
     result["counters"] = svc.autonomy.status()["counters"]
     comment_count = int(result["counters"]["comment"]["count"])
-    comment_limit = int(svc.autonomy.policy.limits.max_comments_per_24h)
+    comment_limit = int(svc.autonomy.policy.effective_limits().max_comments_per_24h)
     comment_slots = max(0, comment_limit - comment_count)
 
     if flush_queue and queued.get("type") == "queued_comment":
@@ -252,7 +252,7 @@ async def run_cycle(
         }
     if publish_next_draft and nxt:
         post_count = int(result["counters"]["create_post"]["count"])
-        post_limit = int(svc.autonomy.policy.limits.max_posts_per_24h)
+        post_limit = int(svc.autonomy.policy.effective_limits().max_posts_per_24h)
         if post_count < post_limit and not svc.autonomy.dry_run:
             title = str(nxt.get("title") or "")
             body = str(nxt.get("body") or "")
