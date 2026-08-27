@@ -25,7 +25,7 @@ class MemoryMessage(BaseModel):
 
 
 class MemoryRequest(BaseModel):
-    action: Literal["load", "append", "search", "remember", "forget", "facts"]
+    action: Literal["load", "append", "search", "remember", "forget", "replace", "facts"]
     client_session_id: str = Field(min_length=16, max_length=200)
     messages: list[MemoryMessage] = Field(default_factory=list, max_length=4)
     previous_response_id: str | None = Field(default=None, max_length=500)
@@ -33,8 +33,10 @@ class MemoryRequest(BaseModel):
     runtime: str | None = Field(default=None, max_length=200)
     query: str | None = Field(default=None, max_length=2_000)
     content: str | None = Field(default=None, max_length=10_000)
+    replacement: str | None = Field(default=None, max_length=10_000)
     category: str | None = Field(default=None, max_length=100)
-    limit: int = Field(default=6, ge=1, le=12)
+    include_inactive: bool = False
+    limit: int = Field(default=6, ge=1, le=50)
 
 
 def _require_internal_auth(authorization: str | None) -> None:
@@ -59,6 +61,32 @@ def _conversation_id(conn, client_session_id: str) -> str | None:
         (client_session_id,),
     ).fetchone()
     return row["id"] if row else None
+
+
+def _source_message_id(conn, conversation_id: str | None) -> int | None:
+    if not conversation_id:
+        return None
+    row = conn.execute(
+        """
+        SELECT id FROM aion.conversation_messages
+        WHERE conversation_id = ? AND role = 'user'
+        ORDER BY created_at DESC, id DESC LIMIT 1
+        """,
+        (conversation_id,),
+    ).fetchone()
+    return row["id"] if row else None
+
+
+def _fact_payload(row) -> dict:
+    return {
+        "id": row["id"],
+        "content": row["content"],
+        "category": row["category"],
+        "status": row["status"],
+        "superseded_by": row["superseded_by"],
+        "created_at": str(row["created_at"]),
+        "updated_at": str(row["updated_at"]),
+    }
 
 
 @app.post("/api/internal/conversation")
@@ -115,14 +143,14 @@ async def conversation_memory(
             facts = conn.execute(
                 """
                 SELECT id, content, category, updated_at,
-                       ts_rank_cd(fts, plainto_tsquery('english', ?)) AS rank
+                       ts_rank_cd(fts, websearch_to_tsquery('english', ?)) AS rank
                 FROM aion.memory_facts
                 WHERE status = 'active'
-                  AND fts @@ plainto_tsquery('english', ?)
+                  AND fts @@ websearch_to_tsquery('english', ?)
                 ORDER BY rank DESC, updated_at DESC
                 LIMIT ?
                 """,
-                (query, query, min(body.limit, 5)),
+                (query, query, min(body.limit, 8)),
             ).fetchall()
 
             history_params: list[object] = [query, query]
@@ -130,15 +158,15 @@ async def conversation_memory(
             if current_conversation_id:
                 exclude_clause = "AND m.conversation_id <> ?"
                 history_params.append(current_conversation_id)
-            history_params.append(min(body.limit, 6))
+            history_params.append(min(body.limit, 8))
 
             history = conn.execute(
                 f"""
                 SELECT m.id, m.content, m.created_at,
-                       ts_rank_cd(m.fts, plainto_tsquery('english', ?)) AS rank
+                       ts_rank_cd(m.fts, websearch_to_tsquery('english', ?)) AS rank
                 FROM aion.conversation_messages m
                 WHERE m.role = 'user'
-                  AND m.fts @@ plainto_tsquery('english', ?)
+                  AND m.fts @@ websearch_to_tsquery('english', ?)
                   {exclude_clause}
                 ORDER BY rank DESC, m.created_at DESC
                 LIMIT ?
@@ -152,32 +180,33 @@ async def conversation_memory(
                         "id": row["id"],
                         "content": row["content"],
                         "category": row["category"],
+                        "score": float(row["rank"] or 0),
                     }
                     for row in facts
                 ],
                 "history": [
-                    {"id": row["id"], "content": row["content"]}
+                    {
+                        "id": row["id"],
+                        "content": row["content"],
+                        "score": float(row["rank"] or 0),
+                    }
                     for row in history
                 ],
             }
 
         if body.action == "facts":
+            where = "" if body.include_inactive else "WHERE status = 'active'"
             rows = conn.execute(
-                """
-                SELECT id, content, category, updated_at
+                f"""
+                SELECT id, content, category, status, superseded_by, created_at, updated_at
                 FROM aion.memory_facts
-                WHERE status = 'active'
+                {where}
                 ORDER BY updated_at DESC, id DESC
                 LIMIT ?
                 """,
                 (body.limit,),
             ).fetchall()
-            return {
-                "facts": [
-                    {"id": row["id"], "content": row["content"], "category": row["category"]}
-                    for row in rows
-                ]
-            }
+            return {"facts": [_fact_payload(row) for row in rows]}
 
         if body.action == "remember":
             content = (body.content or "").strip()
@@ -205,18 +234,6 @@ async def conversation_memory(
                 return {"remembered": True, "id": existing["id"], "deduplicated": True}
 
             source_conversation_id = _conversation_id(conn, body.client_session_id)
-            source_message_id = None
-            if source_conversation_id:
-                source = conn.execute(
-                    """
-                    SELECT id FROM aion.conversation_messages
-                    WHERE conversation_id = ? AND role = 'user'
-                    ORDER BY created_at DESC, id DESC LIMIT 1
-                    """,
-                    (source_conversation_id,),
-                ).fetchone()
-                source_message_id = source["id"] if source else None
-
             row = conn.execute(
                 """
                 INSERT INTO aion.memory_facts (
@@ -228,11 +245,71 @@ async def conversation_memory(
                     content,
                     (body.category or "").strip() or None,
                     source_conversation_id,
-                    source_message_id,
+                    _source_message_id(conn, source_conversation_id),
                 ),
             ).fetchone()
             conn.commit()
             return {"remembered": True, "id": row["id"], "deduplicated": False}
+
+        if body.action == "replace":
+            old_content = (body.content or "").strip()
+            new_content = (body.replacement or "").strip()
+            if not old_content or not new_content:
+                raise HTTPException(status_code=400, detail="Exact old and replacement memory content are required")
+
+            old = conn.execute(
+                """
+                SELECT id, category FROM aion.memory_facts
+                WHERE status = 'active'
+                  AND lower(btrim(content)) = lower(btrim(?))
+                ORDER BY updated_at DESC LIMIT 1
+                """,
+                (old_content,),
+            ).fetchone()
+            if not old:
+                return {"replaced": False, "exact_match": False}
+
+            duplicate = conn.execute(
+                """
+                SELECT id FROM aion.memory_facts
+                WHERE status = 'active'
+                  AND lower(btrim(content)) = lower(btrim(?))
+                  AND id <> ?
+                ORDER BY updated_at DESC LIMIT 1
+                """,
+                (new_content, old["id"]),
+            ).fetchone()
+
+            if duplicate:
+                new_id = duplicate["id"]
+            else:
+                source_conversation_id = _conversation_id(conn, body.client_session_id)
+                inserted = conn.execute(
+                    """
+                    INSERT INTO aion.memory_facts (
+                        content, category, source_conversation_id, source_message_id
+                    ) VALUES (?, ?, ?, ?)
+                    RETURNING id
+                    """,
+                    (
+                        new_content,
+                        (body.category or "").strip() or old["category"],
+                        source_conversation_id,
+                        _source_message_id(conn, source_conversation_id),
+                    ),
+                ).fetchone()
+                new_id = inserted["id"]
+
+            conn.execute(
+                """
+                UPDATE aion.memory_facts
+                SET status = 'superseded', superseded_by = ?, updated_at = now()
+                WHERE id = ?
+                """,
+                (new_id, old["id"]),
+            )
+            conn.commit()
+            return {"replaced": True, "exact_match": True, "old_id": old["id"], "new_id": new_id}
 
         if body.action == "forget":
             content = (body.content or body.query or "").strip()

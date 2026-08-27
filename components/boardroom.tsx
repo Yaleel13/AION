@@ -16,6 +16,7 @@ import {
 import type { PresenceState } from "@/lib/aion/types"
 import { AionPresence } from "@/components/aion-presence"
 import { CommandComposer } from "@/components/command-composer"
+import { OwnerMemoryInspector } from "@/components/owner-memory-inspector"
 import { cn } from "@/lib/utils"
 
 type RuntimeStatus = {
@@ -292,6 +293,10 @@ export function Boardroom({
                   <dd className="font-medium text-foreground">{status.autonomy.experiment_active ? "Active" : "Inactive"}</dd>
                 </div>
               </dl>
+            </Panel>
+
+            <Panel title="Long-term Memory" subtitle="Owner only · read-only" className="lg:col-span-3">
+              <OwnerMemoryInspector />
             </Panel>
 
             <Panel title="Paper Market" className="lg:col-span-2">
