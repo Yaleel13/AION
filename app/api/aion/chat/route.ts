@@ -105,16 +105,28 @@ async function persistTurn(
 }
 
 async function runGateway(req: Request, message: string, history: HistoryItem[], clientSessionId?: string) {
-  const model = process.env.AION_GATEWAY_MODEL ?? "openai/gpt-5.4"
+  const primaryModel = process.env.AION_GATEWAY_MODEL ?? "openai/gpt-5.4"
+  const fallbackModel = process.env.AION_GATEWAY_FALLBACK_MODEL ?? "inclusionai/ling-3.0-flash-fin-free"
   const runtime = "vercel-ai-gateway-oidc"
-  const result = await generateText({
-    model,
-    system: AION_SYSTEM,
-    messages: [
-      ...history.slice(-12).map((item) => ({ role: item.role, content: item.content })),
-      { role: "user" as const, content: message },
-    ],
-  })
+  const messages = [
+    ...history.slice(-12).map((item) => ({ role: item.role, content: item.content })),
+    { role: "user" as const, content: message },
+  ]
+
+  let model = primaryModel
+  let result
+
+  try {
+    result = await generateText({ model: primaryModel, system: AION_SYSTEM, messages })
+  } catch (primaryError) {
+    if (fallbackModel === primaryModel) throw primaryError
+    console.warn(
+      `[AION] primary Gateway model unavailable; trying fallback ${fallbackModel}:`,
+      primaryError instanceof Error ? primaryError.message : String(primaryError),
+    )
+    model = fallbackModel
+    result = await generateText({ model: fallbackModel, system: AION_SYSTEM, messages })
+  }
 
   await persistTurn(req, clientSessionId, message, result.text, {
     responseId: null,
