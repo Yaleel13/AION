@@ -21,3 +21,5 @@ htmlcov/
 *.pem
 *.key
 !*.key.example
+# Phase 2 local databases
+*.db
