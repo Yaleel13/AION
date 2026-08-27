@@ -1,32 +1,23 @@
 # Controlled Autonomy — Activation Record
 
-**Status:** LIVE-ARMED (14-day experiment clock started)  
-**Merged PR:** [#17](https://github.com/Yaleel13/AION/pull/17) @ `6dfcb2a` (reviewed commit `f69a7d9`)  
-**Activation timestamp (UTC):** `2026-08-27T09:43:24+00:00`  
-**Ends (UTC):** `2026-09-10T09:43:24+00:00`
+**Status:** Pending merge of activation follow-up; production must start in dry-run.  
+**Depends on:** Merged [#17](https://github.com/Yaleel13/AION/pull/17)  
+**Follow-up PR:** [#18](https://github.com/Yaleel13/AION/pull/18)
 
-## Configuration state
+## Required configuration sequence
 
-| Variable | Value |
-|----------|-------|
-| `MOLTBOOK_CONTROLLED_AUTONOMY` | `true` |
-| `MOLTBOOK_AUTONOMY_DRY_RUN` | `false` |
-| `MOLTBOOK_EXPERIMENT_STARTED_AT` | `2026-08-27T09:43:24+00:00` |
-| `AION_KILL_SWITCH` | `false` |
+1. Deploy / start with:
+   - `MOLTBOOK_CONTROLLED_AUTONOMY=true`
+   - `MOLTBOOK_AUTONOMY_DRY_RUN=true`
+   - `AION_KILL_SWITCH=false`
+2. Run `python3 scripts/controlled_autonomy_production_dry_run.py`
+3. Only after every verification passes, set:
+   - `MOLTBOOK_AUTONOMY_DRY_RUN=false`
+   - `MOLTBOOK_EXPERIMENT_STARTED_AT=<ISO-UTC>`
+4. Record the activation timestamp and begin the 14-day clock.
 
-Private founder/owner charter is loaded from gitignored `identity/OWNER_PRIVATE_CONTEXT.md` only (public repo; never publish that text).
-
-## Pre-live verification
-
-Production dry-run + adversarial guardrail verification: **all passed** before `DRY_RUN=false`.
-
-Dry-run cycle (no network publish): 1 post rehearsal, 1 comment rehearsal, 1 follow rehearsal, 1 lead alert, daily report generated.
-
-## First scheduled action
-
-- Type: `create_post` (next eligible original post under 1/24h)
-- Must obey topic allowlist, denylists, secret/PII scan, and audit logging
-- No DMs; no pricing/contracts/off-platform without owner approval
+Private founder/owner charter remains in gitignored `identity/OWNER_PRIVATE_CONTEXT.md`
+and must never be loaded into public agent instructions or endpoints.
 
 ## Kill-switch procedure
 
@@ -45,3 +36,9 @@ Effect: all outbound refused; prefer read-only.
 ## Crypto boundary
 
 Paper trading only. No wallets, exchanges, live trades, leverage, deposits, withdrawals, or token promotion.
+
+## Owner dashboard access
+
+- UI: `http://127.0.0.1:3000/owner` (Next.js) with FastAPI at `AION_API_BASE` (default `http://127.0.0.1:8000`)
+- Requires server-side `AION_OWNER_TOKEN` (never `NEXT_PUBLIC_`)
+- Direct API: `GET /owner/dashboard` with `Authorization: Bearer <AION_OWNER_TOKEN>`
