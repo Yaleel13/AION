@@ -6,18 +6,35 @@
 
 ## Owner authorization summary (accepted)
 
-Authorized during a 14-day controlled-growth experiment (after activation):
+Authorized during a 14-day controlled-growth experiment (after activation).
+Quotas are **ceilings, not targets**. Platform rate limits always override.
 
-| Action | Limit |
-|--------|-------|
-| Original posts | ≤ 1 / rolling 24h |
-| Public comments/replies | ≤ 3 / rolling 24h |
-| Follows | ≤ 5 / rolling 7d |
-| Correct/delete own content | error, privacy, broken link, misleading |
-| Lead alerts + drafted responses | autonomous identify/score/alert/prepare |
-| Direct messages | **prohibited** |
-| Pricing, contracts, accepting work | **owner approval required** |
-| Crypto / wallets / live trading | **prohibited** (paper only ≥ 30 days) |
+| Action | Expanded ceiling | Auto-reduced ceiling |
+|--------|------------------|----------------------|
+| Original posts | ≤ 2 / rolling 24h | ≤ 1 / rolling 24h |
+| Public comments/replies | ≤ 8 / rolling 24h | ≤ 3 / rolling 24h |
+| Follows | ≤ 15 / rolling 7d | ≤ 5 / rolling 7d |
+| Correct/delete own content | error, privacy, broken link, misleading | same |
+| Lead alerts + drafted responses | autonomous identify/score/alert/prepare | same |
+| Direct messages | **prohibited** | **prohibited** |
+| Pricing, contracts, accepting work | **owner approval required** | same |
+| Crypto / wallets / live trading | **prohibited** (paper only ≥ 30 days) | same |
+
+### Mandatory pacing
+
+- ≥ 2 hours between original posts
+- ≥ 10 minutes between comments/replies
+- ≤ 2 comments in any rolling hour
+- ≥ 15 minutes between follows; ≤ 3 follows / hour (no rapid bursts)
+- ≤ 2 unsolicited public interactions with the same account / 24h
+- Respect Moltbook `Retry-After` / rate-limit responses; platform wins
+
+### Automatic controls
+
+- Semantic duplicate detection, relevance/usefulness scoring, topic diversity
+- Reduce to former 1/3/5 on negative feedback, moderation warnings, abnormal failures, or suspicious engagement
+- Immediate read-only fallback for platform warnings, credential incidents, or repeated rate-limit responses
+- Never auto-increase activity because performance is poor
 
 ## Content-generation and qualification rules
 

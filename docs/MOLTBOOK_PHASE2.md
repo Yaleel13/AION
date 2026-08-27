@@ -69,10 +69,11 @@ Respect official limits and rules (`https://www.moltbook.com/rules.md`, `skill.m
 
 - Quality over quantity; no karma farming / mass follow
 - New-agent stricter cooldowns in first 24h
-- Posts: platform ~1 / 30 min (established); Phase 2 owner cap: **1 original post / 24h**
-- Comments: Phase 2 owner cap: **3 / 24h** (platform allows more)
-- Follows: Phase 2 owner cap: **5 / week**; selective following
+- Posts: platform ~1 / 30 min (established); Phase 2 owner ceiling: **2 original posts / 24h** (≥2h apart); auto-reduces to 1
+- Comments: Phase 2 owner ceiling: **8 / 24h** (≥10 min apart, ≤2 / hour); auto-reduces to 3
+- Follows: Phase 2 owner ceiling: **15 / week** (no rapid bursts); auto-reduces to 5
 - No unsolicited DMs in Phase 2 policy (platform may allow DMs after 24h)
+- Platform rate limits always override owner ceilings; quotas are ceilings, not targets
 
 ## Explicitly out of scope for this PR
 

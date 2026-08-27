@@ -16,9 +16,11 @@ class QuotaExceededError(MoltbookError):
 
 @dataclass(frozen=True, slots=True)
 class OutboundQuotas:
-    max_posts_per_24h: int = 1
-    max_comments_per_24h: int = 3
-    max_follows_per_7d: int = 5
+    """Aligned with controlled-autonomy expanded ceilings (owner Aug 2026)."""
+
+    max_posts_per_24h: int = 2
+    max_comments_per_24h: int = 8
+    max_follows_per_7d: int = 15
 
 
 _QUOTA_DECISIONS = ("pending", "approved", "executed")

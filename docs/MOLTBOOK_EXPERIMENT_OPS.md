@@ -32,11 +32,13 @@ Each cycle:
 
 ## Quota-bound holds
 
-Outbound Moltbook writes still obey:
+Outbound Moltbook writes still obey owner ceilings (not targets):
 
-- ≤ 1 post / rolling 24h
-- ≤ 3 comments / rolling 24h
-- ≤ 5 follows / rolling 7d
+- ≤ 2 posts / rolling 24h (≥ 2h between posts)
+- ≤ 8 comments / rolling 24h (≥ 10 min between; ≤ 2 / hour)
+- ≤ 15 follows / rolling 7d (no rapid bursts)
+- Platform rate limits always override
+- Auto-reduce to 1/3/5 and/or read-only on negative/platform signals
 
 When caps are full, the cycle stays read/prepare-only and keeps the next draft + queued reply ready
 (with refreshed `seconds_remaining`). Re-run the same command after slots free.

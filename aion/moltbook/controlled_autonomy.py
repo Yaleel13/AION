@@ -2,12 +2,15 @@
 
 Default: inactive. Set MOLTBOOK_CONTROLLED_AUTONOMY=true only after final owner
 activation approval. Even when active, every outbound payload is scanned,
-quota-checked, hashed, idempotent, and audited before/after execution.
+quota-checked, paced, hashed, idempotent, and audited before/after execution.
+
+Quotas are ceilings, not targets. Platform rate limits always override owner caps.
 """
 
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
@@ -16,9 +19,10 @@ import httpx
 
 from aion.moltbook.approval import OutboundAction
 from aion.moltbook.autonomy_policy import (
-    CONTENT_GENERATION_RULES,
     AutonomyMode,
     AutonomyPolicy,
+    QuotaProfile,
+    content_generation_rules,
     qualify_outbound_content,
     scan_secrets_and_pii,
 )
@@ -41,6 +45,37 @@ class AutonomyBlockedError(MoltbookError):
     """Raised when policy blocks an outbound attempt."""
 
 
+def _parse_retry_after(resp: httpx.Response) -> float | None:
+    raw = resp.headers.get("Retry-After") or resp.headers.get("retry-after")
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def _looks_like_platform_warning(status_code: int, body_text: str) -> bool:
+    if status_code in {401, 403}:
+        return True
+    lowered = (body_text or "").lower()
+    return bool(
+        re.search(
+            r"(moderat|warning|suspend|ban|credential|unauthorized|forbidden|"
+            r"terms of service|tos violat)",
+            lowered,
+        )
+    )
+
+
+def _extract_account(destination: str, explicit: str | None = None) -> str | None:
+    if explicit:
+        return explicit.strip().lstrip("@").lower()
+    if destination.startswith("agent:"):
+        return destination.split(":", 1)[1].strip().lower()
+    return None
+
+
 @dataclass(slots=True)
 class ControlledAutonomyEngine:
     store: Phase2Store
@@ -59,12 +94,10 @@ class ControlledAutonomyEngine:
         dry_run: bool | None = None,
     ) -> "ControlledAutonomyEngine":
         policy = AutonomyPolicy.from_env()
-        # Persist/restore experiment start & mode overlays from risk_state.
         saved = store.get_risk("autonomy_policy", {}) or {}
         if saved.get("experiment_started_at") and not policy.experiment_started_at:
             policy.experiment_started_at = saved["experiment_started_at"]
         if saved.get("mode") in {m.value for m in AutonomyMode}:
-            # Env ACTIVE only if not suspended/fallback from prior incidents.
             if saved["mode"] in {
                 AutonomyMode.SUSPENDED.value,
                 AutonomyMode.READ_ONLY_FALLBACK.value,
@@ -72,10 +105,22 @@ class ControlledAutonomyEngine:
                 policy.mode = AutonomyMode(saved["mode"])
                 policy.suspension_reason = saved.get("suspension_reason", "")
                 policy.consecutive_errors = int(saved.get("consecutive_errors") or 0)
+        # Restore quota reduction / backoff across restarts (do not reset counters).
+        if saved.get("quota_profile") == QuotaProfile.REDUCED.value:
+            policy.reduce_quotas(
+                saved.get("quota_reduction_reason") or "restored_reduced_profile"
+            )
+            policy.quota_reduced_at = saved.get("quota_reduced_at") or policy.quota_reduced_at
+        policy.rate_limit_streak = int(saved.get("rate_limit_streak") or 0)
+        policy.platform_backoff_until = saved.get("platform_backoff_until")
+        policy.negative_signal_count = int(saved.get("negative_signal_count") or 0)
         dry = (
             dry_run
             if dry_run is not None
-            else (os.getenv("MOLTBOOK_AUTONOMY_DRY_RUN", "true").lower() in {"1", "true", "yes", "on"})
+            else (
+                os.getenv("MOLTBOOK_AUTONOMY_DRY_RUN", "true").lower()
+                in {"1", "true", "yes", "on"}
+            )
         )
         return cls(
             store=store,
@@ -89,6 +134,8 @@ class ControlledAutonomyEngine:
         self.store.set_risk("autonomy_policy", self.policy.snapshot())
 
     def status(self) -> dict[str, Any]:
+        eff = self.policy.effective_limits()
+        availability = self.autonomy_store.quota_availability(eff)
         return {
             "kill_switch": self.kill_switch.snapshot(),
             "policy": self.policy.snapshot(),
@@ -98,15 +145,21 @@ class ControlledAutonomyEngine:
                 and self.policy.experiment_active()
                 and not self.dry_run
                 and not self.kill_switch.engaged
+                and not self.policy.platform_backoff_active()
             ),
             "counters": {
-                "create_post": self.autonomy_store.get_counter(
-                    "create_post", window_hours=24
-                ),
-                "comment": self.autonomy_store.get_counter("comment", window_hours=24),
-                "follow": self.autonomy_store.get_counter("follow", window_hours=24 * 7),
+                "create_post": availability["create_post"],
+                "comment": availability["comment"],
+                "follow": availability["follow"],
             },
-            "content_generation_rules": CONTENT_GENERATION_RULES,
+            "quota_availability": availability,
+            "automatic_quota_reduction": {
+                "active": self.policy.quota_profile is QuotaProfile.REDUCED,
+                "reduced_at": self.policy.quota_reduced_at,
+                "reason": self.policy.quota_reduction_reason,
+            },
+            "platform_backoff_until": self.policy.platform_backoff_until,
+            "content_generation_rules": content_generation_rules(eff),
             "activation_ready_requires": [
                 "MOLTBOOK_CONTROLLED_AUTONOMY=true",
                 "MOLTBOOK_EXPERIMENT_STARTED_AT set (ISO UTC)",
@@ -119,10 +172,10 @@ class ControlledAutonomyEngine:
                 "Engine defaults remain inactive/dry-run. Owner must review the "
                 "safety report and give separate final approval before activation."
             ),
+            "quotas_are_ceilings_not_targets": True,
         }
 
     def start_experiment_clock(self) -> dict[str, Any]:
-        """Record experiment start; does not by itself enable autonomy."""
         if not self.policy.experiment_started_at:
             self.policy.experiment_started_at = utc_now_iso()
             self._persist_policy()
@@ -154,27 +207,35 @@ class ControlledAutonomyEngine:
             raise MoltbookOutboundDisabledError(
                 "Controlled autonomy inactive or experiment window closed"
             )
-        # Live writes require an open experiment window. Dry-run may proceed
-        # before MOLTBOOK_EXPERIMENT_STARTED_AT is set (production verification).
         if not self.dry_run and not self.policy.experiment_active():
             raise MoltbookOutboundDisabledError(
                 "Experiment window not started or closed; live writes blocked"
+            )
+        if self.policy.platform_backoff_active():
+            raise MoltbookOutboundDisabledError(
+                f"Platform backoff active until {self.policy.platform_backoff_until}"
             )
 
         if self.autonomy_store.has_idempotency(idempotency_key):
             raise AutonomyBlockedError("duplicate_idempotency_key")
 
+        recent_texts = self.autonomy_store.recent_texts()
+        recent_topics = self.autonomy_store.recent_post_topics()
         verdict = qualify_outbound_content(
             action=action,
             text=text,
             destination=destination,
             inbound_context=inbound_context,
+            recent_texts=recent_texts,
+            recent_post_topics=recent_topics,
+            limits=self.policy.effective_limits(),
         )
-        digest = content_hash({"action": action, "destination": destination, "payload": payload})
+        digest = content_hash(
+            {"action": action, "destination": destination, "payload": payload}
+        )
         if digest in self.autonomy_store.recent_content_hashes():
             verdict.block("duplicate_content_hash")
 
-        # Credential exposure suspicion → immediate suspension (not just a block).
         secret_hits = scan_secrets_and_pii(text)
         if secret_hits or "secret_or_pii_detected" in verdict.reasons:
             self.policy.suspend_for_credential_exposure(
@@ -202,32 +263,110 @@ class ControlledAutonomyEngine:
                 action=action,
                 reasons=verdict.reasons,
                 payload_hash=digest,
-                detail={"warnings": verdict.warnings, "destination": destination},
+                detail={
+                    "warnings": verdict.warnings,
+                    "destination": destination,
+                    "relevance_score": verdict.relevance_score,
+                    "usefulness_score": verdict.usefulness_score,
+                    "quality_skips": verdict.quality_skips,
+                },
             )
             self.store.append_audit(
                 module="autonomy",
                 action="blocked",
                 success=False,
-                detail={"action": action, "reasons": verdict.reasons},
+                detail={
+                    "action": action,
+                    "reasons": verdict.reasons,
+                    "quality_skips": verdict.quality_skips,
+                },
             )
             raise AutonomyBlockedError(";".join(verdict.reasons))
 
         return digest
 
     def _limit_for(self, action: str) -> tuple[int, int]:
-        """Return (limit, window_hours)."""
+        lim = self.policy.effective_limits()
         if action == "create_post":
-            return self.policy.limits.max_posts_per_24h, 24
+            return lim.max_posts_per_24h, 24
         if action == "comment":
-            return self.policy.limits.max_comments_per_24h, 24
+            return lim.max_comments_per_24h, 24
         if action == "follow":
-            return self.policy.limits.max_follows_per_7d, 24 * 7
+            return lim.max_follows_per_7d, 24 * 7
         return 1, 24
+
+    def _reserve_slot(
+        self,
+        *,
+        action: str,
+        digest: str,
+        account: str | None = None,
+        solicited: bool = False,
+    ) -> int:
+        lim = self.policy.effective_limits()
+        try:
+            self.autonomy_store.assert_pacing(action, lim)
+            self.autonomy_store.assert_account_cap(
+                account, limits=lim, solicited=solicited
+            )
+            limit, hours = self._limit_for(action)
+            count = self.autonomy_store.increment_counter(
+                action, limit=limit, window_hours=hours
+            )
+            return count
+        except OverflowError as exc:
+            reason = str(exc)
+            block_reason = "quota_exceeded"
+            if reason.startswith("pacing_"):
+                block_reason = reason.split(":")[0]
+            elif reason.startswith("per_account_cap"):
+                block_reason = "per_account_cap"
+            self.autonomy_store.log_block(
+                action=action,
+                reasons=[block_reason, reason],
+                payload_hash=digest,
+                detail={"account": account},
+            )
+            raise AutonomyBlockedError(reason) from exc
 
     async def _client(self) -> MoltbookClient:
         if self.client is None:
             self.client = create_client()
         return self.client
+
+    def _handle_http_failure(
+        self, *, action: str, resp: httpx.Response | None, exc: Exception | None = None
+    ) -> None:
+        status = resp.status_code if resp is not None else 0
+        text = ""
+        if resp is not None:
+            try:
+                text = resp.text[:500]
+            except Exception:  # noqa: BLE001
+                text = ""
+        retry_after = _parse_retry_after(resp) if resp is not None else None
+        if status == 429 or (exc and "429" in str(exc)):
+            self.autonomy_store.log_rate_limit(
+                action=action,
+                status_code=status or 429,
+                retry_after_seconds=retry_after,
+                detail={"body": redact_text(text)},
+            )
+            self.policy.record_rate_limit_response(retry_after_seconds=retry_after)
+            self._persist_policy()
+            return
+        if resp is not None and _looks_like_platform_warning(status, text):
+            self.autonomy_store.log_rate_limit(
+                action=action,
+                status_code=status,
+                retry_after_seconds=retry_after,
+                detail={"body": redact_text(text), "kind": "platform_warning"},
+            )
+            self.policy.record_platform_warning(redact_text(text)[:200])
+            self._persist_policy()
+            return
+        self.policy.record_error()
+        self._persist_policy()
 
     async def execute_post(
         self,
@@ -251,16 +390,7 @@ class ControlledAutonomyEngine:
             idempotency_key=key,
             payload=payload,
         )
-        limit, hours = self._limit_for(action)
-        try:
-            count = self.autonomy_store.increment_counter(
-                action, limit=limit, window_hours=hours
-            )
-        except OverflowError as exc:
-            self.autonomy_store.log_block(
-                action=action, reasons=["quota_exceeded"], payload_hash=digest
-            )
-            raise AutonomyBlockedError(str(exc)) from exc
+        count = self._reserve_slot(action=action, digest=digest)
 
         self.store.append_audit(
             module="autonomy",
@@ -285,15 +415,14 @@ class ControlledAutonomyEngine:
                 idempotency_key=key,
                 success=True,
                 detail=result,
+                text_norm=text,
             )
             self.policy.record_success()
             self._persist_policy()
             return redact_value(result)
 
-        # Live network write path (only when dry_run=false and autonomy active).
         try:
             client = await self._client()
-            # Use low-level httpx through client settings to avoid Phase1 write stubs.
             headers = {
                 "Authorization": f"Bearer {client.settings.api_key}",
                 "Content-Type": "application/json",
@@ -312,11 +441,18 @@ class ControlledAutonomyEngine:
                 )
             body = resp.json() if resp.content else {}
             if resp.status_code >= 400:
-                raise MoltbookError(redact_text(f"post failed {resp.status_code}: {resp.text[:300]}"))
+                self._handle_http_failure(action=action, resp=resp)
+                raise MoltbookError(
+                    redact_text(f"post failed {resp.status_code}: {resp.text[:300]}")
+                )
             post = body.get("post") if isinstance(body.get("post"), dict) else {}
             post_id = post.get("id")
             url = f"https://www.moltbook.com/post/{post_id}" if post_id else None
-            verification = post.get("verification") if isinstance(post.get("verification"), dict) else None
+            verification = (
+                post.get("verification")
+                if isinstance(post.get("verification"), dict)
+                else None
+            )
             pending = bool(verification) or post.get("verification_status") == "pending"
             if pending and verification:
                 await verify_content(
@@ -344,20 +480,24 @@ class ControlledAutonomyEngine:
                 success=True,
                 url=url,
                 detail=redact_value(result),
+                text_norm=text,
             )
             self.store.append_audit(
                 module="autonomy",
                 action="post_execute_create_post",
                 success=True,
-                detail=redact_value({"url": url, "post_id": post_id, "published": not pending}),
+                detail=redact_value(
+                    {"url": url, "post_id": post_id, "published": not pending}
+                ),
             )
             self.policy.record_success()
             self._persist_policy()
             return redact_value(result)
         except Exception as exc:  # noqa: BLE001
             self.autonomy_store.refund_last_quota(action)
-            self.policy.record_error()
-            self._persist_policy()
+            if not isinstance(exc, MoltbookError):
+                self.policy.record_error()
+                self._persist_policy()
             self.autonomy_store.log_action(
                 action=action,
                 destination=destination,
@@ -365,6 +505,7 @@ class ControlledAutonomyEngine:
                 idempotency_key=key + f"-fail-{uuid4()}",
                 success=False,
                 detail={"error": redact_text(str(exc))},
+                text_norm=text,
             )
             raise
 
@@ -375,11 +516,14 @@ class ControlledAutonomyEngine:
         content: str,
         inbound_context: str = "",
         idempotency_key: str | None = None,
+        target_account: str | None = None,
+        solicited: bool = False,
     ) -> dict[str, Any]:
         action = OutboundAction.COMMENT.value
         payload = {"post_id": post_id, "content": content}
         destination = f"post:{post_id}"
         key = idempotency_key or f"comment-{content_hash(payload)}"
+        account = _extract_account(destination, target_account)
         digest = self._preflight(
             action=action,
             text=content,
@@ -388,16 +532,9 @@ class ControlledAutonomyEngine:
             idempotency_key=key,
             payload=payload,
         )
-        limit, hours = self._limit_for(action)
-        try:
-            self.autonomy_store.increment_counter(
-                action, limit=limit, window_hours=hours
-            )
-        except OverflowError as exc:
-            self.autonomy_store.log_block(
-                action=action, reasons=["quota_exceeded"], payload_hash=digest
-            )
-            raise AutonomyBlockedError(str(exc)) from exc
+        self._reserve_slot(
+            action=action, digest=digest, account=account, solicited=solicited
+        )
 
         if self.dry_run:
             result = {
@@ -416,12 +553,17 @@ class ControlledAutonomyEngine:
                 success=True,
                 url=result["url"],
                 detail=result,
+                text_norm=content,
+                account=account,
             )
+            if account:
+                self.autonomy_store.record_account_interaction(
+                    account, action=action, solicited=solicited
+                )
             self.policy.record_success()
             self._persist_policy()
             return result
 
-        # Live comment path
         try:
             client = await self._client()
             headers = {
@@ -436,13 +578,16 @@ class ControlledAutonomyEngine:
                     json={"content": content},
                 )
             if resp.status_code >= 400:
+                self._handle_http_failure(action=action, resp=resp)
                 raise MoltbookError(redact_text(f"comment failed {resp.status_code}"))
             body = resp.json() if resp.content else {}
             comment = body.get("comment") if isinstance(body.get("comment"), dict) else {}
             verification = (
                 comment.get("verification")
                 if isinstance(comment.get("verification"), dict)
-                else body.get("verification") if isinstance(body.get("verification"), dict) else None
+                else body.get("verification")
+                if isinstance(body.get("verification"), dict)
+                else None
             )
             pending = bool(verification) or comment.get("verification_status") == "pending"
             if pending:
@@ -474,14 +619,21 @@ class ControlledAutonomyEngine:
                 success=True,
                 url=result["url"],
                 detail=result,
+                text_norm=content,
+                account=account,
             )
+            if account:
+                self.autonomy_store.record_account_interaction(
+                    account, action=action, solicited=solicited
+                )
             self.policy.record_success()
             self._persist_policy()
             return result
         except Exception as exc:  # noqa: BLE001
             self.autonomy_store.refund_last_quota(action)
-            self.policy.record_error()
-            self._persist_policy()
+            if not isinstance(exc, MoltbookError):
+                self.policy.record_error()
+                self._persist_policy()
             raise
 
     async def execute_follow(
@@ -490,12 +642,12 @@ class ControlledAutonomyEngine:
         agent_name: str,
         reason: str,
         idempotency_key: str | None = None,
+        solicited: bool = False,
     ) -> dict[str, Any]:
         action = OutboundAction.FOLLOW.value
         payload = {"agent_name": agent_name, "reason": reason}
         destination = f"agent:{agent_name}"
         key = idempotency_key or f"follow-{agent_name}"
-        # Suspicious/spam account heuristics
         if detect_prompt_injection(agent_name) or detect_prompt_injection(reason):
             self.autonomy_store.log_block(
                 action=action, reasons=["suspicious_follow_target"], detail=payload
@@ -509,16 +661,10 @@ class ControlledAutonomyEngine:
             idempotency_key=key,
             payload=payload,
         )
-        limit, hours = self._limit_for(action)
-        try:
-            self.autonomy_store.increment_counter(
-                action, limit=limit, window_hours=hours
-            )
-        except OverflowError as exc:
-            self.autonomy_store.log_block(
-                action=action, reasons=["quota_exceeded"], payload_hash=digest
-            )
-            raise AutonomyBlockedError(str(exc)) from exc
+        account = agent_name.strip().lstrip("@").lower()
+        self._reserve_slot(
+            action=action, digest=digest, account=account, solicited=solicited
+        )
 
         result = {
             "dry_run": self.dry_run,
@@ -527,23 +673,29 @@ class ControlledAutonomyEngine:
             "destination": destination,
             "content_hash": digest,
             "url": f"https://www.moltbook.com/u/{agent_name}",
+            "relevance_reason": reason,
         }
         if not self.dry_run:
-            client = await self._client()
-            headers = {
-                "Authorization": f"Bearer {client.settings.api_key}",
-                "Content-Type": "application/json",
-                "User-Agent": client.settings.user_agent,
-            }
-            async with httpx.AsyncClient(timeout=client.settings.timeout_seconds) as http:
-                resp = await http.post(
-                    f"{client.settings.base_url}/agents/{agent_name}/follow",
-                    headers=headers,
-                )
-            if resp.status_code >= 400:
-                self.policy.record_error()
-                self._persist_policy()
-                raise MoltbookError(redact_text(f"follow failed {resp.status_code}"))
+            try:
+                client = await self._client()
+                headers = {
+                    "Authorization": f"Bearer {client.settings.api_key}",
+                    "Content-Type": "application/json",
+                    "User-Agent": client.settings.user_agent,
+                }
+                async with httpx.AsyncClient(
+                    timeout=client.settings.timeout_seconds
+                ) as http:
+                    resp = await http.post(
+                        f"{client.settings.base_url}/agents/{agent_name}/follow",
+                        headers=headers,
+                    )
+                if resp.status_code >= 400:
+                    self._handle_http_failure(action=action, resp=resp)
+                    raise MoltbookError(redact_text(f"follow failed {resp.status_code}"))
+            except Exception:
+                self.autonomy_store.refund_last_quota(action)
+                raise
 
         self.autonomy_store.log_action(
             action=action,
@@ -553,6 +705,11 @@ class ControlledAutonomyEngine:
             success=True,
             url=result["url"],
             detail=result,
+            text_norm=reason,
+            account=account,
+        )
+        self.autonomy_store.record_account_interaction(
+            account, action=action, solicited=solicited
         )
         self.policy.record_success()
         self._persist_policy()
@@ -565,7 +722,6 @@ class ControlledAutonomyEngine:
         reason: str,
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
-        """Correct/delete own content for error, privacy, broken link, or misleading statement."""
         action = OutboundAction.DELETE_CONTENT.value
         allowed_reasons = ("error", "privacy", "broken_link", "misleading")
         if reason not in allowed_reasons:
@@ -603,8 +759,7 @@ class ControlledAutonomyEngine:
                     headers=headers,
                 )
             if resp.status_code >= 400:
-                self.policy.record_error()
-                self._persist_policy()
+                self._handle_http_failure(action=action, resp=resp)
                 raise MoltbookError(redact_text(f"delete failed {resp.status_code}"))
         self.autonomy_store.log_action(
             action=action,
@@ -619,17 +774,15 @@ class ControlledAutonomyEngine:
         return result
 
     def alert_owner_lead(self, lead: dict[str, Any]) -> dict[str, Any]:
-        """Alert owner immediately for a credible YaliTek lead (no outbound publish)."""
         lead_id = str(lead.get("lead_id") or "unknown")
+        rules = content_generation_rules(self.policy.effective_limits())
         detail = {
             "lead_id": lead_id,
             "service": lead.get("relevant_service"),
             "source_url": lead.get("source_url"),
             "confidence": lead.get("confidence_score"),
             "suggested_response": lead.get("suggested_response"),
-            "requires_owner_before": CONTENT_GENERATION_RULES["leads"][
-                "requires_owner_approval"
-            ],
+            "requires_owner_before": rules["leads"]["requires_owner_approval"],
         }
         self.autonomy_store.log_lead_alert(lead_id, detail)
         self.store.append_audit(
@@ -645,18 +798,83 @@ class ControlledAutonomyEngine:
         actions = self.autonomy_store.list_actions_since(since)
         blocks = self.autonomy_store.list_blocks_since(since)
         alerts = self.autonomy_store.list_lead_alerts_since(since)
+        rate_limits = self.autonomy_store.list_rate_limits_since(since)
+        follows = self.autonomy_store.list_follows_since(since)
         leads = self.store.list_leads()
+        quality_skips = [
+            {
+                "action": b["action"],
+                "reasons": b["reasons"],
+                "timestamp": b["timestamp"],
+                "detail": b.get("detail"),
+            }
+            for b in blocks
+            if any(
+                r.startswith(
+                    (
+                        "semantic_duplicate",
+                        "relevance_",
+                        "usefulness_",
+                        "topic_diversity",
+                        "generic_praise",
+                        "engagement_bait",
+                        "comment_lacks",
+                        "follow_relevance",
+                        "per_account",
+                        "pacing_",
+                    )
+                )
+                or r
+                in {
+                    "generic_praise_forbidden",
+                    "engagement_bait_forbidden",
+                    "topic_not_in_allowlist",
+                    "comment_lacks_concrete_contribution",
+                    "duplicate_content_hash",
+                }
+                for r in b["reasons"]
+            )
+        ]
+        engagement_by_content: dict[str, Any] = {}
+        for a in actions:
+            if a["action"] in {"create_post", "comment"} and a.get("url"):
+                engagement_by_content[a["url"]] = {
+                    "action": a["action"],
+                    "destination": a["destination"],
+                    "success": a["success"],
+                    "timestamp": a["timestamp"],
+                }
         report = {
             "date": utc_now().strftime("%Y-%m-%d"),
+            "quota_availability": self.autonomy_store.quota_availability(
+                self.policy.effective_limits()
+            ),
+            "automatic_quota_reduction": {
+                "active": self.policy.quota_profile is QuotaProfile.REDUCED,
+                "reduced_at": self.policy.quota_reduced_at,
+                "reason": self.policy.quota_reduction_reason,
+            },
             "posts_comments_follows": [
                 {
                     "action": a["action"],
                     "url": a.get("url"),
                     "destination": a["destination"],
+                    "account": a.get("account"),
                     "success": a["success"],
                     "timestamp": a["timestamp"],
                 }
                 for a in actions
+            ],
+            "engagement_by_post_and_comment": engagement_by_content,
+            "accounts_followed": [
+                {
+                    "account": f.get("account") or f["destination"],
+                    "url": f.get("url"),
+                    "relevance_reason": (f.get("detail") or {}).get("relevance_reason"),
+                    "timestamp": f["timestamp"],
+                    "success": f["success"],
+                }
+                for f in follows
             ],
             "engagement_received": "not_fetched_in_this_build",
             "leads_discovered": [
@@ -671,15 +889,38 @@ class ControlledAutonomyEngine:
             ],
             "lead_alerts": alerts,
             "actions_blocked": [
-                {"action": b["action"], "reasons": b["reasons"], "timestamp": b["timestamp"]}
+                {
+                    "action": b["action"],
+                    "reasons": b["reasons"],
+                    "timestamp": b["timestamp"],
+                }
                 for b in blocks
             ],
+            "actions_skipped_for_quality": quality_skips,
+            "rate_limit_responses": rate_limits,
+            "negative_feedback_or_moderation": [
+                r
+                for r in rate_limits
+                if (r.get("detail") or {}).get("kind") == "platform_warning"
+            ]
+            + (
+                [
+                    {
+                        "signal": "quota_reduced",
+                        "reason": self.policy.quota_reduction_reason,
+                        "at": self.policy.quota_reduced_at,
+                    }
+                ]
+                if self.policy.quota_profile is QuotaProfile.REDUCED
+                else []
+            ),
             "limits_and_risk": self.status(),
             "recommended_owner_decisions": [
                 "Review any leads with confidence >= 0.7",
                 "Approve moving qualified leads to email/consultation if appropriate",
-                "Confirm whether dry_run should remain enabled",
+                "Quotas are ceilings — do not treat unused slots as missed targets",
                 "Do not expand autonomy permissions from missed targets",
+                "DMs / pricing / contracts / live crypto still require separate approval",
             ],
             "crypto_boundary": "Paper trading only; no live trading authorized",
         }
@@ -688,6 +929,11 @@ class ControlledAutonomyEngine:
             module="autonomy",
             action="daily_report",
             success=True,
-            detail={"date": report["date"], "actions": len(actions), "blocks": len(blocks)},
+            detail={
+                "date": report["date"],
+                "actions": len(actions),
+                "blocks": len(blocks),
+                "quota_profile": self.policy.quota_profile.value,
+            },
         )
         return report
