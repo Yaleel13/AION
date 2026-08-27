@@ -1,7 +1,9 @@
-"""Owner-protected serverless conversation memory endpoint for AION.
+"""Owner-protected serverless conversation and long-term memory endpoint for AION.
 
 This endpoint is called only by AION's server-side Next.js routes. It never
 accepts browser credentials directly and never exposes the database URL.
+Permanent facts are opt-in: the chat route calls ``remember`` only when the
+user explicitly asks AION to remember something.
 """
 
 from __future__ import annotations
@@ -23,12 +25,16 @@ class MemoryMessage(BaseModel):
 
 
 class MemoryRequest(BaseModel):
-    action: Literal["load", "append"]
+    action: Literal["load", "append", "search", "remember", "forget", "facts"]
     client_session_id: str = Field(min_length=16, max_length=200)
     messages: list[MemoryMessage] = Field(default_factory=list, max_length=4)
     previous_response_id: str | None = Field(default=None, max_length=500)
     model: str | None = Field(default=None, max_length=200)
     runtime: str | None = Field(default=None, max_length=200)
+    query: str | None = Field(default=None, max_length=2_000)
+    content: str | None = Field(default=None, max_length=10_000)
+    category: str | None = Field(default=None, max_length=100)
+    limit: int = Field(default=6, ge=1, le=12)
 
 
 def _require_internal_auth(authorization: str | None) -> None:
@@ -45,6 +51,14 @@ def _require_internal_auth(authorization: str | None) -> None:
 def _require_postgres() -> None:
     if not database_url():
         raise HTTPException(status_code=503, detail="AION_DATABASE_URL is not configured")
+
+
+def _conversation_id(conn, client_session_id: str) -> str | None:
+    row = conn.execute(
+        "SELECT id FROM aion.conversations WHERE client_session_id = ?",
+        (client_session_id,),
+    ).fetchone()
+    return row["id"] if row else None
 
 
 @app.post("/api/internal/conversation")
@@ -91,6 +105,152 @@ async def conversation_memory(
                 "model": conversation["model"],
                 "runtime": conversation["runtime"],
             }
+
+        if body.action == "search":
+            query = (body.query or "").strip()
+            if not query:
+                return {"facts": [], "history": []}
+
+            current_conversation_id = _conversation_id(conn, body.client_session_id)
+            facts = conn.execute(
+                """
+                SELECT id, content, category, updated_at,
+                       ts_rank_cd(fts, plainto_tsquery('english', ?)) AS rank
+                FROM aion.memory_facts
+                WHERE status = 'active'
+                  AND fts @@ plainto_tsquery('english', ?)
+                ORDER BY rank DESC, updated_at DESC
+                LIMIT ?
+                """,
+                (query, query, min(body.limit, 5)),
+            ).fetchall()
+
+            history_params: list[object] = [query, query]
+            exclude_clause = ""
+            if current_conversation_id:
+                exclude_clause = "AND m.conversation_id <> ?"
+                history_params.append(current_conversation_id)
+            history_params.append(min(body.limit, 6))
+
+            history = conn.execute(
+                f"""
+                SELECT m.id, m.content, m.created_at,
+                       ts_rank_cd(m.fts, plainto_tsquery('english', ?)) AS rank
+                FROM aion.conversation_messages m
+                WHERE m.role = 'user'
+                  AND m.fts @@ plainto_tsquery('english', ?)
+                  {exclude_clause}
+                ORDER BY rank DESC, m.created_at DESC
+                LIMIT ?
+                """,
+                tuple(history_params),
+            ).fetchall()
+
+            return {
+                "facts": [
+                    {
+                        "id": row["id"],
+                        "content": row["content"],
+                        "category": row["category"],
+                    }
+                    for row in facts
+                ],
+                "history": [
+                    {"id": row["id"], "content": row["content"]}
+                    for row in history
+                ],
+            }
+
+        if body.action == "facts":
+            rows = conn.execute(
+                """
+                SELECT id, content, category, updated_at
+                FROM aion.memory_facts
+                WHERE status = 'active'
+                ORDER BY updated_at DESC, id DESC
+                LIMIT ?
+                """,
+                (body.limit,),
+            ).fetchall()
+            return {
+                "facts": [
+                    {"id": row["id"], "content": row["content"], "category": row["category"]}
+                    for row in rows
+                ]
+            }
+
+        if body.action == "remember":
+            content = (body.content or "").strip()
+            if not content:
+                raise HTTPException(status_code=400, detail="Memory content is required")
+
+            existing = conn.execute(
+                """
+                SELECT id FROM aion.memory_facts
+                WHERE status = 'active' AND lower(btrim(content)) = lower(btrim(?))
+                ORDER BY updated_at DESC LIMIT 1
+                """,
+                (content,),
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE aion.memory_facts
+                    SET category = COALESCE(?, category), updated_at = now()
+                    WHERE id = ?
+                    """,
+                    ((body.category or "").strip() or None, existing["id"]),
+                )
+                conn.commit()
+                return {"remembered": True, "id": existing["id"], "deduplicated": True}
+
+            source_conversation_id = _conversation_id(conn, body.client_session_id)
+            source_message_id = None
+            if source_conversation_id:
+                source = conn.execute(
+                    """
+                    SELECT id FROM aion.conversation_messages
+                    WHERE conversation_id = ? AND role = 'user'
+                    ORDER BY created_at DESC, id DESC LIMIT 1
+                    """,
+                    (source_conversation_id,),
+                ).fetchone()
+                source_message_id = source["id"] if source else None
+
+            row = conn.execute(
+                """
+                INSERT INTO aion.memory_facts (
+                    content, category, source_conversation_id, source_message_id
+                ) VALUES (?, ?, ?, ?)
+                RETURNING id
+                """,
+                (
+                    content,
+                    (body.category or "").strip() or None,
+                    source_conversation_id,
+                    source_message_id,
+                ),
+            ).fetchone()
+            conn.commit()
+            return {"remembered": True, "id": row["id"], "deduplicated": False}
+
+        if body.action == "forget":
+            content = (body.content or body.query or "").strip()
+            if not content:
+                raise HTTPException(status_code=400, detail="Exact memory content is required")
+
+            rows = conn.execute(
+                """
+                UPDATE aion.memory_facts
+                SET status = 'forgotten', updated_at = now()
+                WHERE status = 'active'
+                  AND lower(btrim(content)) = lower(btrim(?))
+                RETURNING id
+                """,
+                (content,),
+            ).fetchall()
+            conn.commit()
+            return {"forgotten": len(rows), "exact_match": bool(rows)}
 
         conversation = conn.execute(
             """
