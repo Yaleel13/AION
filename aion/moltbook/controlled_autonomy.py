@@ -34,6 +34,7 @@ from aion.moltbook.security import (
     utc_now_iso,
 )
 from aion.moltbook.store import Phase2Store
+from aion.moltbook.verification import verify_content
 
 
 class AutonomyBlockedError(MoltbookError):
@@ -315,12 +316,20 @@ class ControlledAutonomyEngine:
             post = body.get("post") if isinstance(body.get("post"), dict) else {}
             post_id = post.get("id")
             url = f"https://www.moltbook.com/post/{post_id}" if post_id else None
-            # Verification challenge handling is intentionally NOT auto-solved here
-            # without owner-approved solver path; if required, mark pending_verification.
+            verification = post.get("verification") if isinstance(post.get("verification"), dict) else None
+            pending = bool(verification) or post.get("verification_status") == "pending"
+            if pending and verification:
+                await verify_content(
+                    base_url=client.settings.base_url,
+                    headers=headers,
+                    verification=verification,
+                    timeout=client.settings.timeout_seconds,
+                )
+                pending = False
             result = {
                 "dry_run": False,
-                "published": post.get("verification_status") in {None, "verified"},
-                "pending_verification": bool(post.get("verification")),
+                "published": not pending,
+                "pending_verification": pending,
                 "action": action,
                 "destination": destination,
                 "content_hash": digest,
@@ -340,12 +349,13 @@ class ControlledAutonomyEngine:
                 module="autonomy",
                 action="post_execute_create_post",
                 success=True,
-                detail=redact_value({"url": url, "post_id": post_id}),
+                detail=redact_value({"url": url, "post_id": post_id, "published": not pending}),
             )
             self.policy.record_success()
             self._persist_policy()
             return redact_value(result)
         except Exception as exc:  # noqa: BLE001
+            self.autonomy_store.refund_last_quota(action)
             self.policy.record_error()
             self._persist_policy()
             self.autonomy_store.log_action(
@@ -427,9 +437,26 @@ class ControlledAutonomyEngine:
                 )
             if resp.status_code >= 400:
                 raise MoltbookError(redact_text(f"comment failed {resp.status_code}"))
+            body = resp.json() if resp.content else {}
+            comment = body.get("comment") if isinstance(body.get("comment"), dict) else {}
+            verification = (
+                comment.get("verification")
+                if isinstance(comment.get("verification"), dict)
+                else body.get("verification") if isinstance(body.get("verification"), dict) else None
+            )
+            pending = bool(verification) or comment.get("verification_status") == "pending"
+            if pending and verification:
+                await verify_content(
+                    base_url=client.settings.base_url,
+                    headers=headers,
+                    verification=verification,
+                    timeout=client.settings.timeout_seconds,
+                )
+                pending = False
             result = {
                 "dry_run": False,
-                "published": True,
+                "published": not pending,
+                "pending_verification": pending,
                 "action": action,
                 "destination": destination,
                 "content_hash": digest,
