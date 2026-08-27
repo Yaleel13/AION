@@ -79,24 +79,73 @@ def _session(session_id: str) -> SQLiteSession:
 
 
 async def run_aion(message: str, session_id: str) -> dict[str, object]:
-    """Run one AION turn with SDK-managed conversation memory."""
-    result = await Runner.run(
-        AION_AGENT,
-        message,
-        session=_session(session_id),
-        max_turns=config.AION_MAX_TURNS,
-    )
+    """Run one AION turn with SDK-managed conversation memory and OpenAI guards."""
+    from aion.llm.openai_guard import GuardedResult, OpenAIGuard
 
-    usage = result.context_wrapper.usage
-    return {
-        "agent": AION_AGENT.name,
-        "session_id": session_id,
-        "response": str(result.final_output),
-        "requires_approval": bool(result.interruptions),
-        "usage": {
-            "requests": usage.requests,
-            "input_tokens": usage.input_tokens,
-            "output_tokens": usage.output_tokens,
-            "total_tokens": usage.total_tokens,
-        },
-    }
+    guard = OpenAIGuard()
+    prepared = guard.prepare(
+        message=message,
+        system_prompt=AION_INSTRUCTIONS,
+        model=config.AION_MODEL,
+    )
+    if isinstance(prepared, GuardedResult):
+        return {
+            "agent": AION_AGENT.name,
+            "session_id": session_id,
+            "response": prepared.response,
+            "requires_approval": False,
+            "fallback": True,
+            "reasons": prepared.reasons,
+            "usage": prepared.usage,
+        }
+
+    try:
+        # Keep agent model on allowlist
+        if config.AION_MODEL not in guard.config.allowlist:
+            raise ValueError(f"model_not_allowlisted:{config.AION_MODEL}")
+        result = await Runner.run(
+            AION_AGENT,
+            prepared.messages[-1]["content"],
+            session=_session(session_id),
+            max_turns=config.AION_MAX_TURNS,
+        )
+        usage = result.context_wrapper.usage
+        guard.record_usage(
+            model=config.AION_MODEL,
+            input_tokens=int(usage.input_tokens or 0),
+            output_tokens=int(usage.output_tokens or 0),
+            success=True,
+        )
+        return {
+            "agent": AION_AGENT.name,
+            "session_id": session_id,
+            "response": str(result.final_output),
+            "requires_approval": bool(result.interruptions),
+            "fallback": False,
+            "usage": {
+                "requests": usage.requests,
+                "input_tokens": usage.input_tokens,
+                "output_tokens": usage.output_tokens,
+                "total_tokens": usage.total_tokens,
+            },
+        }
+    except Exception as exc:  # noqa: BLE001
+        guard.record_usage(
+            model=config.AION_MODEL,
+            input_tokens=0,
+            output_tokens=0,
+            success=False,
+            detail={"error": type(exc).__name__},
+        )
+        return {
+            "agent": AION_AGENT.name,
+            "session_id": session_id,
+            "response": (
+                "AION fell back to safe non-LLM behavior after a model error. "
+                "Try again shortly."
+            ),
+            "requires_approval": False,
+            "fallback": True,
+            "reasons": [type(exc).__name__],
+            "usage": {},
+        }
