@@ -1,9 +1,19 @@
-import { type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/utils/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
-  const { response } = await updateSession(request);
-  return response;
+  try {
+    const { response } = await updateSession(request);
+    return response;
+  } catch {
+    // Last-resort guard: never surface MIDDLEWARE_INVOCATION_FAILED for
+    // optional Supabase session refresh.
+    return NextResponse.next({
+      request: {
+        headers: request.headers,
+      },
+    });
+  }
 }
 
 export const config = {
