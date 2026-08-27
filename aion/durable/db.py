@@ -31,6 +31,15 @@ def _is_postgres_url(url: str) -> bool:
     return scheme in {"postgres", "postgresql", "postgresql+psycopg"}
 
 
+def _serverless_runtime() -> bool:
+    """Return true when local SQLite cannot honestly be called durable."""
+    return bool(
+        os.getenv("VERCEL")
+        or os.getenv("AWS_LAMBDA_FUNCTION_NAME")
+        or os.getenv("FUNCTIONS_WORKER_RUNTIME")
+    )
+
+
 @dataclass
 class DbStatus:
     backend: str
@@ -50,11 +59,21 @@ class DbStatus:
 def storage_status() -> DbStatus:
     url = database_url()
     if not url:
+        if _serverless_runtime():
+            return DbStatus(
+                backend="sqlite_ephemeral",
+                configured=False,
+                schema=None,
+                detail=(
+                    "AION_DATABASE_URL unset on serverless runtime; local SQLite "
+                    "may be discarded between invocations"
+                ),
+            )
         return DbStatus(
             backend="sqlite",
             configured=True,
             schema=None,
-            detail="AION_DATABASE_URL unset; using durable SQLite files",
+            detail="AION_DATABASE_URL unset; using SQLite under AION_DATA_DIR",
         )
     if not _is_postgres_url(url):
         return DbStatus(
@@ -189,61 +208,53 @@ class SqliteConn:
         self._conn.execute("BEGIN IMMEDIATE")
 
 
-def _adapt_sql(sql: str, params: Any) -> tuple[str, Any]:
-    """Translate sqlite-style placeholders to psycopg pyformat."""
-    if sql.strip().upper() == "BEGIN IMMEDIATE":
-        sql = "BEGIN"
+def _adapt_sql(sql: str, params: Any = None) -> tuple[str, Any]:
+    """Adapt sqlite-ish placeholders for psycopg."""
     if params is None:
-        return sql.replace("?", "%s"), params
-
+        return sql.replace("?", "%s"), None
     if isinstance(params, dict):
-        # :name → %(name)s
-        sql2 = _NAMED_PARAM.sub(r"%(\1)s", sql)
-        sql2 = sql2.replace("?", "%s")  # shouldn't mix, but be safe
-        return sql2, params
-
-    if isinstance(params, (list, tuple)):
-        return sql.replace("?", "%s"), params
-
+        return _NAMED_PARAM.sub(r"%(\1)s", sql), params
     return sql.replace("?", "%s"), params
 
 
 def connect_postgres(url: str | None = None) -> PostgresConn:
+    dsn = url or database_url()
+    if not dsn:
+        raise RuntimeError("AION_DATABASE_URL is not configured")
+    if not _is_postgres_url(dsn):
+        raise RuntimeError("AION_DATABASE_URL must use postgresql://")
     try:
         import psycopg
         from psycopg.rows import dict_row
-    except ImportError as exc:  # pragma: no cover
-        raise RuntimeError(
-            "psycopg is required for AION_DATABASE_URL. Install: pip install 'psycopg[binary]'"
-        ) from exc
-
-    raw = url or database_url()
-    if not raw:
-        raise RuntimeError("AION_DATABASE_URL is not set")
-
-    # Normalize SQLAlchemy-style URLs if pasted by mistake.
-    raw = raw.replace("postgresql+psycopg://", "postgresql://", 1)
-    conn = psycopg.connect(raw, row_factory=dict_row, options="-c search_path=aion,public")
+    except ImportError as exc:  # pragma: no cover - dependency failure
+        raise RuntimeError("psycopg is required for Postgres durable storage") from exc
+    conn = psycopg.connect(dsn, row_factory=dict_row)
     conn.execute("SET search_path TO aion, public")
     return PostgresConn(conn)
 
 
 def connect_sqlite(path: str) -> SqliteConn:
-    parent = os.path.dirname(path)
-    if parent:
-        os.makedirs(parent, exist_ok=True)
     return SqliteConn(path)
 
 
-def connect_phase2(sqlite_path: str | None = None) -> SqliteConn | PostgresConn:
+def connect(path: str | None = None):
     url = database_url()
     if url:
         return connect_postgres(url)
-    if not sqlite_path:
-        raise ValueError("sqlite_path required when AION_DATABASE_URL is unset")
-    return connect_sqlite(sqlite_path)
+    if not path:
+        raise ValueError("SQLite path is required when AION_DATABASE_URL is unset")
+    return connect_sqlite(path)
 
 
-def connect_paper(sqlite_path: str | None = None) -> SqliteConn | PostgresConn:
-    """Paper trading uses the same Postgres when configured; else its own SQLite file."""
-    return connect_phase2(sqlite_path)
+def execute_many(conn: Any, sql: str, rows: Iterable[Sequence[Any]]) -> None:
+    """Portable executemany for sqlite / psycopg wrappers."""
+    cur = conn.cursor()
+    try:
+        sql2 = sql if getattr(conn, "backend", "sqlite") == "sqlite" else sql.replace("?", "%s")
+        for row in rows:
+            cur.execute(sql2, row)
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
