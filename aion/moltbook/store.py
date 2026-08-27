@@ -1,12 +1,16 @@
-"""SQLite persistence for Phase 2 approvals, audits, leads, and risk state."""
+"""Phase 2 persistence for approvals, audits, leads, and risk state.
+
+Backed by durable SQLite by default, or Postgres schema ``aion`` when
+``AION_DATABASE_URL`` is configured.
+"""
 
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 from typing import Any, Iterable
 
+from aion.durable.db import connect_phase2, database_url
 from aion.moltbook.security import utc_now_iso
 
 
@@ -24,18 +28,21 @@ DEFAULT_DB_PATH = "/tmp/aion_phase2.db"  # legacy; prefer default_phase2_db_path
 
 
 class Phase2Store:
-    """Append-friendly SQLite store. Audit rows are never updated or deleted."""
+    """Append-friendly store. Audit rows are never updated or deleted."""
 
     def __init__(self, path: str | None = None):
         self.path = path or default_phase2_db_path()
-        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self.path, check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
+        if not database_url():
+            Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+        self._conn = connect_phase2(self.path)
+        self.backend = getattr(self._conn, "backend", "sqlite")
         self._init_schema()
 
     def _init_schema(self) -> None:
-        cur = self._conn.cursor()
-        cur.executescript(
+        # Postgres schema is applied via migrations; SQLite still bootstraps locally.
+        if getattr(self._conn, "backend", "sqlite") == "postgres":
+            return
+        self._conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS approvals (
               request_id TEXT PRIMARY KEY,
@@ -181,6 +188,25 @@ class Phase2Store:
     # --- audit ---------------------------------------------------------------
 
     def append_audit(self, *, module: str, action: str, success: bool, detail: dict[str, Any]) -> int:
+        if getattr(self._conn, "backend", "sqlite") == "postgres":
+            cur = self._conn.execute(
+                """
+                INSERT INTO audit_events (timestamp, module, action, success, detail_json)
+                VALUES (?, ?, ?, ?, ?)
+                RETURNING id
+                """,
+                (
+                    utc_now_iso(),
+                    module,
+                    action,
+                    bool(success),
+                    json.dumps(detail, default=str),
+                ),
+            )
+            row = cur.fetchone()
+            self._conn.commit()
+            return int(row["id"] if isinstance(row, dict) else row[0])
+
         cur = self._conn.execute(
             """
             INSERT INTO audit_events (timestamp, module, action, success, detail_json)

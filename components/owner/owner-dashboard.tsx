@@ -16,6 +16,7 @@ type Dashboard = {
   audit_history?: Array<Record<string, unknown>>
   risk_status?: Record<string, unknown>
   controlled_autonomy?: Record<string, unknown>
+  storage?: Record<string, unknown>
   error?: string
 }
 
@@ -142,7 +143,12 @@ export function OwnerDashboard() {
               {kill ? "Release kill switch" : "Engage kill switch"}
             </button>
           </div>
-          {message ? <p className="mt-3 text-xs text-caution">{message}</p> : null}
+          {message ? <p className="mt-3 text-xs text-caution">{message}
+        {data?.storage ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Storage: {String(data.storage.backend)} — {String(data.storage.detail || "")}
+          </p>
+        ) : null}</p> : null}
         </header>
 
         <div className="grid gap-4 md:grid-cols-2">

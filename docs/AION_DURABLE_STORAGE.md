@@ -1,6 +1,6 @@
 # AION Durable Storage
 
-**Status:** SQLite under `AION_DATA_DIR` is the active runtime store. Dedicated Supabase Postgres is **provisioned** with schema `aion` applied; the Postgres adapter is not wired into the app yet.
+**Status:** SQLite under `AION_DATA_DIR` is the default runtime store. Dedicated Supabase Postgres is provisioned with schema `aion`. Set `AION_DATABASE_URL` to switch Phase 2 / autonomy / scheduler / paper stores to Postgres via `aion/durable/db.py`.
 
 ## Selected infrastructure
 
@@ -56,13 +56,14 @@ python3 scripts/migrate_durable_storage.py \
 
 Restores `phase2_before.db` / `paper_before.db` from that backup folder.
 
-## Postgres (provisioned; adapter pending)
+## Postgres (adapter wired)
 
 1. Dedicated project **AION** created — never reuse YaliTek/Elaria projects. ✅
 2. Applied `aion/durable/postgres_schema.sql` → schema `aion` (approvals, audit, leads, drafts, autonomy, scheduler, paper trading). ✅
-3. Set `AION_DATABASE_URL` from the Supabase dashboard connection string (server-side / secret store only). ⏳
-4. Activate the Postgres adapter in app code (follow-up). Until then, runtime still uses SQLite under `AION_DATA_DIR`.
-5. Prefer a least-privilege DB role limited to schema `aion`.
+3. Postgres adapter: `aion/durable/db.py` (`psycopg`). When `AION_DATABASE_URL` is set, Phase2 / autonomy / scheduler / paper use schema `aion`; otherwise SQLite under `AION_DATA_DIR`. ✅
+4. Set `AION_DATABASE_URL` from the Supabase dashboard connection string (server-side / secret store only). ⏳
+5. Next.js: `utils/supabase/*` + middleware session refresh; `/api/storage/status` probes `public.aion_storage_status`. ✅
+6. Prefer a least-privilege DB role limited to schema `aion`.
 
 ## Paper trading market-data separation
 
