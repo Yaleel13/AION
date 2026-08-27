@@ -520,6 +520,8 @@ def test_auto_reduce_and_rate_limit_fallback(active_engine: ControlledAutonomyEn
     assert lim.max_posts_per_24h == 1
     assert lim.max_comments_per_24h == 3
     assert lim.max_follows_per_7d == 5
+    # Ordinary platform 429s back off / eventually read-only; they do not themselves
+    # re-reduce an already-reduced profile.
     active_engine.policy.record_rate_limit_response(retry_after_seconds=30)
     active_engine.policy.record_rate_limit_response(retry_after_seconds=30)
     active_engine.policy.record_rate_limit_response(retry_after_seconds=30)

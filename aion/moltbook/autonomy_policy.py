@@ -288,8 +288,12 @@ class AutonomyPolicy:
         return True
 
     def record_rate_limit_response(self, *, retry_after_seconds: float | None = None) -> None:
+        """Respect platform pacing. Ordinary 429s back off; repeated ones go read-only.
+
+        Quota reduction is reserved for moderation / negative-feedback / suspicious
+        engagement — not routine platform cooldowns while under owner ceilings.
+        """
         self.rate_limit_streak += 1
-        self.negative_signal_count += 1
         if retry_after_seconds and retry_after_seconds > 0:
             until = utc_now() + timedelta(seconds=float(retry_after_seconds))
             self.platform_backoff_until = until.isoformat()
@@ -297,8 +301,6 @@ class AutonomyPolicy:
             self.enter_read_only_fallback(
                 f"Repeated rate-limit responses ({self.rate_limit_streak})"
             )
-        elif self.negative_signal_count >= 2:
-            self.reduce_quotas("Repeated rate-limit / negative platform signals")
 
     def record_platform_warning(self, detail: str) -> None:
         self.negative_signal_count += 1

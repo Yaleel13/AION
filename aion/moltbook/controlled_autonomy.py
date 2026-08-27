@@ -47,12 +47,23 @@ class AutonomyBlockedError(MoltbookError):
 
 def _parse_retry_after(resp: httpx.Response) -> float | None:
     raw = resp.headers.get("Retry-After") or resp.headers.get("retry-after")
-    if not raw:
-        return None
+    if raw:
+        try:
+            return float(raw)
+        except ValueError:
+            pass
     try:
-        return float(raw)
-    except ValueError:
-        return None
+        body = resp.json() if resp.content else {}
+    except Exception:  # noqa: BLE001
+        body = {}
+    if isinstance(body, dict):
+        for key in ("retry_after_seconds", "retry_after", "retryAfter"):
+            if body.get(key) is not None:
+                try:
+                    return float(body[key])
+                except (TypeError, ValueError):
+                    continue
+    return None
 
 
 def _looks_like_platform_warning(status_code: int, body_text: str) -> bool:

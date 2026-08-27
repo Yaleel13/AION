@@ -49,14 +49,8 @@ class AutonomyStore:
               idempotency_key TEXT UNIQUE,
               url TEXT,
               success INTEGER NOT NULL,
-              detail_json TEXT NOT NULL,
-              text_norm TEXT,
-              account TEXT
+              detail_json TEXT NOT NULL
             );
-            CREATE INDEX IF NOT EXISTS idx_autonomy_actions_time
-              ON autonomy_actions(timestamp);
-            CREATE INDEX IF NOT EXISTS idx_autonomy_actions_account
-              ON autonomy_actions(account, timestamp);
 
             CREATE TABLE IF NOT EXISTS autonomy_account_interactions (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,8 +59,6 @@ class AutonomyStore:
               solicited INTEGER NOT NULL DEFAULT 0,
               created_at TEXT NOT NULL
             );
-            CREATE INDEX IF NOT EXISTS idx_autonomy_account_time
-              ON autonomy_account_interactions(account, created_at);
 
             CREATE TABLE IF NOT EXISTS autonomy_rate_limits (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,6 +92,17 @@ class AutonomyStore:
             self._conn.execute("ALTER TABLE autonomy_actions ADD COLUMN text_norm TEXT")
         if "account" not in cols:
             self._conn.execute("ALTER TABLE autonomy_actions ADD COLUMN account TEXT")
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_autonomy_actions_time ON autonomy_actions(timestamp)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_autonomy_actions_account "
+            "ON autonomy_actions(account, timestamp)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_autonomy_account_time "
+            "ON autonomy_account_interactions(account, created_at)"
+        )
         self._conn.commit()
 
     def increment_counter(self, action: str, *, limit: int, window_hours: int) -> int:
@@ -420,7 +423,10 @@ class AutonomyStore:
     def recent_content_hashes(self, *, hours: int = 24 * 14) -> set[str]:
         since = (utc_now() - timedelta(hours=hours)).isoformat()
         rows = self._conn.execute(
-            "SELECT content_hash FROM autonomy_actions WHERE timestamp >= ?",
+            """
+            SELECT content_hash FROM autonomy_actions
+            WHERE timestamp >= ? AND success=1
+            """,
             (since,),
         ).fetchall()
         return {r["content_hash"] for r in rows}

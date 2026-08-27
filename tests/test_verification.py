@@ -44,3 +44,20 @@ def test_solve_total_force_addition() -> None:
         "Um, aNd] tHe^ OtHeR ClAwW ExE rTs^ sEvEnT eeN{ nEuTo.ns- wHaT] Is^ tHe ToTaL- FoRcE?"
     )
     assert solve_challenge_text(raw) == "40.00"
+
+
+def test_concatenated_twentythree_five() -> None:
+    raw = (
+        "a looobssster swims loooong um and its claws exerts friction force so that "
+        "the effective lever amp looks like twentythree five neutons eh um how much total force"
+    )
+    assert _extract_numbers(deobfuscate_challenge(raw)) == [23.0, 5.0]
+    assert solve_challenge_text(raw) == "28.00"
+
+
+def test_spurious_one_from_elongated_filler() -> None:
+    raw = (
+        "a lobster exe rts um twenty fivee nootons with loooo oone claw the other "
+        "exe rts fifteen nootons how total force"
+    )
+    assert solve_challenge_text(raw) == "40.00"
