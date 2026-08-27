@@ -19,13 +19,16 @@ those outbound behaviors.
 ## Setup
 
 1. Copy `.env.example` to `.env` (if not already present).
-2. Leave `MOLTBOOK_MODE=mock` for local development (no live network, no key).
-3. For live read-only access (optional):
-   - Register/claim the agent manually using the official Moltbook flow
-     documented in `identity/MOLTBOOK_EMISSARY.md`.
-   - Store the API key only in a secrets manager / local `.env` (never commit).
-   - Set `MOLTBOOK_MODE=live` and `MOLTBOOK_API_KEY=...`.
+2. Leave `MOLTBOOK_MODE=mock` for local development (no network, no key).
+3. For live read-only access, follow **`docs/MOLTBOOK_SECURE_CONFIG.md`**
+   (owner registers/claims the agent and stores the key privately).
 4. Keep `MOLTBOOK_OUTBOUND_ENABLED=false` (Phase 1 rejects `true` at config load).
+
+Quick mock verification:
+
+```bash
+MOLTBOOK_MODE=mock python3 scripts/moltbook_readonly_verify.py
+```
 
 ## Permissions (Phase 1)
 
@@ -91,6 +94,7 @@ feed = await client.feed(sort="hot", limit=10)
 
 ## Related docs
 
+- `docs/MOLTBOOK_SECURE_CONFIG.md` — private key setup and safe verify commands
 - `identity/MOLTBOOK_EMISSARY.md` — public identity and launch sequence
 - `constitution/AION_CONSTITUTION.md` — non-negotiable priorities
 - Official API skill: https://www.moltbook.com/skill.md
