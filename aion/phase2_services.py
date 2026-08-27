@@ -9,6 +9,7 @@ from typing import Any
 
 from aion.moltbook.approval import Phase2ApprovalGate
 from aion.moltbook.client import create_client
+from aion.moltbook.controlled_autonomy import ControlledAutonomyEngine
 from aion.moltbook.drafts import CampaignDraftService
 from aion.moltbook.leads import LeadDiscoveryService, SEARCH_CATEGORIES
 from aion.moltbook.security import KillSwitch
@@ -23,6 +24,7 @@ class Phase2Services:
     gate: Phase2ApprovalGate
     drafts: CampaignDraftService
     paper: PaperTradingEngine
+    autonomy: ControlledAutonomyEngine
 
     def leads(self) -> LeadDiscoveryService:
         return LeadDiscoveryService(self.store, create_client())
@@ -39,8 +41,14 @@ def get_services() -> Phase2Services:
     paper = PaperTradingEngine(
         PaperConfig(db_path=os.getenv("AION_PAPER_DB", "/tmp/aion_paper_trading.db"))
     )
+    autonomy = ControlledAutonomyEngine.create(store, kill_switch=kill)
     return Phase2Services(
-        store=store, kill_switch=kill, gate=gate, drafts=drafts, paper=paper
+        store=store,
+        kill_switch=kill,
+        gate=gate,
+        drafts=drafts,
+        paper=paper,
+        autonomy=autonomy,
     )
 
 
@@ -55,6 +63,7 @@ def dashboard_snapshot() -> dict[str, Any]:
     rejected = [r for r in all_approvals if r["decision"] == "rejected"]
     approved = [r for r in all_approvals if r["decision"] in {"approved", "executed"}]
     paper = svc.paper.performance_report()
+    autonomy_status = svc.autonomy.status()
     return {
         "phase": "phase2-controlled-growth",
         "kill_switch": svc.kill_switch.snapshot(),
@@ -72,15 +81,21 @@ def dashboard_snapshot() -> dict[str, Any]:
             float(lead.get("revenue_attributed") or 0) for lead in svc.store.list_leads()
         ),
         "paper_trading": paper,
+        "controlled_autonomy": autonomy_status,
         "search_categories": [c["service"] for c in SEARCH_CATEGORIES],
         "audit_history": svc.store.list_audit(limit=50),
         "risk_status": {
             "kill_switch": svc.kill_switch.snapshot(),
             "outbound_execute_enabled": False,
+            "controlled_autonomy_mode": autonomy_status["policy"]["mode"],
+            "controlled_autonomy_dry_run": autonomy_status["dry_run"],
+            "live_writes_enabled": autonomy_status["live_writes_enabled"],
             "notes": [
                 "Drafts are not published automatically.",
+                "Controlled autonomy defaults to inactive + dry_run.",
                 "Paper trading uses virtual funds only.",
                 "No exchange trading keys accepted.",
+                "Final owner activation required before any autonomous write.",
             ],
         },
     }
