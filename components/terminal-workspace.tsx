@@ -1,29 +1,41 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { LockKeyhole, Play, ShieldCheck, Terminal, X } from "lucide-react"
+import { Hammer, LockKeyhole, Play, SearchCheck, ShieldCheck, Terminal, Wrench, X } from "lucide-react"
 
 type SessionState = { configured: boolean; authenticated: boolean }
+type CheckName = "inspect" | "lint" | "build" | "all"
+type CommandSummary = { name: string; exitCode: number; stdout: string; stderr: string }
 type DiagnosticResult = {
   ok?: boolean
   executor?: string
+  check?: CheckName
   sandbox?: string
   persistent?: boolean
   repository?: string
   revision?: string
   workingTree?: string
   node?: string
-  networkAfterClone?: string
+  networkAfterInstall?: string
   secretsInjected?: boolean
   arbitraryCommandsEnabled?: boolean
+  results?: CommandSummary[]
+  allowedChecks?: CheckName[]
   error?: string
 }
+
+const CHECKS: Array<{ id: CheckName; label: string; icon: typeof Play }> = [
+  { id: "inspect", label: "Inspect", icon: SearchCheck },
+  { id: "lint", label: "Lint", icon: Wrench },
+  { id: "build", label: "Build", icon: Hammer },
+  { id: "all", label: "Run all", icon: Play },
+]
 
 export function TerminalWorkspace({ onClose }: { onClose: () => void }) {
   const [session, setSession] = useState<SessionState>({ configured: true, authenticated: false })
   const [token, setToken] = useState("")
   const [loading, setLoading] = useState(true)
-  const [running, setRunning] = useState(false)
+  const [running, setRunning] = useState<CheckName | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<DiagnosticResult | null>(null)
 
@@ -71,12 +83,16 @@ export function TerminalWorkspace({ onClose }: { onClose: () => void }) {
     setError(null)
   }, [])
 
-  const runDiagnostic = useCallback(async () => {
-    setRunning(true)
+  const runDiagnostic = useCallback(async (check: CheckName) => {
+    setRunning(check)
     setError(null)
     setResult(null)
     try {
-      const res = await fetch("/api/owner/terminal/diagnose", { method: "POST" })
+      const res = await fetch("/api/owner/terminal/diagnose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ check }),
+      })
       const data = (await res.json()) as DiagnosticResult
       if (res.status === 401) {
         setSession((current) => ({ ...current, authenticated: false }))
@@ -87,7 +103,7 @@ export function TerminalWorkspace({ onClose }: { onClose: () => void }) {
     } catch (runError) {
       setError(runError instanceof Error ? runError.message : "Sandbox diagnostic failed.")
     } finally {
-      setRunning(false)
+      setRunning(null)
     }
   }, [])
 
@@ -116,27 +132,34 @@ export function TerminalWorkspace({ onClose }: { onClose: () => void }) {
                 Isolated diagnostic executor available
               </div>
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                Diagnostics run in an ephemeral Vercel Sandbox. AION clones only the public AION repository, then disables sandbox network access before inspecting it. Production secrets are not injected.
+                AION can inspect, lint, and build the public AION repository inside an ephemeral Vercel Sandbox. Dependency download is allowed only before checks; network access is then disabled. Production secrets are never injected.
               </p>
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={runDiagnostic} disabled={running} className="inline-flex items-center gap-2 rounded-md bg-foreground px-3 py-2 text-xs font-medium text-background disabled:cursor-not-allowed disabled:opacity-50">
-                <Play className="h-3.5 w-3.5" />
-                {running ? "Running diagnostic…" : "Run safe diagnostic"}
-              </button>
-              <button type="button" onClick={lock} disabled={running} className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50">
+              {CHECKS.map(({ id, label, icon: Icon }) => (
+                <button key={id} type="button" onClick={() => void runDiagnostic(id)} disabled={running !== null} className="inline-flex items-center gap-2 rounded-md bg-foreground px-3 py-2 text-xs font-medium text-background disabled:cursor-not-allowed disabled:opacity-50">
+                  <Icon className="h-3.5 w-3.5" />
+                  {running === id ? `Running ${label.toLowerCase()}…` : label}
+                </button>
+              ))}
+              <button type="button" onClick={lock} disabled={running !== null} className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50">
                 <LockKeyhole className="h-3.5 w-3.5" />
                 Lock executor
               </button>
             </div>
 
             {result ? (
-              <pre className="whitespace-pre-wrap break-words rounded-lg border border-border bg-black/20 p-4 font-mono text-[0.72rem] leading-relaxed text-foreground">{`executor: ${result.executor ?? "unknown"}\nsandbox: ${result.sandbox ?? "unknown"}\nrepository: ${result.repository ?? "unknown"}\nrevision: ${result.revision ?? "unknown"}\nworking tree: ${result.workingTree ?? "unknown"}\nnode: ${result.node ?? "unknown"}\npersistent: ${String(result.persistent ?? false)}\nnetwork after clone: ${result.networkAfterClone ?? "unknown"}\nproduction secrets injected: ${String(result.secretsInjected ?? false)}\narbitrary commands enabled: ${String(result.arbitraryCommandsEnabled ?? false)}`}</pre>
+              <div className="space-y-3">
+                <pre className="whitespace-pre-wrap break-words rounded-lg border border-border bg-black/20 p-4 font-mono text-[0.72rem] leading-relaxed text-foreground">{`check: ${result.check ?? "inspect"}\nstatus: ${result.ok ? "passed" : "failed"}\nexecutor: ${result.executor ?? "unknown"}\nsandbox: ${result.sandbox ?? "unknown"}\nrepository: ${result.repository ?? "unknown"}\nrevision: ${result.revision ?? "unknown"}\nworking tree: ${result.workingTree ?? "unknown"}\nnode: ${result.node ?? "unknown"}\npersistent: ${String(result.persistent ?? false)}\nnetwork after install: ${result.networkAfterInstall ?? "unknown"}\nproduction secrets injected: ${String(result.secretsInjected ?? false)}\narbitrary commands enabled: ${String(result.arbitraryCommandsEnabled ?? false)}`}</pre>
+                {(result.results ?? []).map((command) => (
+                  <pre key={command.name} className="whitespace-pre-wrap break-words rounded-lg border border-border bg-black/20 p-4 font-mono text-[0.7rem] leading-relaxed text-foreground">{`$ ${command.name}\nexit: ${command.exitCode}\n${command.stdout || command.stderr || "(no output)"}${command.stderr && command.stdout ? `\n${command.stderr}` : ""}`}</pre>
+                ))}
+              </div>
             ) : null}
 
             <p className="text-[0.7rem] leading-relaxed text-muted-foreground">
-              This executor intentionally does not expose an arbitrary shell. Repository writes, deployments, destructive commands, credential operations, and other consequential actions remain unavailable until separately reviewed and approval-gated.
+              This remains a diagnostic executor, not an arbitrary shell. Repository writes, deployments, destructive commands, credential operations, package publishing, and other consequential actions remain unavailable until separately reviewed and approval-gated.
             </p>
           </>
         ) : (
