@@ -52,6 +52,7 @@ def build_runtime_status() -> dict[str, Any]:
     )
 
     vercel_runtime = bool(os.getenv("VERCEL"))
+    owner_token_configured = bool(os.getenv("AION_OWNER_TOKEN"))
 
     return {
         "ok": True,
@@ -79,9 +80,11 @@ def build_runtime_status() -> dict[str, Any]:
         },
         "operations": {
             "database_url_configured": bool(os.getenv("AION_DATABASE_URL")),
-            "owner_token_configured": bool(os.getenv("AION_OWNER_TOKEN")),
+            "owner_token_configured": owner_token_configured,
             "cron_secret_configured": bool(os.getenv("CRON_SECRET")),
-            "terminal_executor_connected": False,
+            "terminal_executor_connected": vercel_runtime and owner_token_configured,
+            "terminal_executor_mode": "vercel-sandbox-diagnostics" if vercel_runtime and owner_token_configured else None,
+            "arbitrary_terminal_commands_enabled": False,
         },
         "safety": {
             "moltbook_outbound_default": False,
