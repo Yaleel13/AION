@@ -19,6 +19,36 @@ from aion.moltbook.redact import REDACTED, redact_text, redact_value
 from aion.moltbook.settings import load_moltbook_settings
 
 
+def test_settings_repr_hides_api_key() -> None:
+    settings = load_moltbook_settings(
+        environ={
+            "MOLTBOOK_MODE": "live",
+            "MOLTBOOK_API_KEY": "moltbook_sk_should_never_appear_in_repr",
+            "MOLTBOOK_BASE_URL": "https://www.moltbook.com/api/v1",
+        }
+    )
+    rendered = repr(settings)
+    assert "moltbook_sk_should_never_appear_in_repr" not in rendered
+    assert "api_key=<set>" in rendered
+
+
+def test_gitignore_covers_private_env_files() -> None:
+    import subprocess
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    for name in (".env", ".env.local", ".env.live"):
+        result = subprocess.run(
+            ["git", "check-ignore", "-v", name],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, f"{name} must be gitignored"
+        assert name in result.stdout or ".env" in result.stdout
+
+
 def test_settings_default_mock(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("MOLTBOOK_MODE", raising=False)
     monkeypatch.delenv("MOLTBOOK_API_KEY", raising=False)
