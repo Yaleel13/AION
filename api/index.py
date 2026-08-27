@@ -1,5 +1,9 @@
 """Vercel Python entrypoint for the AION FastAPI runtime."""
 
-from aion.main import app
+from fastapi import FastAPI
 
-# Vercel detects this ASGI app from api/index.py.
+from aion.main import app as runtime_app
+
+app = FastAPI()
+app.mount("/api", runtime_app)
+app.mount("/", runtime_app)
