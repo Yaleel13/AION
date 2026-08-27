@@ -48,12 +48,18 @@ class PriceProvider:
 
     def get_prices(self) -> dict[str, MarketPrice]:
         if self.mode == "live_public":
-            return self._fetch_coingecko()
-        # Deterministic mock path for tests / offline.
+            try:
+                return self._fetch_coingecko()
+            except Exception:
+                # Public feeds rate-limit; keep paper loop alive with last-known mock.
+                return self._mock_prices(source="mock_fallback_after_live_error")
+        return self._mock_prices(source="mock")
+
+    def _mock_prices(self, *, source: str = "mock") -> dict[str, MarketPrice]:
         now = utc_now_iso()
         return {
-            "BTC": MarketPrice("BTC", 60000.0, now, "mock"),
-            "ETH": MarketPrice("ETH", 3000.0, now, "mock"),
+            "BTC": MarketPrice("BTC", 60000.0, now, source),
+            "ETH": MarketPrice("ETH", 3000.0, now, source),
         }
 
     def _fetch_coingecko(self) -> dict[str, MarketPrice]:

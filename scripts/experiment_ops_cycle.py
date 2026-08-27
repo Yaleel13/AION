@@ -69,14 +69,29 @@ async def run_cycle(*, flush_queue: bool) -> dict:
         result["drafts_existing"] = len(drafts)
 
     # 2) Paper trading tick (virtual only)
-    paper = svc.paper.run_starter_strategy_once()
-    result["paper"] = {
-        "equity": paper.get("mark", {}).get("equity"),
-        "return_pct": paper.get("mark", {}).get("return_pct"),
-        "price_source": (paper.get("mark", {}).get("positions") or {}).get("price_source"),
-        "ready_for_live_proposal": svc.paper.performance_report().get("ready_for_live_proposal"),
-        "disclaimer": "Paper only — no wallets/exchanges/live orders",
-    }
+    try:
+        paper = svc.paper.run_starter_strategy_once()
+        report = svc.paper.performance_report()
+        result["paper"] = {
+            "equity": paper.get("mark", {}).get("equity"),
+            "return_pct": paper.get("mark", {}).get("return_pct"),
+            "price_source": (paper.get("mark", {}).get("positions") or {}).get(
+                "price_source"
+            ),
+            "ready_for_live_proposal": report.get("ready_for_live_proposal"),
+            "disclaimer": "Paper only — no wallets/exchanges/live orders",
+        }
+    except Exception as exc:  # noqa: BLE001
+        # Public price APIs can 429; keep cycle alive without live trading.
+        latest = (svc.paper.performance_report().get("latest") or {})
+        result["paper"] = {
+            "equity": latest.get("equity"),
+            "return_pct": latest.get("return_pct"),
+            "price_source": (latest.get("positions") or {}).get("price_source"),
+            "ready_for_live_proposal": False,
+            "tick_error": str(exc)[:200],
+            "disclaimer": "Paper only — tick skipped due to price feed error",
+        }
 
     # 3) Lead discovery + customized drafts
     leads = await svc.leads().scan_feed(limit=40)
