@@ -12,6 +12,7 @@
     "@ai-sdk/deepinfra": "^3.0.30",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.112.4",
+    "@vercel/sandbox": "3.1.0",
     "ai": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -24,8 +25,8 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
     "@types/node": "^22",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.1",
     "tailwindcss": "^4.1.0",
