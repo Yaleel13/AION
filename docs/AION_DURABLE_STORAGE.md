@@ -1,17 +1,16 @@
 # AION Durable Storage
 
-**Status:** Implemented (SQLite under `AION_DATA_DIR`; Postgres schema ready)  
-**PR:** Durable database and migration
+**Status:** SQLite under `AION_DATA_DIR` is the active runtime store. Dedicated Supabase Postgres is **provisioned** with schema `aion` applied; the Postgres adapter is not wired into the app yet.
 
 ## Selected infrastructure
 
 | Layer | Choice | Monthly cost | Notes |
 |-------|--------|--------------|-------|
 | Default durable files | SQLite under `AION_DATA_DIR` (default `data/aion/`) | **$0** | Survives process restart if the volume is persistent |
-| Managed Postgres (optional) | Dedicated Supabase project `aion-ops`, schema `aion` | **$10/mo** (org quote) | **Not provisioned** until owner confirms expense |
+| Managed Postgres | Dedicated Supabase project **AION** (`gtviwpevltuqhygsbsou`), schema `aion` | Owner project | Provisioned 2026-08-27 · region `us-west-2` · https://gtviwpevltuqhygsbsou.supabase.co |
 | Forbidden | YaliTekonline / Elaria Supabase projects | — | AION must not touch those tables |
 
-Least privilege: when Postgres is approved, create a role limited to schema `aion` only.
+Least privilege: use a role limited to schema `aion` only for app connections.
 
 ## Environment
 
@@ -22,8 +21,9 @@ AION_DATA_DIR=data/aion          # durable root (gitignored)
 # AION_PAPER_DB=data/aion/paper_trading.db
 # AION_SESSION_DB=data/aion/sessions.db
 # AION_ACTIVATION_DIR=data/aion/activation
-# Future managed DB (after cost approval):
-# AION_DATABASE_URL=postgresql://...
+# Managed Postgres (server-side only; never commit the password):
+# AION_DATABASE_URL=postgresql://postgres.<ref>:<password>@aws-0-us-west-2.pooler.supabase.com:6543/postgres
+# Project: https://gtviwpevltuqhygsbsou.supabase.co
 ```
 
 ## Migration (preserve live counters)
@@ -56,13 +56,13 @@ python3 scripts/migrate_durable_storage.py \
 
 Restores `phase2_before.db` / `paper_before.db` from that backup folder.
 
-## Postgres (future)
+## Postgres (provisioned; adapter pending)
 
-1. Owner confirms **$10/mo** Supabase project (or provides another dedicated DB).
-2. Create empty project `aion-ops` — never reuse YaliTek/Elaria projects.
-3. Apply `aion/durable/postgres_schema.sql`.
-4. Grant least-privilege role on schema `aion` only.
-5. Set `AION_DATABASE_URL` (server-side only). SQLite remains supported until the Postgres adapter is activated in a follow-up.
+1. Dedicated project **AION** created — never reuse YaliTek/Elaria projects. ✅
+2. Applied `aion/durable/postgres_schema.sql` → schema `aion` (approvals, audit, leads, drafts, autonomy, scheduler, paper trading). ✅
+3. Set `AION_DATABASE_URL` from the Supabase dashboard connection string (server-side / secret store only). ⏳
+4. Activate the Postgres adapter in app code (follow-up). Until then, runtime still uses SQLite under `AION_DATA_DIR`.
+5. Prefer a least-privilege DB role limited to schema `aion`.
 
 ## Paper trading market-data separation
 
@@ -81,4 +81,4 @@ Official performance metrics use **live CoinGecko** rows only; mock/fallback row
 ## Secrets (names only)
 
 - None new for SQLite path
-- Future: `AION_DATABASE_URL` (server-side only)
+- `AION_DATABASE_URL` (server-side only; do not commit)
