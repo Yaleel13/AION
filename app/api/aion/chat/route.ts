@@ -32,6 +32,7 @@ type ChatBody = {
   message?: string
   history?: HistoryItem[]
   previousResponseId?: string
+  clientSessionId?: string
 }
 
 type OpenAIResponse = {
@@ -61,8 +62,51 @@ function extractOutputText(response: OpenAIResponse): string {
   return parts.join("\n").trim()
 }
 
-async function runGateway(message: string, history: HistoryItem[]) {
+async function persistTurn(
+  req: Request,
+  clientSessionId: string | undefined,
+  message: string,
+  reply: string,
+  metadata: { responseId?: string | null; model: string; runtime: string },
+) {
+  if (!clientSessionId || !process.env.AION_OWNER_TOKEN) return
+
+  try {
+    const memoryUrl = new URL("/api/internal/conversation", req.url)
+    const response = await fetch(memoryUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.AION_OWNER_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        action: "append",
+        client_session_id: clientSessionId,
+        messages: [
+          { role: "user", content: message },
+          { role: "assistant", content: reply },
+        ],
+        previous_response_id: metadata.responseId ?? null,
+        model: metadata.model,
+        runtime: metadata.runtime,
+      }),
+      cache: "no-store",
+    })
+
+    if (!response.ok) {
+      console.error("[AION] durable memory append failed:", response.status)
+    }
+  } catch (error) {
+    console.error(
+      "[AION] durable memory append error:",
+      error instanceof Error ? error.message : String(error),
+    )
+  }
+}
+
+async function runGateway(req: Request, message: string, history: HistoryItem[], clientSessionId?: string) {
   const model = process.env.AION_GATEWAY_MODEL ?? "openai/gpt-5.4"
+  const runtime = "vercel-ai-gateway-oidc"
   const result = await generateText({
     model,
     system: AION_SYSTEM,
@@ -72,11 +116,17 @@ async function runGateway(message: string, history: HistoryItem[]) {
     ],
   })
 
+  await persistTurn(req, clientSessionId, message, result.text, {
+    responseId: null,
+    model,
+    runtime,
+  })
+
   return Response.json({
     reply: result.text,
     responseId: null,
     model,
-    runtime: "vercel-ai-gateway-oidc",
+    runtime,
   })
 }
 
@@ -96,7 +146,7 @@ export async function POST(req: Request) {
     // real, OIDC-authenticated fallback so production chat is not key-dependent.
     if (!process.env.OPENAI_API_KEY) {
       try {
-        return await runGateway(message, priorHistory)
+        return await runGateway(req, message, priorHistory, body.clientSessionId)
       } catch (err) {
         console.error("[AION] AI Gateway error:", err instanceof Error ? err.message : String(err))
         return Response.json(
@@ -116,8 +166,10 @@ export async function POST(req: Request) {
           { role: "user" as const, content: message },
         ]
 
+    const model = process.env.AION_MODEL ?? "gpt-5.4"
+    const runtime = "openai-responses-v1"
     const payload: Record<string, unknown> = {
-      model: process.env.AION_MODEL ?? "gpt-5.4",
+      model,
       instructions: AION_SYSTEM,
       input,
       reasoning: { effort: "medium" },
@@ -155,11 +207,17 @@ export async function POST(req: Request) {
       )
     }
 
+    await persistTurn(req, body.clientSessionId, message, reply, {
+      responseId: data.id ?? null,
+      model,
+      runtime,
+    })
+
     return Response.json({
       reply,
       responseId: data.id ?? null,
-      model: process.env.AION_MODEL ?? "gpt-5.4",
-      runtime: "openai-responses-v1",
+      model,
+      runtime,
     })
   } catch (err) {
     console.error("[AION] chat route error:", err instanceof Error ? err.message : String(err))
