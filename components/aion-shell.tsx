@@ -20,7 +20,7 @@ const uid = () => `m${++idCounter}-${Date.now()}`
 const CONVERSATION_STORAGE_KEY = "aion.conversation.v1"
 const MAX_PERSISTED_MESSAGES = 50
 
-/** Demo / fixture greeting — not derived from overnight telemetry. */
+/** Greeting is UI copy, not derived from telemetry or durable memory. */
 const GREETING: Message = {
   id: "aion-greeting",
   role: "aion",
@@ -30,12 +30,28 @@ const GREETING: Message = {
 }
 
 type StoredConversation = {
-  version: 1
+  version: 2
+  clientSessionId: string
   messages: Message[]
   previousResponseId: string | null
 }
 
+type DurableMessage = {
+  role: "user" | "assistant"
+  content: string
+}
+
+type DurableMemoryResponse = {
+  found?: boolean
+  messages?: DurableMessage[]
+  previous_response_id?: string | null
+}
+
 const busyStates: PresenceState[] = ["thinking", "researching", "executing"]
+
+function createClientSessionId() {
+  return crypto.randomUUID()
+}
 
 export function AionShell() {
   const [messages, setMessages] = useState<Message[]>([GREETING])
@@ -47,31 +63,82 @@ export function AionShell() {
   const [connectionOpen, setConnectionOpen] = useState(false)
   const [listening, setListening] = useState(false)
   const [previousResponseId, setPreviousResponseId] = useState<string | null>(null)
+  const [clientSessionId, setClientSessionId] = useState<string | null>(null)
   const [conversationHydrated, setConversationHydrated] = useState(false)
   const busyRef = useRef(false)
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(CONVERSATION_STORAGE_KEY)
-      if (raw) {
-        const stored = JSON.parse(raw) as Partial<StoredConversation>
-        if (stored.version === 1 && Array.isArray(stored.messages) && stored.messages.length > 0) {
-          setMessages(stored.messages.slice(-MAX_PERSISTED_MESSAGES))
-          setPreviousResponseId(typeof stored.previousResponseId === "string" ? stored.previousResponseId : null)
+    let cancelled = false
+
+    async function hydrateConversation() {
+      let localMessages: Message[] = [GREETING]
+      let localPreviousResponseId: string | null = null
+      let sessionId = createClientSessionId()
+
+      try {
+        const raw = window.localStorage.getItem(CONVERSATION_STORAGE_KEY)
+        if (raw) {
+          const stored = JSON.parse(raw) as Partial<StoredConversation> & {
+            version?: number
+            clientSessionId?: string
+          }
+          if (Array.isArray(stored.messages) && stored.messages.length > 0) {
+            localMessages = stored.messages.slice(-MAX_PERSISTED_MESSAGES)
+          }
+          if (typeof stored.previousResponseId === "string") {
+            localPreviousResponseId = stored.previousResponseId
+          }
+          if (typeof stored.clientSessionId === "string" && stored.clientSessionId.length >= 16) {
+            sessionId = stored.clientSessionId
+          }
         }
+      } catch (error) {
+        console.warn("[AION] Could not restore browser conversation:", error)
       }
-    } catch (error) {
-      console.warn("[AION] Could not restore browser conversation:", error)
-    } finally {
-      setConversationHydrated(true)
+
+      if (cancelled) return
+      setClientSessionId(sessionId)
+      setMessages(localMessages)
+      setPreviousResponseId(localPreviousResponseId)
+
+      try {
+        const res = await fetch("/api/aion/memory", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientSessionId: sessionId }),
+        })
+        const data = (await res.json()) as DurableMemoryResponse
+
+        if (!cancelled && res.ok && data.found && Array.isArray(data.messages)) {
+          const restored: Message[] = data.messages.slice(-MAX_PERSISTED_MESSAGES).map((item) => ({
+            id: uid(),
+            role: item.role === "assistant" ? "aion" : "user",
+            content: item.content,
+          }))
+          setMessages([GREETING, ...restored].slice(-MAX_PERSISTED_MESSAGES))
+          setPreviousResponseId(
+            typeof data.previous_response_id === "string" ? data.previous_response_id : null,
+          )
+        }
+      } catch (error) {
+        console.warn("[AION] Durable memory restore unavailable; using browser copy:", error)
+      } finally {
+        if (!cancelled) setConversationHydrated(true)
+      }
+    }
+
+    void hydrateConversation()
+    return () => {
+      cancelled = true
     }
   }, [])
 
   useEffect(() => {
-    if (!conversationHydrated) return
+    if (!conversationHydrated || !clientSessionId) return
 
     const stored: StoredConversation = {
-      version: 1,
+      version: 2,
+      clientSessionId,
       messages: messages.slice(-MAX_PERSISTED_MESSAGES),
       previousResponseId,
     }
@@ -81,7 +148,7 @@ export function AionShell() {
     } catch (error) {
       console.warn("[AION] Could not persist browser conversation:", error)
     }
-  }, [conversationHydrated, messages, previousResponseId])
+  }, [clientSessionId, conversationHydrated, messages, previousResponseId])
 
   const presence: PresenceState = listening && working === "idle" ? "listening" : working
 
@@ -90,7 +157,7 @@ export function AionShell() {
   const handleSend = useCallback(
     async (text: string) => {
       const trimmed = text.trim()
-      if (!trimmed || busyRef.current) return
+      if (!trimmed || busyRef.current || !clientSessionId) return
       busyRef.current = true
       setListening(false)
 
@@ -151,6 +218,7 @@ export function AionShell() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message: trimmed,
+            clientSessionId,
             history: previousResponseId
               ? undefined
               : messages
@@ -186,12 +254,13 @@ export function AionShell() {
         busyRef.current = false
       }
     },
-    [messages, mode, previousResponseId, pushMessage],
+    [clientSessionId, messages, mode, previousResponseId, pushMessage],
   )
 
   const handleNewConversation = useCallback(() => {
     setMessages([GREETING])
     setPreviousResponseId(null)
+    setClientSessionId(createClientSessionId())
     setContext(null)
     setTerminalOpen(false)
     setMode("conversation")
@@ -272,7 +341,7 @@ export function AionShell() {
                   onSubmit={handleSend}
                   onVoiceToggle={() => setListening((v) => !v)}
                   listening={listening}
-                  disabled={isBusy}
+                  disabled={isBusy || !conversationHydrated}
                   onOpenConnections={() => setConnectionOpen(true)}
                 />
               </div>
