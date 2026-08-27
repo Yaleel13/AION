@@ -18,7 +18,9 @@ export async function POST(req: Request) {
   const sandbox = await Sandbox.create({
     persistent: false,
     timeout: 120_000,
-    networkPolicy: "allow-all",
+    networkPolicy: {
+      allow: ["github.com", "*.githubusercontent.com"],
+    },
   })
 
   try {
