@@ -27,7 +27,9 @@ from dotenv import load_dotenv
 
 from aion.moltbook.experiment_ops import (
     customize_lead_response,
+    mark_backlog_status,
     refresh_queue_timing,
+    select_next_backlog_comment,
     select_next_campaign_draft,
 )
 
@@ -125,10 +127,12 @@ async def run_cycle(
         svc.store.set_risk("queued_outbound", queued)
     result["queued_outbound"] = queued
     result["counters"] = svc.autonomy.status()["counters"]
+    comment_count = int(result["counters"]["comment"]["count"])
+    comment_limit = int(svc.autonomy.policy.limits.max_comments_per_24h)
+    comment_slots = max(0, comment_limit - comment_count)
+
     if flush_queue and queued.get("type") == "queued_comment":
-        comment_count = int(result["counters"]["comment"]["count"])
-        comment_limit = int(svc.autonomy.policy.limits.max_comments_per_24h)
-        if comment_count < comment_limit and not svc.autonomy.dry_run:
+        if comment_slots > 0 and not svc.autonomy.dry_run:
             content = str(queued.get("content") or "")
             post_id = str(queued.get("post_id") or "")
             verdict = qualify_outbound_content(
@@ -149,6 +153,8 @@ async def run_cycle(
                         "queued_outbound",
                         {"status": "published", "result": published},
                     )
+                    comment_slots = max(0, comment_slots - 1)
+                    result["counters"] = svc.autonomy.status()["counters"]
             else:
                 result["queue_flush"] = {
                     "skipped": "policy_blocked",
@@ -164,6 +170,71 @@ async def run_cycle(
                     "first_slot_frees_at"
                 ),
             }
+
+    # 5b) Flush prioritized comment backlog when slots remain
+    backlog_state = svc.store.get_risk("comment_backlog") or {}
+    backlog = list(backlog_state.get("backlog") or [])
+    result["comment_backlog_ready"] = sum(
+        1
+        for item in backlog
+        if item.get("status") == "ready" and item.get("policy_allowed") and item.get("content")
+    )
+    if flush_queue and comment_slots > 0 and not svc.autonomy.dry_run:
+        nxt_comment = select_next_backlog_comment(backlog)
+        if nxt_comment:
+            content = str(nxt_comment.get("content") or "")
+            post_id = str(nxt_comment.get("post_id") or "")
+            verdict = qualify_outbound_content(
+                action="comment",
+                text=content,
+                destination=f"post:{post_id}",
+            )
+            if verdict.allowed and post_id and content:
+                published = await svc.autonomy.execute_comment(
+                    post_id=post_id,
+                    content=content,
+                    idempotency_key=(
+                        f"backlog-p{nxt_comment.get('priority')}-{post_id[:8]}"
+                    ),
+                )
+                result["backlog_flush"] = {
+                    "priority": nxt_comment.get("priority"),
+                    "author": nxt_comment.get("author"),
+                    "post_id": post_id,
+                    "result": published,
+                }
+                result["published"] = result["published"] or bool(
+                    published.get("published")
+                )
+                if published.get("published"):
+                    backlog = mark_backlog_status(
+                        backlog,
+                        post_id=post_id,
+                        priority=int(nxt_comment.get("priority") or 0),
+                        status="published",
+                    )
+                    backlog_state = {
+                        **backlog_state,
+                        "type": "comment_backlog",
+                        "backlog": backlog,
+                        "primary_queue": svc.store.get_risk("queued_outbound") or {},
+                    }
+                    svc.store.set_risk("comment_backlog", backlog_state)
+                    result["counters"] = svc.autonomy.status()["counters"]
+            else:
+                result["backlog_flush"] = {
+                    "skipped": "policy_blocked",
+                    "reasons": verdict.reasons,
+                    "priority": nxt_comment.get("priority"),
+                }
+        else:
+            result["backlog_flush"] = {"skipped": "no_ready_backlog"}
+    elif flush_queue:
+        result["backlog_flush"] = {
+            "skipped": "comment_quota_or_dry_run",
+            "comment_slots": comment_slots,
+            "ready": result["comment_backlog_ready"],
+        }
 
     # 6) Optional next-draft publish (only if post quota allows)
     nxt = select_next_campaign_draft(drafts)
