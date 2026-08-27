@@ -11,6 +11,7 @@ interface Line {
 }
 
 const script: Line[] = [
+  { text: "# Demo / fixture transcript — not a live remote session", tone: "muted" },
   { text: "aion@remote:~/Yaleel13/AION$ git status", tone: "prompt" },
   { text: "On branch main", tone: "output" },
   { text: "Your branch is up to date with 'origin/main'.", tone: "muted" },
@@ -61,7 +62,7 @@ export function TerminalWorkspace({ onClose }: { onClose: () => void }) {
             <Circle className="h-2.5 w-2.5 fill-positive/70 text-positive/70" />
           </div>
           <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            AION Terminal
+            AION Terminal · Demo / fixture
           </span>
         </div>
         <div className="flex items-center gap-1">

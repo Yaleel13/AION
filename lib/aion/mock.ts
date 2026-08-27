@@ -18,10 +18,11 @@ export interface AionTurn {
 const ventures = ["YaliTek", "Elaria", "Cerebral Synergy", "AION"]
 
 /**
- * A lightweight intent router. This stands in for the AION service
- * (/api/aion/chat) and returns realistic, scripted orchestration so the
- * interface can demonstrate how AION assembles a workspace around a command.
+ * Demo / fixture intent router — scripted widgets, not live ops data.
+ * Stands in for /api/aion/chat. Real status: GET /api/runtime/status.
  */
+export const MOCK_ROUTER_DATA_SOURCE = "demo_fixture" as const
+
 export function routeCommand(input: string): AionTurn {
   const q = input.toLowerCase().trim()
 

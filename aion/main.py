@@ -71,6 +71,14 @@ async def health() -> dict:
     }
 
 
+@app.get("/runtime/status", summary="Truthful runtime status (no secrets)")
+async def runtime_status() -> dict:
+    """Real storage / Moltbook / autonomy / paper gates for UI honesty."""
+    from aion.runtime_status import build_runtime_status
+
+    return build_runtime_status()
+
+
 @app.post("/agent", response_model=AgentResponse, summary="Run AION")
 async def agent_endpoint(request: AgentRequest) -> AgentResponse:
     """Run one turn through the primary AION agent orchestrator."""
