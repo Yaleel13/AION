@@ -254,7 +254,16 @@ class Phase2Store:
               :fit_score, :confidence_score, :suggested_response, :risks, :approval_status,
               :conversion_outcome, :revenue_attributed, :raw_excerpt, :created_at, :content_hash
             )
-            ON CONFLICT(content_hash) DO NOTHING
+            ON CONFLICT(content_hash) DO UPDATE SET
+              source_url=CASE WHEN leads.approval_status = 'pending_owner_review' THEN excluded.source_url ELSE leads.source_url END,
+              requester_identity=CASE WHEN leads.approval_status = 'pending_owner_review' THEN excluded.requester_identity ELSE leads.requester_identity END,
+              stated_problem=CASE WHEN leads.approval_status = 'pending_owner_review' THEN excluded.stated_problem ELSE leads.stated_problem END,
+              relevant_service=CASE WHEN leads.approval_status = 'pending_owner_review' THEN excluded.relevant_service ELSE leads.relevant_service END,
+              fit_score=CASE WHEN leads.approval_status = 'pending_owner_review' THEN excluded.fit_score ELSE leads.fit_score END,
+              confidence_score=CASE WHEN leads.approval_status = 'pending_owner_review' THEN excluded.confidence_score ELSE leads.confidence_score END,
+              suggested_response=CASE WHEN leads.approval_status = 'pending_owner_review' THEN excluded.suggested_response ELSE leads.suggested_response END,
+              risks=CASE WHEN leads.approval_status = 'pending_owner_review' THEN excluded.risks ELSE leads.risks END,
+              raw_excerpt=CASE WHEN leads.approval_status = 'pending_owner_review' THEN excluded.raw_excerpt ELSE leads.raw_excerpt END
             """,
             row,
         )
