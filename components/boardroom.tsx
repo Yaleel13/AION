@@ -16,6 +16,7 @@ import {
 import type { PresenceState } from "@/lib/aion/types"
 import { AionPresence } from "@/components/aion-presence"
 import { CommandComposer } from "@/components/command-composer"
+import { OwnerControlledOutbound } from "@/components/owner-controlled-outbound"
 import { OwnerMemoryInspector } from "@/components/owner-memory-inspector"
 import { OwnerMoltbookResearch } from "@/components/owner-moltbook-research"
 import { OwnerOpportunityReview } from "@/components/owner-opportunity-review"
@@ -25,39 +26,21 @@ type RuntimeStatus = {
   ok: boolean
   source: string
   fixture: boolean
-  storage: {
-    backend: string
-    configured: boolean
-    schema: string | null
-    detail: string | null
-  }
+  storage: { backend: string; configured: boolean; schema: string | null; detail: string | null }
   moltbook: {
     configured: boolean
     mode: string | null
     api_key_present: boolean
     outbound_enabled: boolean
     execute_enabled: boolean
+    controlled_outbound_ready?: boolean
+    allowed_outbound_action?: string | null
     phase: string
   }
-  autonomy: {
-    mode: string
-    dry_run: boolean
-    live_writes_enabled: boolean
-    experiment_active: boolean
-  }
-  kill_switch: {
-    engaged: boolean
-    reason?: string
-  }
-  paper_market_data: {
-    price_mode: string
-    live_trading: boolean
-    note: string
-  }
-  providers: {
-    openai_configured: boolean
-    gemini_configured: boolean
-  }
+  autonomy: { mode: string; dry_run: boolean; live_writes_enabled: boolean; experiment_active: boolean }
+  kill_switch: { engaged: boolean; reason?: string }
+  paper_market_data: { price_mode: string; live_trading: boolean; note: string }
+  providers: { openai_configured: boolean; gemini_configured: boolean }
 }
 
 function Panel({ title, subtitle, children, className }: { title: string; subtitle?: string; children: React.ReactNode; className?: string }) {
@@ -77,11 +60,7 @@ function Gate({ icon: Icon, label, value, detail, healthy }: { icon: typeof Data
     <div className="rounded-xl border border-border/70 bg-background/40 p-3">
       <div className="flex items-start gap-3">
         <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", healthy ? "bg-positive/10 text-positive" : "bg-caution/10 text-caution")}><Icon className="h-4 w-4" /></span>
-        <div className="min-w-0">
-          <p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">{label}</p>
-          <p className="mt-0.5 text-sm font-medium text-foreground">{value}</p>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{detail}</p>
-        </div>
+        <div className="min-w-0"><p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">{label}</p><p className="mt-0.5 text-sm font-medium text-foreground">{value}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{detail}</p></div>
       </div>
     </div>
   )
@@ -111,9 +90,9 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
   const synthesis = useMemo(() => {
     if (!status) return null
     if (!status.storage.configured) return "AION is online, but durable production storage is not configured. Scheduled operations and cross-session operational state must remain gated until Postgres is connected."
-    if (status.kill_switch.engaged) return "AION's kill switch is engaged. Read-only visibility remains available while autonomous execution is blocked."
-    if (status.autonomy.live_writes_enabled) return "AION has durable storage and live autonomy writes are enabled under the current policy gates."
-    return "AION's runtime is online with durable storage. Autonomous writes remain disabled or dry-run unless the owner explicitly activates them."
+    if (status.kill_switch.engaged) return "AION's kill switch is engaged. Read-only visibility remains available while all controlled execution is blocked."
+    if (status.moltbook.controlled_outbound_ready) return "AION is online with durable storage and the narrow owner-approved Moltbook comment path is active. Autonomous writes remain disabled."
+    return "AION's runtime is online with durable storage. Research and review are live; controlled outbound and autonomous writes remain deployment-gated."
   }, [status])
 
   return (
@@ -123,7 +102,7 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
         <AionPresence state={presence} size={96} />
         <h1 className="mt-4 font-serif text-3xl font-light tracking-[0.12em] text-foreground">BOARDROOM</h1>
         <p className="mt-1 text-xs uppercase tracking-[0.24em] text-muted-foreground">Strategic Command · Live Runtime</p>
-        <p className="mt-2 max-w-xl text-[0.7rem] text-muted-foreground/80">Live owner runtime, protected memory, read-only Moltbook research, and a unified opportunity-review queue. External content remains untrusted until reviewed; publishing remains locked.</p>
+        <p className="mt-2 max-w-xl text-[0.7rem] text-muted-foreground/80">Live owner runtime, protected memory, read-only Moltbook research, opportunity quality learning, and narrowly gated owner-approved comment execution.</p>
       </div>
 
       <div className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-3 px-4 pb-40 lg:grid-cols-3">
@@ -135,25 +114,21 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
         {status ? <>
           <Panel title="Runtime Gates" subtitle="Verified" className="lg:col-span-2"><div className="grid gap-2.5 sm:grid-cols-2">
             <Gate icon={Database} label="Storage" value={status.storage.configured ? status.storage.backend : "Not durable"} detail={status.storage.detail || "No storage detail reported."} healthy={status.storage.configured && status.storage.backend === "postgres"} />
-            <Gate icon={Network} label="Moltbook" value={status.moltbook.mode || "Unconfigured"} detail={`API key ${status.moltbook.api_key_present ? "present" : "absent"}; outbound ${status.moltbook.outbound_enabled ? "enabled" : "disabled"}.`} healthy={status.moltbook.api_key_present && status.moltbook.mode === "live"} />
+            <Gate icon={Network} label="Moltbook" value={status.moltbook.mode || "Unconfigured"} detail={`API key ${status.moltbook.api_key_present ? "present" : "absent"}; controlled outbound ${status.moltbook.controlled_outbound_ready ? "ready" : "locked"}.`} healthy={status.moltbook.api_key_present && status.moltbook.mode === "live"} />
             <Gate icon={status.kill_switch.engaged ? ShieldOff : ShieldCheck} label="Kill switch" value={status.kill_switch.engaged ? "Engaged" : "Clear"} detail={status.kill_switch.engaged ? status.kill_switch.reason || "Execution is blocked." : "No emergency stop is engaged."} healthy={!status.kill_switch.engaged} />
-            <Gate icon={Brain} label="Direct providers" value={status.providers.openai_configured || status.providers.gemini_configured ? "Configured" : "No direct key"} detail={`OpenAI ${status.providers.openai_configured ? "configured" : "not configured"}; Gemini ${status.providers.gemini_configured ? "configured" : "not configured"}. Chat can use its separate Vercel Gateway fallback when available.`} healthy={status.providers.openai_configured || status.providers.gemini_configured} />
+            <Gate icon={Brain} label="Direct providers" value={status.providers.openai_configured || status.providers.gemini_configured ? "Configured" : "No direct key"} detail={`OpenAI ${status.providers.openai_configured ? "configured" : "not configured"}; Gemini ${status.providers.gemini_configured ? "configured" : "not configured"}.`} healthy={status.providers.openai_configured || status.providers.gemini_configured} />
           </div></Panel>
 
-          <Panel title="Autonomy"><dl className="space-y-3 text-sm">
-            <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Mode</dt><dd className="font-medium capitalize text-foreground">{status.autonomy.mode}</dd></div>
-            <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Dry run</dt><dd className="font-medium text-foreground">{status.autonomy.dry_run ? "Yes" : "No"}</dd></div>
-            <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Live writes</dt><dd className="font-medium text-foreground">{status.autonomy.live_writes_enabled ? "Enabled" : "Disabled"}</dd></div>
-            <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Experiment</dt><dd className="font-medium text-foreground">{status.autonomy.experiment_active ? "Active" : "Inactive"}</dd></div>
-          </dl></Panel>
+          <Panel title="Autonomy"><dl className="space-y-3 text-sm"><div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Mode</dt><dd className="font-medium capitalize text-foreground">{status.autonomy.mode}</dd></div><div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Dry run</dt><dd className="font-medium text-foreground">{status.autonomy.dry_run ? "Yes" : "No"}</dd></div><div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Autonomous writes</dt><dd className="font-medium text-foreground">{status.autonomy.live_writes_enabled ? "Enabled" : "Disabled"}</dd></div><div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Experiment</dt><dd className="font-medium text-foreground">{status.autonomy.experiment_active ? "Active" : "Inactive"}</dd></div></dl></Panel>
 
           <Panel title="Moltbook Research" subtitle="Stage 2 · read-only" className="lg:col-span-3"><OwnerMoltbookResearch /></Panel>
-          <Panel title="Opportunity Review" subtitle="Phase 5 · owner decision surface" className="lg:col-span-3"><OwnerOpportunityReview /></Panel>
+          <Panel title="Opportunity Review" subtitle="Phases 5–6 · owner learning loop" className="lg:col-span-3"><OwnerOpportunityReview /></Panel>
+          <Panel title="Controlled Outbound" subtitle="Phase 7 · explicit owner action only" className="lg:col-span-3"><OwnerControlledOutbound /></Panel>
           <Panel title="Long-term Memory" subtitle="Owner only · read-only" className="lg:col-span-3"><OwnerMemoryInspector /></Panel>
 
           <Panel title="Paper Market" className="lg:col-span-2"><div className="flex items-start gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><FlaskConical className="h-4 w-4" /></span><div><p className="text-sm font-medium text-foreground">Price mode · {status.paper_market_data.price_mode}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{status.paper_market_data.note}</p><p className="mt-2 text-xs font-medium text-foreground">Live trading · {status.paper_market_data.live_trading ? "Enabled" : "No"}</p></div></div></Panel>
 
-          <Panel title="Next Operational Gate"><p className="text-sm leading-relaxed text-foreground/90">{!status.storage.configured ? "Connect the dedicated AION Postgres database to unlock durable scheduled operations." : !status.moltbook.api_key_present ? "Connect the approved Moltbook credential before enabling live Moltbook research." : status.autonomy.dry_run ? "Review qualified opportunities and reject weak proposals. Approval-and-execution remains locked until a separately authorized live-write phase." : "Runtime gates are available; consequential actions still require their configured approval policy."}</p></Panel>
+          <Panel title="Current Operational Boundary"><p className="text-sm leading-relaxed text-foreground/90">{status.moltbook.controlled_outbound_ready ? "Only a pending, exact-content Moltbook comment can be sent after an explicit owner click. Autonomous writes, DMs, posts, follows, and live trading remain unavailable." : "Research, preparation, proposals, rejection, and quality feedback are available. Controlled outbound remains fail-closed until both deployment gates are enabled."}</p></Panel>
         </> : null}
       </div>
 
