@@ -23,9 +23,10 @@ def build_runtime_status() -> dict[str, Any]:
             "configured": moltbook_settings.is_mock or moltbook_settings.configured_for_live,
             "mode": moltbook_settings.mode,
             "api_key_present": bool(moltbook_settings.api_key),
-            "outbound_enabled": False,
-            "execute_enabled": False,
-            "phase": "phase2-controlled-growth",
+            "outbound_enabled": moltbook_settings.outbound_enabled,
+            "execute_enabled": moltbook_settings.execute_enabled,
+            "controlled_outbound_ready": moltbook_settings.controlled_outbound_ready,
+            "phase": "phase7-owner-controlled-outbound",
         }
     except MoltbookConfigError as exc:
         moltbook = {
@@ -34,7 +35,8 @@ def build_runtime_status() -> dict[str, Any]:
             "api_key_present": False,
             "outbound_enabled": False,
             "execute_enabled": False,
-            "phase": "phase2-controlled-growth",
+            "controlled_outbound_ready": False,
+            "phase": "phase7-owner-controlled-outbound",
             "error": str(exc),
         }
 
@@ -88,6 +90,8 @@ def build_runtime_status() -> dict[str, Any]:
         },
         "safety": {
             "moltbook_outbound_default": False,
+            "moltbook_execute_default": False,
+            "owner_approval_required_for_moltbook_write": True,
             "autonomy_default": "inactive",
             "autonomy_dry_run_default": True,
             "paper_is_not_live_trading": True,

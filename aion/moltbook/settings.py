@@ -17,10 +17,11 @@ ALLOWED_LIVE_HOSTS = frozenset({"www.moltbook.com"})
 
 @dataclass(frozen=True, slots=True)
 class MoltbookSettings:
-    """Validated settings for the Moltbook client.
+    """Validated settings for AION's Moltbook access.
 
-    Phase 1 defaults to mock mode so development never requires live credentials
-    or posting. Live mode still only permits documented read operations.
+    Read-only access remains the default. Controlled outbound is available only
+    when both explicit owner gates are enabled; the normal read client still
+    refuses non-GET methods even when these flags are true.
     """
 
     mode: MoltbookMode = "mock"
@@ -30,11 +31,11 @@ class MoltbookSettings:
     max_retries: int = 3
     rate_limit_per_minute: int = 30
     outbound_enabled: bool = False
+    execute_enabled: bool = False
     audit_log_path: str | None = None
-    user_agent: str = "AION-Moltbook-Emissary/0.2-phase1-readonly"
+    user_agent: str = "AION-Moltbook-Emissary/0.3-controlled"
 
     def __repr__(self) -> str:
-        # Never include the raw API key in logs, debug dumps, or tracebacks.
         key_state = "set" if self.api_key else "unset"
         return (
             "MoltbookSettings("
@@ -45,6 +46,7 @@ class MoltbookSettings:
             f"max_retries={self.max_retries!r}, "
             f"rate_limit_per_minute={self.rate_limit_per_minute!r}, "
             f"outbound_enabled={self.outbound_enabled!r}, "
+            f"execute_enabled={self.execute_enabled!r}, "
             f"audit_log_path={self.audit_log_path!r}, "
             f"user_agent={self.user_agent!r})"
         )
@@ -60,6 +62,10 @@ class MoltbookSettings:
     @property
     def configured_for_live(self) -> bool:
         return bool(self.api_key) and self.is_live
+
+    @property
+    def controlled_outbound_ready(self) -> bool:
+        return self.configured_for_live and self.outbound_enabled and self.execute_enabled
 
 
 def _parse_bool(value: str | None, default: bool = False) -> bool:
@@ -83,8 +89,6 @@ def _validate_base_url(base_url: str, *, mode: MoltbookMode) -> str:
         raise MoltbookConfigError("MOLTBOOK_BASE_URL must use https")
     if not parsed.netloc:
         raise MoltbookConfigError("MOLTBOOK_BASE_URL is missing a host")
-    # Live traffic may only target the official Moltbook host. Mock mode still
-    # validates https shape so misconfiguration is caught early.
     if mode == "live" and parsed.hostname not in ALLOWED_LIVE_HOSTS:
         raise MoltbookConfigError(
             "Live MOLTBOOK_BASE_URL host must be www.moltbook.com "
@@ -122,26 +126,23 @@ def load_moltbook_settings(
     if max_retries < 0 or max_retries > 10:
         raise MoltbookConfigError("MOLTBOOK_MAX_RETRIES must be between 0 and 10")
     if rate_limit_per_minute < 1 or rate_limit_per_minute > 60:
-        raise MoltbookConfigError(
-            "MOLTBOOK_RATE_LIMIT_PER_MINUTE must be between 1 and 60 "
-            "(Moltbook GET limit is 60/min; stay at or below)"
-        )
+        raise MoltbookConfigError("MOLTBOOK_RATE_LIMIT_PER_MINUTE must be between 1 and 60")
 
     outbound_enabled = _parse_bool(env.get("MOLTBOOK_OUTBOUND_ENABLED"), False)
-    if outbound_enabled:
-        # Phase 1 hard-blocks outbound even if someone sets the flag.
+    execute_enabled = _parse_bool(env.get("MOLTBOOK_EXECUTE_ENABLED"), False)
+    if execute_enabled and not outbound_enabled:
         raise MoltbookConfigError(
-            "MOLTBOOK_OUTBOUND_ENABLED cannot be true in Phase 1. "
-            "Outbound posting/messaging remains disabled until an explicit "
-            "Phase 2 approval design is accepted."
+            "MOLTBOOK_EXECUTE_ENABLED requires MOLTBOOK_OUTBOUND_ENABLED=true"
+        )
+    if (outbound_enabled or execute_enabled) and mode != "live":
+        raise MoltbookConfigError(
+            "MOLTBOOK_OUTBOUND_ENABLED requires MOLTBOOK_MODE=live; controlled execution also requires the separate MOLTBOOK_EXECUTE_ENABLED gate"
         )
 
     audit_log_path = (env.get("MOLTBOOK_AUDIT_LOG_PATH") or "").strip() or None
 
     if mode == "live" and not api_key:
-        raise MoltbookConfigError(
-            "MOLTBOOK_API_KEY is required when MOLTBOOK_MODE=live"
-        )
+        raise MoltbookConfigError("MOLTBOOK_API_KEY is required when MOLTBOOK_MODE=live")
 
     return MoltbookSettings(
         mode=mode,
@@ -150,6 +151,7 @@ def load_moltbook_settings(
         timeout_seconds=timeout_seconds,
         max_retries=max_retries,
         rate_limit_per_minute=rate_limit_per_minute,
-        outbound_enabled=False,
+        outbound_enabled=outbound_enabled,
+        execute_enabled=execute_enabled,
         audit_log_path=audit_log_path,
     )
