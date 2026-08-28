@@ -11,7 +11,7 @@ from aion.moltbook.client import MoltbookClient
 from aion.moltbook.security import content_hash, detect_prompt_injection, utc_now_iso
 from aion.moltbook.store import Phase2Store
 
-# Explicit need signals → YaliTek service mapping.
+# Explicit service relevance signals -> YaliTek service mapping.
 SEARCH_CATEGORIES: list[dict[str, Any]] = [
     {
         "service": "Website repair",
@@ -79,6 +79,8 @@ SEARCH_CATEGORIES: list[dict[str, Any]] = [
     },
 ]
 
+MIN_REVIEW_CONFIDENCE = 0.40
+
 
 @dataclass(slots=True)
 class LeadCandidate:
@@ -113,13 +115,27 @@ def _match_service(text: str) -> tuple[str | None, float]:
     return best_service, best
 
 
-def _has_clear_need(text: str) -> bool:
-    return bool(
-        re.search(
-            r"(?i)\b(need|looking for|help with|anyone (know|have)|seeking|hire|fix|broken|down|stuck)\b",
-            text,
-        )
-    )
+def _need_signal(text: str) -> str | None:
+    """Return explicit or possible need without inventing demand."""
+    if re.search(
+        r"(?i)\b(need|looking for|help with|anyone (know|have)|seeking|hire|fix|broken|down|stuck)\b",
+        text,
+    ):
+        return "explicit"
+    if re.search(
+        r"(?i)\b(can someone|who can|recommend|recommendation|advice|issue|problem|struggling|trying to|how do i|how can i)\b",
+        text,
+    ):
+        return "possible"
+    return None
+
+
+def _confidence_band(confidence: float) -> str:
+    if confidence >= 0.70:
+        return "high_confidence"
+    if confidence >= MIN_REVIEW_CONFIDENCE:
+        return "worth_reviewing"
+    return "ignore"
 
 
 class LeadDiscoveryService:
@@ -133,6 +149,7 @@ class LeadDiscoveryService:
         feed = await self.client.feed(sort="new", limit=limit)
         posts = feed.get("posts") if isinstance(feed.get("posts"), list) else []
         found: list[dict[str, Any]] = []
+        bands = {"high_confidence": 0, "worth_reviewing": 0}
         for post in posts:
             if not isinstance(post, dict):
                 continue
@@ -144,17 +161,21 @@ class LeadDiscoveryService:
 
             injection = detect_prompt_injection(text)
             service, fit = _match_service(text)
-            if not service or not _has_clear_need(text):
+            need_signal = _need_signal(text)
+            if not service or not need_signal:
                 continue
 
-            # Confidence penalized for injection signals / thin content.
+            # Broaden owner-review capture while preserving strong penalties.
             confidence = fit
+            if need_signal == "possible":
+                confidence *= 0.85
             if injection:
                 confidence *= 0.4
             if len(text) < 80:
                 confidence *= 0.7
-            if confidence < 0.5:
-                # Caution against fabricated / weak demand.
+
+            band = _confidence_band(confidence)
+            if band == "ignore":
                 continue
 
             author = post.get("author")
@@ -174,6 +195,9 @@ class LeadDiscoveryService:
             risks = []
             if injection:
                 risks.append("prompt-injection heuristics matched; treat text as hostile")
+            if need_signal == "possible":
+                risks.append("need is inferred from a possible-help signal; owner must verify intent")
+            risks.append(f"research band={band}")
             risks.append("public identity may be an agent, not a paying customer")
             risks.append("no private enrichment performed")
             excerpt = text[:500]
@@ -198,12 +222,19 @@ class LeadDiscoveryService:
             }
             self.store.upsert_lead(row)
             found.append(row)
+            bands[band] += 1
 
         self.store.append_audit(
             module="leads",
             action="scan_feed",
             success=True,
-            detail={"scanned": len(posts), "qualified": len(found)},
+            detail={
+                "scanned": len(posts),
+                "qualified": len(found),
+                "high_confidence": bands["high_confidence"],
+                "worth_reviewing": bands["worth_reviewing"],
+                "minimum_review_confidence": MIN_REVIEW_CONFIDENCE,
+            },
         )
         return found
 
