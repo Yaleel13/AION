@@ -165,6 +165,22 @@ async function runGateway(req: Request, message: string, history: HistoryItem[],
   throw lastError instanceof Error ? lastError : new Error("All configured AI Gateway models failed")
 }
 
+async function fallbackToGateway(req: Request, message: string, history: HistoryItem[], clientSessionId: string | undefined, systemInstructions: string, directFailure: string) {
+  console.warn("[AION] Direct OpenAI failed; trying AI Gateway fallback:", directFailure)
+  try {
+    return await runGateway(req, message, history, clientSessionId, systemInstructions)
+  } catch (gatewayError) {
+    console.error("[AION] AI Gateway fallback exhausted:", gatewayError instanceof Error ? gatewayError.message : String(gatewayError))
+    return Response.json(
+      {
+        error: "AION's reasoning core is temporarily unavailable after both direct OpenAI and the configured Gateway fallback chain failed.",
+        code: "AION_REASONING_PROVIDER_UNAVAILABLE",
+      },
+      { status: 503 },
+    )
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as ChatBody
@@ -188,20 +204,34 @@ export async function POST(req: Request) {
     const payload: Record<string, unknown> = { model, instructions: systemInstructions, input, reasoning: { effort: "medium" }, tools: [{ type: "web_search" }], tool_choice: "auto", store: true }
     if (body.previousResponseId) payload.previous_response_id = body.previousResponseId
 
-    const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    })
-    const data = (await openaiResponse.json()) as OpenAIResponse
-    if (!openaiResponse.ok) {
-      console.error("[AION] OpenAI Responses API error:", data.error?.message ?? openaiResponse.statusText)
-      return Response.json({ error: "AION's reasoning core could not complete that request.", code: "OPENAI_RESPONSE_ERROR" }, { status: 502 })
+    try {
+      const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const data = (await openaiResponse.json()) as OpenAIResponse
+      if (!openaiResponse.ok) {
+        const detail = data.error?.message ?? openaiResponse.statusText
+        console.error("[AION] OpenAI Responses API error:", detail)
+        return await fallbackToGateway(req, message, priorHistory, body.clientSessionId, systemInstructions, detail)
+      }
+      const reply = extractOutputText(data)
+      if (!reply) {
+        return await fallbackToGateway(req, message, priorHistory, body.clientSessionId, systemInstructions, "Direct OpenAI returned no text output")
+      }
+      await persistTurn(req, body.clientSessionId, message, reply, { responseId: data.id ?? null, model, runtime })
+      return Response.json({ reply, responseId: data.id ?? null, model, runtime })
+    } catch (directError) {
+      return await fallbackToGateway(
+        req,
+        message,
+        priorHistory,
+        body.clientSessionId,
+        systemInstructions,
+        directError instanceof Error ? directError.message : String(directError),
+      )
     }
-    const reply = extractOutputText(data)
-    if (!reply) return Response.json({ error: "AION completed the run but returned no text output.", code: "EMPTY_AGENT_OUTPUT" }, { status: 502 })
-    await persistTurn(req, body.clientSessionId, message, reply, { responseId: data.id ?? null, model, runtime })
-    return Response.json({ reply, responseId: data.id ?? null, model, runtime })
   } catch (err) {
     console.error("[AION] chat route error:", err instanceof Error ? err.message : String(err))
     return Response.json({ error: "AION encountered an unexpected runtime error.", code: "AION_RUNTIME_ERROR" }, { status: 500 })

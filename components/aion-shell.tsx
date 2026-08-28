@@ -26,7 +26,7 @@ const GREETING: Message = {
   id: "aion-greeting",
   role: "aion",
   content:
-    "Good morning, Yaleel. This interface is connected to AION's reasoning runtime. Ask me what you want to understand, decide, research, or work on.",
+    "Hello, Yaleel. This interface is connected to AION's reasoning runtime. Ask me what you want to understand, decide, research, or work on.",
   serif: true,
 }
 
@@ -164,6 +164,12 @@ export function AionShell() {
 
   const pushMessage = useCallback((m: Message) => setMessages((prev) => [...prev, m]), [])
 
+  const handleOwnerAuthenticated = useCallback(() => {
+    setOwnerAuthenticated(true)
+    setOwnerAuthOpen(false)
+    setMode("boardroom")
+  }, [])
+
   const handleSend = useCallback(
     async (text: string) => {
       const trimmed = text.trim()
@@ -220,17 +226,18 @@ export function AionShell() {
       }
 
       try {
+        const boundedHistory = messages
+          .filter((m) => m.id !== GREETING.id && (m.role === "user" || m.role === "aion"))
+          .slice(-12)
+          .map((m) => ({ role: m.role === "aion" ? "assistant" : "user", content: m.content }))
+
         const res = await fetch("/api/aion/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message: trimmed,
             clientSessionId,
-            history: previousResponseId
-              ? undefined
-              : messages
-                  .filter((m) => m.role === "user" || m.role === "aion")
-                  .map((m) => ({ role: m.role === "aion" ? "assistant" : "user", content: m.content })),
+            history: boundedHistory,
             previousResponseId: previousResponseId ?? undefined,
           }),
         })
@@ -238,7 +245,7 @@ export function AionShell() {
         const data = (await res.json()) as { reply?: string; responseId?: string | null; error?: string; code?: string }
         if (!res.ok || !data.reply) throw new Error(data.error || `AION runtime request failed (${res.status})`)
 
-        if (data.responseId) setPreviousResponseId(data.responseId)
+        setPreviousResponseId(typeof data.responseId === "string" ? data.responseId : null)
         pushMessage({ id: uid(), role: "aion", content: data.reply })
       } catch (error) {
         const detail = error instanceof Error ? error.message : "Unknown runtime error"
@@ -267,13 +274,13 @@ export function AionShell() {
     }
   }, [])
 
-  const handleConnect = useCallback(
-    (title: string) => {
-      setConnectionOpen(false)
-      handleSend(`Connect ${title}.`)
-    },
-    [handleSend],
-  )
+  const handleConnect = useCallback((title: string) => {
+    setConnectionOpen(false)
+    if (title === "Terminal Session") {
+      setTerminalOpen(true)
+      setContext("AION Repository · Vercel Sandbox")
+    }
+  }, [])
 
   const isBusy = busyStates.includes(working)
   const showHero = mode === "conversation" && messages.length <= 1
@@ -284,7 +291,7 @@ export function AionShell() {
       <TopBar
         state={presence}
         mode={mode}
-        hasNotifications
+        hasNotifications={false}
         onNewConversation={handleNewConversation}
         onNotifications={() => handleSend("What needs my attention today?")}
         onSettings={() => setConnectionOpen(true)}
@@ -340,10 +347,7 @@ export function AionShell() {
       <OwnerAuthDialog
         open={ownerAuthOpen}
         onClose={() => setOwnerAuthOpen(false)}
-        onAuthenticated={() => {
-          setOwnerAuthenticated(true)
-          setMode("boardroom")
-        }}
+        onAuthenticated={handleOwnerAuthenticated}
       />
     </div>
   )
