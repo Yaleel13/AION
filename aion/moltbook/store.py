@@ -313,3 +313,18 @@ class Phase2Store:
         if not row:
             return default
         return json.loads(row["value_json"])
+
+    def list_risk_prefix(self, prefix: str) -> list[dict[str, Any]]:
+        cur = self._conn.execute(
+            "SELECT key, value_json, updated_at FROM risk_state WHERE key LIKE ? ORDER BY updated_at DESC",
+            (f"{prefix}%",),
+        )
+        rows = []
+        for row in cur.fetchall():
+            item = dict(row)
+            rows.append({
+                "key": item["key"],
+                "value": json.loads(item["value_json"]),
+                "updated_at": item["updated_at"],
+            })
+        return rows
