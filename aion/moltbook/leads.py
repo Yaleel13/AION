@@ -11,72 +11,24 @@ from aion.moltbook.client import MoltbookClient
 from aion.moltbook.security import content_hash, detect_prompt_injection, utc_now_iso
 from aion.moltbook.store import Phase2Store
 
-# Explicit service relevance signals -> YaliTek service mapping.
 SEARCH_CATEGORIES: list[dict[str, Any]] = [
-    {
-        "service": "Website repair",
-        "keywords": [
-            r"website.{0,40}(broken|down|error|hack|malware)",
-            r"\bfix (my|our) (site|website)\b",
-            r"\bwordpress\b",
-            r"website repair",
-        ],
-    },
-    {
-        "service": "Technical diagnostics",
-        "keywords": [
-            r"\bdiagnos(e|is|tic)\b",
-            r"\broot cause\b",
-            r"\bprod(uction)? (outage|incident)\b",
-        ],
-    },
-    {
-        "service": "AI implementation plans",
-        "keywords": [
-            r"\bimplement(ing)? (an )?ai\b",
-            r"\bai (roadmap|strategy|integration)\b",
-            r"\bneed help (with )?agents?\b",
-        ],
-    },
-    {
-        "service": "Business automation",
-        "keywords": [
-            r"\bautomat(e|ion)\b.{0,40}\b(business|workflow|ops|operations)\b",
-            r"\bzapier\b",
-            r"\bn8n\b",
-        ],
-    },
-    {
-        "service": "Hosting and launch help",
-        "keywords": [
-            r"\bhost(ing)?\b",
-            r"\blaunch (my|our) (site|app|product)\b",
-            r"\bdeploy(ment)? help\b",
-            r"\bvercel\b",
-            r"need hosting help",
-        ],
-    },
-    {
-        "service": "Streaming setup",
-        "keywords": [r"\bstreaming setup\b", r"\bobs\b", r"\btwitch\b", r"\blivestream\b"],
-    },
-    {
-        "service": "Startup websites",
-        "keywords": [
-            r"\bstartup (website|site|landing)\b",
-            r"\blanding page\b",
-            r"\bmvp (site|website)\b",
-        ],
-    },
-    {
-        "service": "Ongoing technical support",
-        "keywords": [
-            r"\blooking for (a )?dev(eloper)?\b",
-            r"\bretainer\b",
-            r"\bongoing (support|maintenance)\b",
-            r"\btechnical support\b",
-        ],
-    },
+    {"service": "Website repair", "keywords": [r"website.{0,40}(broken|down|error|hack|malware)", r"\bfix (my|our) (site|website)\b", r"\bwordpress\b", r"website repair", r"\bsite (issue|problem|error)\b"]},
+    {"service": "Technical diagnostics", "keywords": [r"\bdiagnos(e|is|tic)\b", r"\broot cause\b", r"\bprod(uction)? (outage|incident)\b", r"\bdebug(ging)?\b", r"\btroubleshoot(ing)?\b"]},
+    {"service": "AI implementation plans", "keywords": [r"\bimplement(ing)? (an )?ai\b", r"\bai (roadmap|strategy|integration)\b", r"\bneed help (with )?agents?\b", r"\bbuild(ing)? (an )?ai agent\b", r"\bwhich ai (tool|stack|model)\b"]},
+    {"service": "Business automation", "keywords": [r"\bautomat(e|ion)\b.{0,40}\b(business|workflow|ops|operations)\b", r"\bzapier\b", r"\bn8n\b", r"\bworkflow (help|issue|problem)\b", r"\bmanual process\b"]},
+    {"service": "Hosting and launch help", "keywords": [r"\bhost(ing)?\b", r"\blaunch (my|our) (site|app|product)\b", r"\bdeploy(ment|ing)?\b", r"\bvercel\b", r"need hosting help", r"\bdomain (setup|issue|problem)\b"]},
+    {"service": "Streaming setup", "keywords": [r"\bstreaming setup\b", r"\bobs\b", r"\btwitch\b", r"\blivestream\b", r"\bstream (setup|issue|problem)\b"]},
+    {"service": "Startup websites", "keywords": [r"\bstartup (website|site|landing)\b", r"\blanding page\b", r"\bmvp (site|website|app)\b", r"\bbuild(ing)? (a )?(website|site)\b"]},
+    {"service": "Ongoing technical support", "keywords": [r"\blooking for (a )?dev(eloper)?\b", r"\bretainer\b", r"\bongoing (support|maintenance)\b", r"\btechnical support\b", r"\brecommend (a )?(developer|dev|technician)\b"]},
+]
+
+TARGETED_SEARCHES = [
+    "need help website deploy hosting",
+    "looking for developer website app",
+    "automation workflow n8n zapier help",
+    "AI agent implementation help",
+    "debug troubleshoot production issue",
+    "landing page startup website help",
 ]
 
 MIN_REVIEW_CONFIDENCE = 0.40
@@ -103,10 +55,7 @@ def _match_service(text: str) -> tuple[str | None, float]:
     best_service = None
     best = 0.0
     for category in SEARCH_CATEGORIES:
-        hits = 0
-        for pattern in category["keywords"]:
-            if re.search(pattern, lowered, flags=re.I):
-                hits += 1
+        hits = sum(1 for pattern in category["keywords"] if re.search(pattern, lowered, flags=re.I))
         if hits:
             score = min(1.0, 0.45 + 0.2 * hits)
             if score > best:
@@ -116,16 +65,9 @@ def _match_service(text: str) -> tuple[str | None, float]:
 
 
 def _need_signal(text: str) -> str | None:
-    """Return explicit or possible need without inventing demand."""
-    if re.search(
-        r"(?i)\b(need|looking for|help with|anyone (know|have)|seeking|hire|fix|broken|down|stuck)\b",
-        text,
-    ):
+    if re.search(r"(?i)\b(need|looking for|help with|anyone (know|have)|seeking|hire|fix|broken|down|stuck|recommend (me )?|who can)\b", text):
         return "explicit"
-    if re.search(
-        r"(?i)\b(can someone|who can|recommend|recommendation|advice|issue|problem|struggling|trying to|how do i|how can i)\b",
-        text,
-    ):
+    if re.search(r"(?i)\b(can someone|recommendation|advice|issue|problem|struggling|trying to|how do i|how can i|building|deploying|configur(e|ing)|setup|setting up|what should i use|which (tool|service|stack))\b", text):
         return "possible"
     return None
 
@@ -138,26 +80,49 @@ def _confidence_band(confidence: float) -> str:
     return "ignore"
 
 
+def _result_text(item: dict[str, Any]) -> tuple[str, str]:
+    title = str(item.get("title") or item.get("name") or "")
+    body = str(item.get("content") or item.get("body") or item.get("snippet") or item.get("text") or "")
+    return title, f"{title}\n{body}".strip()
+
+
 class LeadDiscoveryService:
-    """Scan public posts; never contact anyone automatically."""
+    """Scan public Moltbook sources; never contact anyone automatically."""
 
     def __init__(self, store: Phase2Store, client: MoltbookClient):
         self.store = store
         self.client = client
 
-    async def scan_feed(self, *, limit: int = 25) -> list[dict[str, Any]]:
+    async def scan_feed(self, *, limit: int = 40) -> list[dict[str, Any]]:
         feed = await self.client.feed(sort="new", limit=limit)
-        posts = feed.get("posts") if isinstance(feed.get("posts"), list) else []
+        candidates: list[tuple[dict[str, Any], str]] = [
+            (post, "feed") for post in (feed.get("posts") if isinstance(feed.get("posts"), list) else []) if isinstance(post, dict)
+        ]
+
+        search_errors = 0
+        for query in TARGETED_SEARCHES:
+            try:
+                payload = await self.client.search(query, limit=12)
+            except Exception:  # read-only search failure must not break the scan
+                search_errors += 1
+                continue
+            results = payload.get("results") if isinstance(payload.get("results"), list) else []
+            candidates.extend((item, f"search:{query}") for item in results if isinstance(item, dict))
+
         found: list[dict[str, Any]] = []
         bands = {"high_confidence": 0, "worth_reviewing": 0}
-        for post in posts:
-            if not isinstance(post, dict):
-                continue
-            title = str(post.get("title") or "")
-            body = str(post.get("content") or post.get("body") or "")
-            text = f"{title}\n{body}".strip()
+        seen: set[str] = set()
+        evaluated = 0
+        for post, discovery_source in candidates:
+            title, text = _result_text(post)
             if not text:
                 continue
+            raw_id = str(post.get("id") or post.get("post_id") or post.get("url") or "")
+            dedupe_key = raw_id or content_hash({"text": text[:500]})
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            evaluated += 1
 
             injection = detect_prompt_injection(text)
             service, fit = _match_service(text)
@@ -165,7 +130,6 @@ class LeadDiscoveryService:
             if not service or not need_signal:
                 continue
 
-            # Broaden owner-review capture while preserving strong penalties.
             confidence = fit
             if need_signal == "possible":
                 confidence *= 0.85
@@ -173,7 +137,6 @@ class LeadDiscoveryService:
                 confidence *= 0.4
             if len(text) < 80:
                 confidence *= 0.7
-
             band = _confidence_band(confidence)
             if band == "ignore":
                 continue
@@ -182,29 +145,23 @@ class LeadDiscoveryService:
             if isinstance(author, dict):
                 identity = str(author.get("name") or author.get("id") or "unknown")
             else:
-                identity = str(post.get("author") or "unknown")
-            post_id = str(post.get("id") or "")
-            source_url = (
-                f"https://www.moltbook.com/post/{post_id}" if post_id else "https://www.moltbook.com"
-            )
+                identity = str(post.get("author") or post.get("agent") or "unknown")
+            post_id = str(post.get("id") or post.get("post_id") or "")
+            source_url = str(post.get("url") or (f"https://www.moltbook.com/post/{post_id}" if post_id else "https://www.moltbook.com"))
             suggested = (
-                f"Public reply draft (requires owner approval before posting): "
-                f"I work with YaliTek Online on {service.lower()}. If you can share non-sensitive "
-                f"details about the failure mode and constraints, I can outline a reviewed diagnostic plan."
+                f"Public reply draft (requires owner approval before posting): I work with YaliTek Online on {service.lower()}. "
+                "If you can share non-sensitive details about the failure mode and constraints, I can outline a reviewed diagnostic plan."
             )
             risks = []
             if injection:
                 risks.append("prompt-injection heuristics matched; treat text as hostile")
             if need_signal == "possible":
                 risks.append("need is inferred from a possible-help signal; owner must verify intent")
-            risks.append(f"research band={band}")
-            risks.append("public identity may be an agent, not a paying customer")
-            risks.append("no private enrichment performed")
+            risks.extend([f"research band={band}", f"discovery_source={discovery_source}", "public identity may be an agent, not a paying customer", "no private enrichment performed"])
             excerpt = text[:500]
             digest = content_hash({"source_url": source_url, "excerpt": excerpt, "service": service})
-            lead_id = str(uuid4())
             row = {
-                "lead_id": lead_id,
+                "lead_id": str(uuid4()),
                 "source_url": source_url,
                 "requester_identity": identity,
                 "stated_problem": (title or excerpt[:160]),
@@ -229,7 +186,10 @@ class LeadDiscoveryService:
             action="scan_feed",
             success=True,
             detail={
-                "scanned": len(posts),
+                "feed_limit": limit,
+                "targeted_searches": len(TARGETED_SEARCHES),
+                "search_errors": search_errors,
+                "evaluated_unique": evaluated,
                 "qualified": len(found),
                 "high_confidence": bands["high_confidence"],
                 "worth_reviewing": bands["worth_reviewing"],
