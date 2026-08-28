@@ -49,7 +49,28 @@ type ApprovalResponse = {
   error?: string
 }
 
+type Disposition = "strong_lead" | "possible_lead" | "informational" | "wrong_service" | "noise"
+type ReviewRecord = { lead_id: string; disposition: Disposition; reviewed_at: string }
+type ReviewResponse = {
+  ok: boolean
+  reviewed_count: number
+  positive_count: number
+  precision: number | null
+  target_precision: number
+  counts: Record<Disposition, number>
+  reviews: ReviewRecord[]
+  error?: string
+}
+
 type QueueStatus = "qualified" | "prepared" | "pending" | "rejected" | "expired"
+
+const DISPOSITIONS: Array<{ value: Disposition; label: string }> = [
+  { value: "strong_lead", label: "Strong lead" },
+  { value: "possible_lead", label: "Possible lead" },
+  { value: "informational", label: "Informational" },
+  { value: "wrong_service", label: "Wrong service" },
+  { value: "noise", label: "Noise" },
+]
 
 function leadIdFromApproval(item: Approval) {
   return item.summary.match(/lead ([0-9a-f-]{8,})/i)?.[1] ?? null
@@ -72,25 +93,30 @@ function statusClass(status: QueueStatus) {
 export function OwnerOpportunityReview() {
   const [preparation, setPreparation] = useState<PreparationResponse | null>(null)
   const [approvals, setApprovals] = useState<ApprovalResponse | null>(null)
+  const [reviews, setReviews] = useState<ReviewResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [working, setWorking] = useState<"prepare" | "propose" | "reject" | null>(null)
+  const [working, setWorking] = useState<"prepare" | "propose" | "reject" | "review" | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [prepResponse, approvalResponse] = await Promise.all([
+      const [prepResponse, approvalResponse, reviewResponse] = await Promise.all([
         fetch("/api/owner/moltbook-preparation", { cache: "no-store" }),
         fetch("/api/owner/moltbook-approvals", { cache: "no-store" }),
+        fetch("/api/owner/moltbook-reviews", { cache: "no-store" }),
       ])
-      const [prepBody, approvalBody] = await Promise.all([
+      const [prepBody, approvalBody, reviewBody] = await Promise.all([
         prepResponse.json() as Promise<PreparationResponse>,
         approvalResponse.json() as Promise<ApprovalResponse>,
+        reviewResponse.json() as Promise<ReviewResponse>,
       ])
       if (!prepResponse.ok) throw new Error(prepBody.error || `Preparation load failed (${prepResponse.status})`)
       if (!approvalResponse.ok || !approvalBody.ok) throw new Error(approvalBody.error || `Approval load failed (${approvalResponse.status})`)
+      if (!reviewResponse.ok || !reviewBody.ok) throw new Error(reviewBody.error || `Review metrics failed (${reviewResponse.status})`)
       setPreparation(prepBody)
       setApprovals(approvalBody)
+      setReviews(reviewBody)
       setError(null)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Opportunity review queue unavailable")
@@ -134,6 +160,26 @@ export function OwnerOpportunityReview() {
     }
   }, [])
 
+  const setDisposition = useCallback(async (leadId: string, disposition: Disposition) => {
+    setWorking("review")
+    try {
+      const response = await fetch("/api/owner/moltbook-reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lead_id: leadId, disposition }),
+        cache: "no-store",
+      })
+      const body = (await response.json()) as ReviewResponse
+      if (!response.ok || !body.ok) throw new Error(body.error || `Review update failed (${response.status})`)
+      setReviews(body)
+      setError(null)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Review feedback unavailable")
+    } finally {
+      setWorking(null)
+    }
+  }, [])
+
   useEffect(() => { void load() }, [load])
 
   const approvalsByLead = useMemo(() => {
@@ -145,25 +191,30 @@ export function OwnerOpportunityReview() {
     return map
   }, [approvals])
 
+  const reviewsByLead = useMemo(() => new Map((reviews?.reviews ?? []).map((item) => [item.lead_id, item])), [reviews])
+
   const queue = useMemo(() => (preparation?.items ?? []).map((item) => {
     const approval = approvalsByLead.get(item.lead_id)
     let status: QueueStatus = "prepared"
     if (approval?.decision === "pending") status = "pending"
     else if (approval?.decision === "rejected") status = "rejected"
     else if (approval?.decision === "expired") status = "expired"
-    return { item, approval, status }
-  }), [approvalsByLead, preparation])
+    return { item, approval, status, review: reviewsByLead.get(item.lead_id) }
+  }), [approvalsByLead, preparation, reviewsByLead])
 
   if (loading && !preparation && !approvals) {
     return <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading opportunity review queue…</div>
   }
+
+  const precisionPct = reviews?.precision == null ? "—" : `${Math.round(reviews.precision * 100)}%`
+  const targetPct = `${Math.round((reviews?.target_precision ?? 0.7) * 100)}%`
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="max-w-2xl">
           <p className="text-sm font-medium text-foreground">Owner Opportunity Review</p>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">One decision surface for qualified Moltbook opportunities. Review the source, service fit, confidence, risk, and exact draft before rejecting or advancing to a durable proposal. Publishing remains unavailable.</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Review each opportunity, classify its quality, and build a durable precision signal before any live outreach capability is considered.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => void load()} disabled={Boolean(working)} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-foreground hover:bg-muted disabled:opacity-60"><RefreshCw className="h-3.5 w-3.5" />Refresh</button>
@@ -175,21 +226,23 @@ export function OwnerOpportunityReview() {
       {error ? <p className="rounded-lg border border-critical/30 bg-critical/5 p-3 text-xs text-critical">{error}</p> : null}
       {approvals?.quota_reached ? <p className="rounded-lg border border-caution/30 bg-caution/5 p-3 text-xs text-caution">{approvals.quota_message || "The 8-item review proposal quota has been reached for this 24-hour window."}</p> : null}
 
-      <div className="grid gap-2 sm:grid-cols-4">
-        <div className="rounded-lg border border-border/70 bg-background/40 p-3"><p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">Qualified source pool</p><p className="mt-1 text-sm font-medium text-foreground">{preparation?.source_lead_count ?? 0}</p></div>
+      <div className="grid gap-2 sm:grid-cols-5">
+        <div className="rounded-lg border border-border/70 bg-background/40 p-3"><p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">Qualified pool</p><p className="mt-1 text-sm font-medium text-foreground">{preparation?.source_lead_count ?? 0}</p></div>
         <div className="rounded-lg border border-border/70 bg-background/40 p-3"><p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">Prepared</p><p className="mt-1 text-sm font-medium text-foreground">{preparation?.prepared_count ?? 0} / 8</p></div>
-        <div className="rounded-lg border border-border/70 bg-background/40 p-3"><p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">Pending review</p><p className="mt-1 text-sm font-medium text-foreground">{approvals?.pending_count ?? 0}</p></div>
+        <div className="rounded-lg border border-border/70 bg-background/40 p-3"><p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">Reviewed</p><p className="mt-1 text-sm font-medium text-foreground">{reviews?.reviewed_count ?? 0}</p></div>
+        <div className="rounded-lg border border-border/70 bg-background/40 p-3"><p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">Precision</p><p className="mt-1 text-sm font-medium text-foreground">{precisionPct}</p><p className="mt-1 text-[0.65rem] text-muted-foreground">Target ≥ {targetPct}</p></div>
         <div className="rounded-lg border border-border/70 bg-background/40 p-3"><p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">External execution</p><p className="mt-1 text-sm font-medium text-foreground">{approvals?.execute_enabled ? "Enabled" : "Locked"}</p></div>
       </div>
 
       {queue.length ? <div className="space-y-3">
-        {queue.map(({ item, approval, status }, index) => (
+        {queue.map(({ item, approval, status, review }, index) => (
           <article key={item.lead_id} className="rounded-xl border border-border/70 bg-background/35 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 max-w-3xl">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[0.65rem] font-medium uppercase tracking-wider text-muted-foreground">Opportunity {index + 1}</span>
                   <span className={cn("rounded-full border px-2 py-0.5 text-[0.65rem] font-medium", statusClass(status))}>{statusLabel(status)}</span>
+                  {review ? <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[0.65rem] text-muted-foreground">{DISPOSITIONS.find((d) => d.value === review.disposition)?.label}</span> : null}
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">Requester · {item.requester_identity}</p>
                 <p className="mt-1 text-sm font-medium text-foreground">{item.problem}</p>
@@ -202,8 +255,14 @@ export function OwnerOpportunityReview() {
             </div>
 
             <div className="mt-4 grid gap-3 lg:grid-cols-2">
-              <div className="rounded-lg border border-border/60 bg-background/30 p-3"><p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">AION assessment</p><p className="mt-2 text-xs leading-relaxed text-foreground/85">Strong enough for owner review because it passed the current Stage 3 explicit-need and confidence gates. Verify buyer intent from the source before treating it as a sales opportunity.</p><p className="mt-2 text-[0.7rem] leading-relaxed text-muted-foreground">Risks · {item.risks}</p></div>
+              <div className="rounded-lg border border-border/60 bg-background/30 p-3"><p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">AION assessment</p><p className="mt-2 text-xs leading-relaxed text-foreground/85">Passed the Stage 3 explicit-need and confidence gates. Your disposition below becomes durable feedback for measuring funnel quality.</p><p className="mt-2 text-[0.7rem] leading-relaxed text-muted-foreground">Risks · {item.risks}</p></div>
               <div className="rounded-lg border border-gold/20 bg-gold/5 p-3"><p className="text-[0.65rem] uppercase tracking-wider text-gold">Proposed response</p><p className="mt-2 text-xs leading-relaxed text-foreground/90">{item.response_draft}</p></div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {DISPOSITIONS.map((option) => (
+                <button key={option.value} type="button" disabled={Boolean(working)} onClick={() => void setDisposition(item.lead_id, option.value)} className={cn("rounded-lg border px-2.5 py-1.5 text-xs transition-colors disabled:opacity-60", review?.disposition === option.value ? "border-gold/40 bg-gold/10 text-gold" : "border-border text-muted-foreground hover:bg-muted hover:text-foreground")}>{option.label}</button>
+              ))}
             </div>
 
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
@@ -218,7 +277,7 @@ export function OwnerOpportunityReview() {
         ))}
       </div> : <p className="rounded-xl border border-border/70 bg-background/35 p-4 text-sm text-muted-foreground">No Stage 3 opportunities are prepared. Run a read-only Moltbook scan, then prepare review. AION will not fabricate opportunities.</p>}
 
-      <p className="text-[0.7rem] leading-relaxed text-muted-foreground">Pipeline: Research candidate → qualified opportunity → prepared → pending owner approval → rejected/expired. There is intentionally no approve-or-publish control in this phase.</p>
+      <p className="text-[0.7rem] leading-relaxed text-muted-foreground">Quality target: at least 70% of reviewed Stage 3 opportunities should be marked Strong lead or Possible lead before considering broader outreach permissions. Publishing remains unavailable.</p>
     </div>
   )
 }
