@@ -105,7 +105,12 @@ async function buildMemoryContext(req: Request, clientSessionId: string | undefi
   const action = explicitMemoryRequest(message)
   let actionNote = ""
   if (action?.action === "remember") {
-    const result = await callMemory<MemoryActionResult>(req, clientSessionId, { action: "remember", content: action.content, category: action.category })
+    const result = await callMemory<MemoryActionResult>(req, clientSessionId, {
+      action: "remember",
+      content: action.content,
+      category: action.category,
+      source_message_content: message,
+    })
     actionNote = result?.remembered ? "The explicit memory was saved." : "The memory save could not be confirmed. Do not claim success."
   } else if (action?.action === "forget") {
     const result = await callMemory<MemoryActionResult>(req, clientSessionId, { action: "forget", content: action.content })
@@ -116,6 +121,7 @@ async function buildMemoryContext(req: Request, clientSessionId: string | undefi
       content: action.content,
       replacement: action.replacement,
       category: action.category,
+      source_message_content: message,
     })
     actionNote = result?.replaced ? "The old exact memory was superseded by the replacement." : "No exact active memory matched the requested replacement."
   }
@@ -137,11 +143,7 @@ function gatewayModels(): string[] {
     .split(",")
     .map((model) => model.trim())
     .filter(Boolean)
-  const defaults = [
-    "inclusionai/ling-3.0-flash-fin-free",
-    "poolside/laguna-s-2.1-free",
-    "minimax/minimax-m2.7-free",
-  ]
+  const defaults = ["inclusionai/ling-3.0-flash-fin-free", "poolside/laguna-s-2.1-free", "minimax/minimax-m2.7-free"]
   return [...new Set([primary, ...configured, ...defaults])]
 }
 
@@ -150,7 +152,6 @@ async function runGateway(req: Request, message: string, history: HistoryItem[],
   const messages = [...history.slice(-12), { role: "user" as const, content: message }]
   const models = gatewayModels()
   let lastError: unknown = null
-
   for (const model of models) {
     try {
       const result = await generateText({ model, system: systemInstructions, messages })
@@ -161,7 +162,6 @@ async function runGateway(req: Request, message: string, history: HistoryItem[],
       console.warn("[AION] Gateway model failed; trying next fallback:", model, error instanceof Error ? error.message : String(error))
     }
   }
-
   throw lastError instanceof Error ? lastError : new Error("All configured AI Gateway models failed")
 }
 
@@ -170,7 +170,6 @@ export async function POST(req: Request) {
     const body = (await req.json()) as ChatBody
     const message = body.message?.trim()
     if (!message) return Response.json({ error: "A message is required." }, { status: 400 })
-
     const priorHistory = (body.history ?? []).slice(-12)
     const systemInstructions = `${AION_SYSTEM}${await buildMemoryContext(req, body.clientSessionId, message)}`
 
