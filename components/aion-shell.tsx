@@ -26,7 +26,7 @@ const GREETING: Message = {
   id: "aion-greeting",
   role: "aion",
   content:
-    "Good morning, Yaleel. This interface is connected to AION's reasoning runtime. Ask me what you want to understand, decide, research, or work on.",
+    "Hello, Yaleel. This interface is connected to AION's reasoning runtime. Ask me what you want to understand, decide, research, or work on.",
   serif: true,
 }
 
@@ -164,6 +164,12 @@ export function AionShell() {
 
   const pushMessage = useCallback((m: Message) => setMessages((prev) => [...prev, m]), [])
 
+  const handleOwnerAuthenticated = useCallback(() => {
+    setOwnerAuthenticated(true)
+    setOwnerAuthOpen(false)
+    setMode("boardroom")
+  }, [])
+
   const handleSend = useCallback(
     async (text: string) => {
       const trimmed = text.trim()
@@ -220,17 +226,18 @@ export function AionShell() {
       }
 
       try {
+        const boundedHistory = messages
+          .filter((m) => m.id !== GREETING.id && (m.role === "user" || m.role === "aion"))
+          .slice(-12)
+          .map((m) => ({ role: m.role === "aion" ? "assistant" : "user", content: m.content }))
+
         const res = await fetch("/api/aion/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message: trimmed,
             clientSessionId,
-            history: previousResponseId
-              ? undefined
-              : messages
-                  .filter((m) => m.role === "user" || m.role === "aion")
-                  .map((m) => ({ role: m.role === "aion" ? "assistant" : "user", content: m.content })),
+            history: boundedHistory,
             previousResponseId: previousResponseId ?? undefined,
           }),
         })
@@ -340,10 +347,7 @@ export function AionShell() {
       <OwnerAuthDialog
         open={ownerAuthOpen}
         onClose={() => setOwnerAuthOpen(false)}
-        onAuthenticated={() => {
-          setOwnerAuthenticated(true)
-          setMode("boardroom")
-        }}
+        onAuthenticated={handleOwnerAuthenticated}
       />
     </div>
   )
