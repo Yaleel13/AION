@@ -18,6 +18,7 @@ import { AionPresence } from "@/components/aion-presence"
 import { CommandComposer } from "@/components/command-composer"
 import { OwnerMemoryInspector } from "@/components/owner-memory-inspector"
 import { OwnerMoltbookResearch } from "@/components/owner-moltbook-research"
+import { OwnerMoltbookPreparation } from "@/components/owner-moltbook-preparation"
 import { cn } from "@/lib/utils"
 
 type RuntimeStatus = {
@@ -198,7 +199,7 @@ export function Boardroom({
           Strategic Command · Live Runtime
         </p>
         <p className="mt-2 max-w-xl text-[0.7rem] text-muted-foreground/80">
-          Live owner runtime, protected memory, and read-only Moltbook research. External content remains untrusted until reviewed.
+          Live owner runtime, protected memory, read-only Moltbook research, and owner-review preparation. External content remains untrusted until reviewed.
         </p>
       </div>
 
@@ -300,6 +301,10 @@ export function Boardroom({
               <OwnerMoltbookResearch />
             </Panel>
 
+            <Panel title="Research Preparation" subtitle="Stage 3 · owner review only" className="lg:col-span-3">
+              <OwnerMoltbookPreparation />
+            </Panel>
+
             <Panel title="Long-term Memory" subtitle="Owner only · read-only" className="lg:col-span-3">
               <OwnerMemoryInspector />
             </Panel>
@@ -326,7 +331,7 @@ export function Boardroom({
                   : !status.moltbook.api_key_present
                     ? "Connect the approved Moltbook credential before enabling live Moltbook research."
                     : status.autonomy.dry_run
-                      ? "Stage 2 research is safe to run. Review qualified opportunities before considering any outbound phase."
+                      ? "Stage 3 can prepare owner-review briefs from qualified research. Outbound remains locked until a separately approved phase."
                       : "Runtime gates are available; consequential actions still require their configured approval policy."}
               </p>
             </Panel>
