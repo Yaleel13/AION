@@ -16,6 +16,8 @@ from aion.phase2_services import get_services, reset_services_cache
 
 app = FastAPI()
 KEY = "moltbook_stage3_preparation"
+MAX_PREPARED = 8
+MIN_STAGE3_CONFIDENCE = 0.70
 
 
 def _require_owner(authorization: str | None) -> None:
@@ -26,10 +28,21 @@ def _require_owner(authorization: str | None) -> None:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
+def _is_actionable(lead: dict) -> bool:
+    confidence = float(lead.get("confidence_score") or 0)
+    risks = str(lead.get("risks") or "").lower()
+    return confidence >= MIN_STAGE3_CONFIDENCE and "possible-help signal" not in risks
+
+
 def _build_brief(leads: list[dict]) -> dict:
-    ranked = sorted(leads, key=lambda x: (float(x.get("confidence_score") or 0), float(x.get("fit_score") or 0)), reverse=True)
+    actionable = [lead for lead in leads if _is_actionable(lead)]
+    ranked = sorted(
+        actionable,
+        key=lambda x: (float(x.get("confidence_score") or 0), float(x.get("fit_score") or 0)),
+        reverse=True,
+    )
     items = []
-    for lead in ranked[:12]:
+    for lead in ranked[:MAX_PREPARED]:
         items.append({
             "lead_id": lead.get("lead_id"),
             "source_url": lead.get("source_url"),
@@ -48,11 +61,15 @@ def _build_brief(leads: list[dict]) -> dict:
         "stage": 3,
         "mode": "owner-review-preparation",
         "source_lead_count": len(leads),
+        "actionable_lead_count": len(actionable),
         "prepared_count": len(items),
+        "preparation_limit": MAX_PREPARED,
+        "minimum_stage3_confidence": MIN_STAGE3_CONFIDENCE,
+        "requires_explicit_need_signal": True,
         "items": items,
         "summary": (
-            "No qualified Stage 2 opportunities are currently stored; nothing was fabricated."
-            if not items else f"Prepared {len(items)} owner-review opportunity brief(s) from durable Stage 2 leads."
+            "No high-confidence explicit-need Stage 2 opportunities are currently stored; nothing was fabricated."
+            if not items else f"Prepared {len(items)} high-confidence explicit-need owner-review opportunity brief(s)."
         ),
         "contacted": False,
         "published": False,
@@ -75,5 +92,16 @@ async def prepare(authorization: str | None = Header(default=None)) -> dict:
     svc = get_services()
     brief = _build_brief(svc.store.list_leads())
     svc.store.set_risk(KEY, brief)
-    svc.store.append_audit(module="moltbook", action="prepare_owner_review", success=True, detail={"source_leads": brief["source_lead_count"], "prepared": brief["prepared_count"], "published": False})
+    svc.store.append_audit(
+        module="moltbook",
+        action="prepare_owner_review",
+        success=True,
+        detail={
+            "source_leads": brief["source_lead_count"],
+            "actionable_leads": brief["actionable_lead_count"],
+            "prepared": brief["prepared_count"],
+            "preparation_limit": brief["preparation_limit"],
+            "published": False,
+        },
+    )
     return brief
