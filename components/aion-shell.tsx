@@ -12,6 +12,7 @@ import { Boardroom } from "@/components/boardroom"
 import { ConnectionSheet } from "@/components/connection-sheet"
 import { ProjectContext } from "@/components/project-context"
 import { RuntimeStatusBanner } from "@/components/runtime-status-banner"
+import { OwnerAuthDialog } from "@/components/owner-auth-dialog"
 import { cn } from "@/lib/utils"
 
 let idCounter = 0
@@ -61,11 +62,20 @@ export function AionShell() {
   const [focus, setFocus] = useState<{ venture: string; reasoning: string } | null>(null)
   const [terminalOpen, setTerminalOpen] = useState(false)
   const [connectionOpen, setConnectionOpen] = useState(false)
+  const [ownerAuthOpen, setOwnerAuthOpen] = useState(false)
+  const [ownerAuthenticated, setOwnerAuthenticated] = useState(false)
   const [listening, setListening] = useState(false)
   const [previousResponseId, setPreviousResponseId] = useState<string | null>(null)
   const [clientSessionId, setClientSessionId] = useState<string | null>(null)
   const [conversationHydrated, setConversationHydrated] = useState(false)
   const busyRef = useRef(false)
+
+  useEffect(() => {
+    void fetch("/api/aion/owner-session", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => setOwnerAuthenticated(Boolean(data.authenticated)))
+      .catch(() => setOwnerAuthenticated(false))
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -166,9 +176,6 @@ export function AionShell() {
       const turn = routeCommand(trimmed)
       setWorking(turn.working)
 
-      // Keep only deterministic local UI controls scripted. Anything that claims
-      // external state, research, metrics, messages, repairs, or deployments must
-      // come from the real runtime instead of the fixture router.
       const isLocalUiControl =
         turn.effect === "open-boardroom" ||
         String(turn.effect) === "close-boardroom" ||
@@ -181,15 +188,20 @@ export function AionShell() {
           q.includes(v.toLowerCase()),
         )
         if (ventureMatch && (mode === "boardroom" || turn.effect === "open-boardroom")) {
-          setFocus({
-            venture: ventureMatch,
-            reasoning: `You asked me to concentrate on ${ventureMatch}.`,
-          })
+          setFocus({ venture: ventureMatch, reasoning: `You asked me to concentrate on ${ventureMatch}.` })
         } else if (turn.effect === "open-boardroom") {
           setFocus(null)
         }
 
         if (turn.effect === "open-boardroom") {
+          if (!ownerAuthenticated) {
+            setOwnerAuthOpen(true)
+            pushMessage({ id: uid(), role: "aion", content: "Owner authentication is required to unlock the Boardroom." })
+            setWorking("complete")
+            setTimeout(() => setWorking("idle"), 500)
+            busyRef.current = false
+            return
+          }
           setMode("boardroom")
         } else if (String(turn.effect) === "close-boardroom") {
           setMode("conversation")
@@ -200,12 +212,7 @@ export function AionShell() {
         }
         if (turn.context) setContext(turn.context)
 
-        pushMessage({
-          id: uid(),
-          role: "aion",
-          content: turn.reply,
-          serif: turn.serif,
-        })
+        pushMessage({ id: uid(), role: "aion", content: turn.reply, serif: turn.serif })
         setWorking("complete")
         setTimeout(() => setWorking("idle"), 500)
         busyRef.current = false
@@ -228,33 +235,21 @@ export function AionShell() {
           }),
         })
 
-        const data = (await res.json()) as {
-          reply?: string
-          responseId?: string | null
-          error?: string
-          code?: string
-        }
-
-        if (!res.ok || !data.reply) {
-          throw new Error(data.error || `AION runtime request failed (${res.status})`)
-        }
+        const data = (await res.json()) as { reply?: string; responseId?: string | null; error?: string; code?: string }
+        if (!res.ok || !data.reply) throw new Error(data.error || `AION runtime request failed (${res.status})`)
 
         if (data.responseId) setPreviousResponseId(data.responseId)
         pushMessage({ id: uid(), role: "aion", content: data.reply })
       } catch (error) {
         const detail = error instanceof Error ? error.message : "Unknown runtime error"
-        pushMessage({
-          id: uid(),
-          role: "aion",
-          content: `I couldn't complete that through the live AION runtime. ${detail}`,
-        })
+        pushMessage({ id: uid(), role: "aion", content: `I couldn't complete that through the live AION runtime. ${detail}` })
       } finally {
         setWorking("complete")
         setTimeout(() => setWorking("idle"), 500)
         busyRef.current = false
       }
     },
-    [clientSessionId, messages, mode, previousResponseId, pushMessage],
+    [clientSessionId, messages, mode, ownerAuthenticated, previousResponseId, pushMessage],
   )
 
   const handleNewConversation = useCallback(() => {
@@ -293,7 +288,10 @@ export function AionShell() {
         onNewConversation={handleNewConversation}
         onNotifications={() => handleSend("What needs my attention today?")}
         onSettings={() => setConnectionOpen(true)}
-        onAccount={() => handleSend("Open the Boardroom.")}
+        onAccount={() => {
+          if (ownerAuthenticated) setMode("boardroom")
+          else setOwnerAuthOpen(true)
+        }}
       />
 
       {mode === "boardroom" ? (
@@ -310,26 +308,12 @@ export function AionShell() {
         </div>
       ) : (
         <div className="relative flex flex-1 overflow-hidden">
-          <div
-            className={cn(
-              "flex min-w-0 flex-1 flex-col transition-all duration-500 ease-out",
-              terminalOpen ? "lg:max-w-[54%]" : "max-w-full",
-            )}
-          >
-            <div
-              className={cn(
-                "flex shrink-0 items-center justify-center transition-all duration-700",
-                showHero ? "pt-6 pb-2" : "pt-4 pb-1",
-              )}
-            >
+          <div className={cn("flex min-w-0 flex-1 flex-col transition-all duration-500 ease-out", terminalOpen ? "lg:max-w-[54%]" : "max-w-full")}>
+            <div className={cn("flex shrink-0 items-center justify-center transition-all duration-700", showHero ? "pt-6 pb-2" : "pt-4 pb-1")}>
               <AionPresence state={presence} size={showHero ? 180 : 84} />
             </div>
 
-            {context && (
-              <div className="shrink-0 pb-1">
-                <ProjectContext label={context} onDismiss={() => setContext(null)} />
-              </div>
-            )}
+            {context && <div className="shrink-0 pb-1"><ProjectContext label={context} onDismiss={() => setContext(null)} /></div>}
 
             <div className="flex-1 overflow-y-auto pb-2">
               <Conversation messages={messages} working={working} onCommand={handleSend} />
@@ -348,15 +332,19 @@ export function AionShell() {
             </div>
           </div>
 
-          {terminalOpen && (
-            <div className="hidden w-full p-3 lg:block lg:max-w-[46%]">
-              <TerminalWorkspace onClose={() => setTerminalOpen(false)} />
-            </div>
-          )}
+          {terminalOpen && <div className="hidden w-full p-3 lg:block lg:max-w-[46%]"><TerminalWorkspace onClose={() => setTerminalOpen(false)} /></div>}
         </div>
       )}
 
       <ConnectionSheet open={connectionOpen} onClose={() => setConnectionOpen(false)} onConnect={handleConnect} />
+      <OwnerAuthDialog
+        open={ownerAuthOpen}
+        onClose={() => setOwnerAuthOpen(false)}
+        onAuthenticated={() => {
+          setOwnerAuthenticated(true)
+          setMode("boardroom")
+        }}
+      />
     </div>
   )
 }
