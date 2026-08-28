@@ -245,7 +245,7 @@ export function AionShell() {
         const data = (await res.json()) as { reply?: string; responseId?: string | null; error?: string; code?: string }
         if (!res.ok || !data.reply) throw new Error(data.error || `AION runtime request failed (${res.status})`)
 
-        if (data.responseId) setPreviousResponseId(data.responseId)
+        setPreviousResponseId(typeof data.responseId === "string" ? data.responseId : null)
         pushMessage({ id: uid(), role: "aion", content: data.reply })
       } catch (error) {
         const detail = error instanceof Error ? error.message : "Unknown runtime error"
