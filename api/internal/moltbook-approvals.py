@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, Header, HTTPException, Request
 
 from aion.moltbook.approval import OutboundAction
+from aion.moltbook.limits import QuotaExceededError
 from aion.phase2_services import get_services, reset_services_cache
 
 app = FastAPI()
@@ -81,27 +82,48 @@ async def mutate_approvals(
         items = list(preparation.get("items") or [])
         created = []
         skipped = []
-        for item in items[:12]:
+        quota_reached = False
+        quota_message = None
+        for item in items[:8]:
             lead_id = str(item.get("lead_id") or "")
             post_id = _post_id_from_source(str(item.get("source_url") or ""))
             content = str(item.get("response_draft") or "").strip()
             if not lead_id or not post_id or not content:
                 skipped.append({"lead_id": lead_id or None, "reason": "missing_post_id_or_draft"})
                 continue
-            req = svc.gate.propose(
-                OutboundAction.COMMENT,
-                summary=f"Prepared owner-review reply for lead {lead_id}",
-                payload={"post_id": post_id, "content": content, "parent_id": None},
-                idempotency_key=f"stage4-lead-comment:{lead_id}",
-            )
+            try:
+                req = svc.gate.propose(
+                    OutboundAction.COMMENT,
+                    summary=f"Prepared owner-review reply for lead {lead_id}",
+                    payload={"post_id": post_id, "content": content, "parent_id": None},
+                    idempotency_key=f"stage4-lead-comment:{lead_id}",
+                )
+            except QuotaExceededError as exc:
+                quota_reached = True
+                quota_message = str(exc)
+                skipped.append({"lead_id": lead_id, "reason": "quota_reached"})
+                break
             created.append(req.redacted())
         svc.store.append_audit(
             module="moltbook",
             action="stage4_propose_prepared",
             success=True,
-            detail={"prepared": len(items), "created": len(created), "skipped": len(skipped), "published": False},
+            detail={
+                "prepared": len(items),
+                "created": len(created),
+                "skipped": len(skipped),
+                "quota_reached": quota_reached,
+                "quota_message": quota_message,
+                "published": False,
+            },
         )
-        return {**_snapshot(svc), "created": created, "skipped": skipped}
+        return {
+            **_snapshot(svc),
+            "created": created,
+            "skipped": skipped,
+            "quota_reached": quota_reached,
+            "quota_message": quota_message,
+        }
 
     if operation == "reject":
         request_id = str(body.get("request_id") or "").strip()
