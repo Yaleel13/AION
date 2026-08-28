@@ -135,7 +135,9 @@ def load_moltbook_settings(
             "MOLTBOOK_EXECUTE_ENABLED requires MOLTBOOK_OUTBOUND_ENABLED=true"
         )
     if (outbound_enabled or execute_enabled) and mode != "live":
-        raise MoltbookConfigError("Controlled Moltbook outbound requires MOLTBOOK_MODE=live")
+        raise MoltbookConfigError(
+            "MOLTBOOK_OUTBOUND_ENABLED requires MOLTBOOK_MODE=live; controlled execution also requires the separate MOLTBOOK_EXECUTE_ENABLED gate"
+        )
 
     audit_log_path = (env.get("MOLTBOOK_AUDIT_LOG_PATH") or "").strip() or None
 
