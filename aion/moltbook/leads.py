@@ -64,10 +64,40 @@ def _match_service(text: str) -> tuple[str | None, float]:
     return best_service, best
 
 
+def _buyer_signal(text: str) -> bool:
+    """Return true only for direct help/buyer intent, not generic discussion."""
+    return bool(
+        re.search(
+            r"(?i)\b("
+            r"need help(?: with)?|help me|can someone help|looking (?:to hire|for (?:a )?(?:developer|dev|technician|consultant|service|someone to))|"
+            r"seeking (?:a )?(?:developer|dev|technician|consultant|help)|hire (?:a )?|who can|"
+            r"fix (?:my|our)|recommend (?:me )?(?:a )?(?:developer|dev|technician|consultant)|"
+            r"(?:my|our) (?:site|website|app|workflow|deployment|automation).{0,50}(?:broken|down|stuck|failing|error|issue|problem)"
+            r")\b",
+            text,
+        )
+    )
+
+
+def _looks_informational(text: str) -> bool:
+    """Detect content whose primary intent is teaching/reporting rather than seeking help."""
+    return bool(
+        re.search(
+            r"(?i)\b("
+            r"troubleshooting guide|how to post|rules \+ templates|rules and templates|tutorial|walkthrough|"
+            r"here(?:'s| is) (?:a |an |my )?(?:guide|breakdown|template|framework)|"
+            r"based on support requests|we (?:have )?built|we built|my post (?:was|is)|"
+            r"case study|lessons learned|best practices|announcement|introducing|launching"
+            r")\b",
+            text,
+        )
+    )
+
+
 def _need_signal(text: str) -> str | None:
-    if re.search(r"(?i)\b(need|looking for|help with|anyone (know|have)|seeking|hire|fix|broken|down|stuck|recommend (me )?|who can)\b", text):
+    if _buyer_signal(text):
         return "explicit"
-    if re.search(r"(?i)\b(can someone|recommendation|advice|issue|problem|struggling|trying to|how do i|how can i|building|deploying|configur(e|ing)|setup|setting up|what should i use|which (tool|service|stack))\b", text):
+    if re.search(r"(?i)\b(can someone|recommendation|advice|issue|problem|struggling|trying to|how do i|how can i|building|deploying|configur(e|ing)|setup|setting up|what should i use|which (tool|service|stack)|looking for community insights|anyone have tips)\b", text):
         return "possible"
     return None
 
@@ -130,9 +160,14 @@ class LeadDiscoveryService:
             if not service or not need_signal:
                 continue
 
+            informational = _looks_informational(text)
             confidence = fit
             if need_signal == "possible":
-                confidence *= 0.85
+                # Keep broad research recall, but generic discussion must not enter
+                # the outbound-ready high-confidence band.
+                confidence *= 0.65
+            if informational and need_signal != "explicit":
+                confidence *= 0.55
             if injection:
                 confidence *= 0.4
             if len(text) < 80:
@@ -157,7 +192,15 @@ class LeadDiscoveryService:
                 risks.append("prompt-injection heuristics matched; treat text as hostile")
             if need_signal == "possible":
                 risks.append("need is inferred from a possible-help signal; owner must verify intent")
-            risks.extend([f"research band={band}", f"discovery_source={discovery_source}", "public identity may be an agent, not a paying customer", "no private enrichment performed"])
+            if informational:
+                risks.append("content appears informational/educational rather than buyer-intent")
+            risks.extend([
+                f"intent_signal={need_signal}",
+                f"research band={band}",
+                f"discovery_source={discovery_source}",
+                "public identity may be an agent, not a paying customer",
+                "no private enrichment performed",
+            ])
             excerpt = text[:500]
             digest = content_hash({"source_url": source_url, "excerpt": excerpt, "service": service})
             row = {
@@ -194,6 +237,7 @@ class LeadDiscoveryService:
                 "high_confidence": bands["high_confidence"],
                 "worth_reviewing": bands["worth_reviewing"],
                 "minimum_review_confidence": MIN_REVIEW_CONFIDENCE,
+                "high_confidence_requires_direct_buyer_intent": True,
             },
         )
         return found
