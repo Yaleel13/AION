@@ -23,9 +23,11 @@ def build_runtime_status() -> dict[str, Any]:
             "configured": moltbook_settings.is_mock or moltbook_settings.configured_for_live,
             "mode": moltbook_settings.mode,
             "api_key_present": bool(moltbook_settings.api_key),
-            "outbound_enabled": False,
-            "execute_enabled": False,
-            "phase": "phase2-controlled-growth",
+            "outbound_enabled": moltbook_settings.outbound_enabled,
+            "execute_enabled": moltbook_settings.execute_enabled,
+            "controlled_outbound_ready": moltbook_settings.controlled_outbound_ready,
+            "allowed_outbound_action": "comment" if moltbook_settings.controlled_outbound_ready else None,
+            "phase": "phase7-owner-approved-comments" if moltbook_settings.controlled_outbound_ready else "phase2-controlled-growth",
         }
     except MoltbookConfigError as exc:
         moltbook = {
@@ -34,6 +36,8 @@ def build_runtime_status() -> dict[str, Any]:
             "api_key_present": False,
             "outbound_enabled": False,
             "execute_enabled": False,
+            "controlled_outbound_ready": False,
+            "allowed_outbound_action": None,
             "phase": "phase2-controlled-growth",
             "error": str(exc),
         }
@@ -88,6 +92,9 @@ def build_runtime_status() -> dict[str, Any]:
         },
         "safety": {
             "moltbook_outbound_default": False,
+            "moltbook_outbound_scope": "owner-approved-comments-only",
+            "moltbook_direct_messages_allowed": False,
+            "moltbook_autonomous_writes_allowed": False,
             "autonomy_default": "inactive",
             "autonomy_dry_run_default": True,
             "paper_is_not_live_trading": True,
