@@ -18,6 +18,7 @@ from aion.durable.paths import resolve_durable_paths
 from aion.durable.scheduler_store import SchedulerStore
 from aion.moltbook.store import Phase2Store
 from aion.paper_trading import PaperConfig, PaperTradingEngine
+from aion.paper_trading.cached_prices import CachedPriceProvider
 
 
 @dataclass(slots=True)
@@ -44,7 +45,11 @@ def get_services() -> Phase2Services:
     gate = Phase2ApprovalGate(store, kill_switch=kill)
     drafts = CampaignDraftService(store, gate)
     paper_db = os.getenv("AION_PAPER_DB") or str(paths.paper_db)
-    paper = PaperTradingEngine(PaperConfig(db_path=paper_db))
+    price_mode = os.getenv("AION_PAPER_PRICE_MODE", "live_public")
+    paper = PaperTradingEngine(
+        PaperConfig(db_path=paper_db),
+        prices=CachedPriceProvider(mode=price_mode, ttl_seconds=60.0),
+    )
     autonomy = ControlledAutonomyEngine.create(store, kill_switch=kill)
     scheduler = SchedulerStore(store)
     return Phase2Services(
@@ -79,14 +84,8 @@ def dashboard_snapshot() -> dict[str, Any]:
         "approvals_approved": approved,
         "approvals_rejected": rejected,
         "qualified_leads": svc.store.list_leads(),
-        "yalitek_conversions": [
-            lead
-            for lead in svc.store.list_leads()
-            if lead.get("conversion_outcome") not in {"uncontacted", None, ""}
-        ],
-        "attributed_revenue_total": sum(
-            float(lead.get("revenue_attributed") or 0) for lead in svc.store.list_leads()
-        ),
+        "yalitek_conversions": [lead for lead in svc.store.list_leads() if lead.get("conversion_outcome") not in {"uncontacted", None, ""}],
+        "attributed_revenue_total": sum(float(lead.get("revenue_attributed") or 0) for lead in svc.store.list_leads()),
         "paper_trading": paper,
         "controlled_autonomy": autonomy_status,
         "search_categories": [c["service"] for c in SEARCH_CATEGORIES],
