@@ -1,8 +1,8 @@
 """Owner-token Moltbook research endpoint for Stage 2.
 
-Read-only against Moltbook. POST scans the live public feed and persists
-qualified opportunities through the existing Phase2Store. GET returns the
-stored owner review queue. No outbound action is executed here.
+Read-only against Moltbook. POST scans the live public feed plus targeted public
+searches and persists reviewable opportunities through the existing Phase2Store.
+GET returns the stored owner review queue. No outbound action is executed here.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import os
 
 from fastapi import FastAPI, Header, HTTPException
 
+from aion.moltbook.leads import TARGETED_SEARCHES
 from aion.phase2_services import get_services, reset_services_cache
 
 app = FastAPI()
@@ -69,13 +70,15 @@ async def scan_research(authorization: str | None = Header(default=None)) -> dic
     if svc.kill_switch.engaged:
         raise HTTPException(status_code=423, detail="Kill switch engaged")
 
-    discovered = await svc.leads().scan_feed(limit=40)
+    feed_limit = 40
+    discovered = await svc.leads().scan_feed(limit=feed_limit)
     stored = svc.store.list_leads()
     return {
         "ok": True,
         "stage": 2,
         "mode": "live-read-only",
-        "scanned_limit": 40,
+        "feed_limit": feed_limit,
+        "targeted_search_count": len(TARGETED_SEARCHES),
         "qualified_this_scan": len(discovered),
         "stored_count": len(stored),
         "leads": [_owner_view(row) for row in stored[:50]],
