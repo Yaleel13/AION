@@ -267,7 +267,7 @@ class PaperTradingEngine:
         quote = self.prices.get_prices()[asset]
         px = quote.usd
         price_source = quote.source
-        is_live = 1 if self._is_live_source(price_source) else 0
+        is_live = self._is_live_source(price_source)
         slip = px * (self.config.slippage_bps / 10_000.0)
         effective = px + slip if side == "buy" else px - slip
         notional = effective * qty
@@ -306,7 +306,7 @@ class PaperTradingEngine:
                 slip,
                 note,
                 price_source,
-                is_live,
+                bool(is_live),
             ),
         )
         self._conn.commit()
@@ -365,7 +365,7 @@ class PaperTradingEngine:
                 px["ETH"].usd,
                 json.dumps(detail),
                 price_source,
-                1 if is_live else 0,
+                bool(is_live),
             ),
         )
         self._conn.commit()
@@ -393,20 +393,20 @@ class PaperTradingEngine:
         live_rows = self._conn.execute(
             """
             SELECT timestamp, equity FROM snapshots
-            WHERE is_live_market_data=1
+            WHERE is_live_market_data=TRUE
             ORDER BY id ASC
             """
         ).fetchall()
         all_rows = self._conn.execute(
             "SELECT timestamp, equity, is_live_market_data, price_source FROM snapshots ORDER BY id ASC"
         ).fetchall()
-        mock_rows = [r for r in all_rows if not int(r["is_live_market_data"] or 0)]
+        mock_rows = [r for r in all_rows if not bool(r["is_live_market_data"])]
         trades = self._conn.execute("SELECT COUNT(*) AS c FROM trades").fetchone()["c"]
         live_trades = self._conn.execute(
-            "SELECT COUNT(*) AS c FROM trades WHERE is_live_market_data=1"
+            "SELECT COUNT(*) AS c FROM trades WHERE is_live_market_data=TRUE"
         ).fetchone()["c"]
         mock_trades = self._conn.execute(
-            "SELECT COUNT(*) AS c FROM trades WHERE is_live_market_data=0"
+            "SELECT COUNT(*) AS c FROM trades WHERE is_live_market_data=FALSE"
         ).fetchone()["c"]
 
         def _metrics(rows: list) -> dict[str, Any]:
