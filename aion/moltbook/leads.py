@@ -1,4 +1,10 @@
-"""Read-only YaliTek lead discovery from public Moltbook content."""
+"""Read-only revenue opportunity discovery from public Moltbook content.
+
+YaliTek service leads are one monetization track. AION can also surface paid gigs,
+bounties/grants, partnerships/referrals, and Web3/crypto work opportunities. Crypto
+market speculation remains isolated to AION's paper-trading subsystem; this module
+never connects wallets, exchanges, or executes financial transactions.
+"""
 
 from __future__ import annotations
 
@@ -12,19 +18,27 @@ from aion.moltbook.security import content_hash, detect_prompt_injection, utc_no
 from aion.moltbook.store import Phase2Store
 
 SEARCH_CATEGORIES: list[dict[str, Any]] = [
-    {"service": "Website repair", "keywords": [r"website.{0,40}(broken|down|error|hack|malware)", r"\bfix (my|our) (site|website)\b", r"\bwordpress\b", r"website repair", r"\bsite (issue|problem|error)\b"]},
-    {"service": "Technical diagnostics", "keywords": [r"\bdiagnos(e|is|tic)\b", r"\broot cause\b", r"\bprod(uction)? (outage|incident)\b", r"\bdebug(ging)?\b", r"\btroubleshoot(ing)?\b"]},
-    {"service": "AI implementation plans", "keywords": [r"\bimplement(ing)? (an )?ai\b", r"\bai (roadmap|strategy|integration)\b", r"\bneed help (with )?agents?\b", r"\bbuild(ing)? (an )?ai agent\b", r"\bwhich ai (tool|stack|model)\b"]},
-    {"service": "Business automation", "keywords": [r"\bautomat(e|ion)\b.{0,40}\b(business|workflow|ops|operations)\b", r"\bzapier\b", r"\bn8n\b", r"\bworkflow (help|issue|problem)\b", r"\bmanual process\b"]},
-    {"service": "Hosting and launch help", "keywords": [r"\bhost(ing)?\b", r"\blaunch (my|our) (site|app|product)\b", r"\bdeploy(ment|ing)?\b", r"\bvercel\b", r"need hosting help", r"\bdomain (setup|issue|problem)\b"]},
-    {"service": "Streaming setup", "keywords": [r"\bstreaming setup\b", r"\bobs\b", r"\btwitch\b", r"\blivestream\b", r"\bstream (setup|issue|problem)\b"]},
-    {"service": "Startup websites", "keywords": [r"\bstartup (website|site|landing)\b", r"\blanding page\b", r"\bmvp (site|website|app)\b", r"\bbuild(ing)? (a )?(website|site)\b"]},
-    {"service": "Ongoing technical support", "keywords": [r"\blooking for (a )?dev(eloper)?\b", r"\bretainer\b", r"\bongoing (support|maintenance)\b", r"\btechnical support\b", r"\brecommend (a )?(developer|dev|technician)\b"]},
+    {"service": "Website repair", "track": "yalitek_service", "keywords": [r"website.{0,40}(broken|down|error|hack|malware)", r"\bfix (my|our) (site|website)\b", r"\bwordpress\b", r"website repair", r"\bsite (issue|problem|error)\b"]},
+    {"service": "Technical diagnostics", "track": "yalitek_service", "keywords": [r"\bdiagnos(e|is|tic)\b", r"\broot cause\b", r"\bprod(uction)? (outage|incident)\b", r"\bdebug(ging)?\b", r"\btroubleshoot(ing)?\b"]},
+    {"service": "AI implementation plans", "track": "yalitek_service", "keywords": [r"\bimplement(ing)? (an )?ai\b", r"\bai (roadmap|strategy|integration)\b", r"\bneed help (with )?agents?\b", r"\bbuild(ing)? (an )?ai agent\b", r"\bwhich ai (tool|stack|model)\b"]},
+    {"service": "Business automation", "track": "yalitek_service", "keywords": [r"\bautomat(e|ion)\b.{0,40}\b(business|workflow|ops|operations)\b", r"\bzapier\b", r"\bn8n\b", r"\bworkflow (help|issue|problem)\b", r"\bmanual process\b"]},
+    {"service": "Hosting and launch help", "track": "yalitek_service", "keywords": [r"\bhost(ing)?\b", r"\blaunch (my|our) (site|app|product)\b", r"\bdeploy(ment|ing)?\b", r"\bvercel\b", r"need hosting help", r"\bdomain (setup|issue|problem)\b"]},
+    {"service": "Streaming setup", "track": "yalitek_service", "keywords": [r"\bstreaming setup\b", r"\bobs\b", r"\btwitch\b", r"\blivestream\b", r"\bstream (setup|issue|problem)\b"]},
+    {"service": "Startup websites", "track": "yalitek_service", "keywords": [r"\bstartup (website|site|landing)\b", r"\blanding page\b", r"\bmvp (site|website|app)\b", r"\bbuild(ing)? (a )?(website|site)\b"]},
+    {"service": "Ongoing technical support", "track": "yalitek_service", "keywords": [r"\blooking for (a )?dev(eloper)?\b", r"\bretainer\b", r"\bongoing (support|maintenance)\b", r"\btechnical support\b", r"\brecommend (a )?(developer|dev|technician)\b"]},
+    {"service": "Paid technical gig", "track": "paid_gig", "keywords": [r"\bpaid (gig|task|project|contract)\b", r"\bfreelance (developer|engineer|automation|ai)\b", r"\bcontract (developer|engineer|work)\b", r"\bbudget[: ]", r"\bpay(ing)? (for|someone)\b"]},
+    {"service": "Bounty or grant", "track": "bounty_grant", "keywords": [r"\bbounty\b", r"\bgrant (available|funding|program|application)\b", r"\bprize pool\b", r"\breward (for|available)\b", r"\bpaid challenge\b"]},
+    {"service": "Partnership or referral", "track": "partnership", "keywords": [r"\bpartner(ship)? (opportunity|wanted|with|program)\b", r"\brevenue share\b", r"\baffiliate program\b", r"\breferral (fee|commission|program)\b", r"\bcollaborat(e|ion).{0,30}(paid|revenue|business)\b"]},
+    {"service": "Web3 or crypto paid work", "track": "crypto_work", "keywords": [r"\bweb3 (bounty|job|gig|contract|developer)\b", r"\bcrypto (bounty|job|gig|contract|developer)\b", r"\bsmart contract (bounty|audit|developer|work)\b", r"\bblockchain (bounty|job|gig|developer)\b", r"\bpaid in (usdc|usdt|eth|btc|crypto)\b"]},
 ]
 
 TARGETED_SEARCHES = [
     "need help website deploy hosting",
-    "looking for developer website app",
+    "looking to hire developer paid project",
+    "freelance contractor automation AI paid gig",
+    "bounty grant funding paid challenge",
+    "partnership referral revenue share opportunity",
+    "web3 crypto bounty smart contract paid developer",
     "automation workflow n8n zapier help",
     "AI agent implementation help",
     "debug troubleshoot production issue",
@@ -32,6 +46,8 @@ TARGETED_SEARCHES = [
 ]
 
 MIN_REVIEW_CONFIDENCE = 0.40
+MONEY_TERMS = re.compile(r"(?i)\b(paid|pay|budget|bounty|grant|reward|prize|contract|freelance|commission|revenue share|hire|hiring)\b")
+CRYPTO_TERMS = re.compile(r"(?i)\b(crypto|bitcoin|btc|ethereum|eth|web3|blockchain|smart contract|token|usdc|usdt)\b")
 
 
 @dataclass(slots=True)
@@ -50,9 +66,10 @@ class LeadCandidate:
     revenue_attributed: float
 
 
-def _match_service(text: str) -> tuple[str | None, float]:
+def _match_service(text: str) -> tuple[str | None, str | None, float]:
     lowered = text.lower()
     best_service = None
+    best_track = None
     best = 0.0
     for category in SEARCH_CATEGORIES:
         hits = sum(1 for pattern in category["keywords"] if re.search(pattern, lowered, flags=re.I))
@@ -61,26 +78,34 @@ def _match_service(text: str) -> tuple[str | None, float]:
             if score > best:
                 best = score
                 best_service = category["service"]
-    return best_service, best
+                best_track = category["track"]
+    return best_service, best_track, best
 
 
 def _buyer_signal(text: str) -> bool:
-    """Return true only for direct help/buyer intent, not generic discussion."""
-    return bool(
-        re.search(
-            r"(?i)\b("
-            r"need help(?: with)?|help me|can someone help|looking (?:to hire|for (?:a )?(?:developer|dev|technician|consultant|service|someone to))|"
-            r"seeking (?:a )?(?:developer|dev|technician|consultant|help)|hire (?:a )?|who can|"
-            r"fix (?:my|our)|recommend (?:me )?(?:a )?(?:developer|dev|technician|consultant)|"
-            r"(?:my|our) (?:site|website|app|workflow|deployment|automation).{0,50}(?:broken|down|stuck|failing|error|issue|problem)"
-            r")\b",
-            text,
-        )
+    """Return true for direct buyer/employer/reward intent, not generic discussion."""
+    service_intent = re.search(
+        r"(?i)\b("
+        r"need help(?: with)?|help me|can someone help|looking (?:to hire|for (?:a )?(?:developer|dev|technician|consultant|service|someone to))|"
+        r"seeking (?:a )?(?:developer|dev|technician|consultant|help)|hire (?:a )?|hiring|who can|"
+        r"fix (?:my|our)|recommend (?:me )?(?:a )?(?:developer|dev|technician|consultant)|"
+        r"(?:my|our) (?:site|website|app|workflow|deployment|automation).{0,50}(?:broken|down|stuck|failing|error|issue|problem)"
+        r")\b",
+        text,
     )
+    paid_opportunity = re.search(
+        r"(?i)\b("
+        r"paid (?:gig|task|project|contract|bounty|challenge)|"
+        r"bounty (?:for|available|open)|grant (?:available|funding|program)|"
+        r"budget (?:is|of|up to|:)|paying (?:for|someone)|"
+        r"looking to (?:pay|hire|contract)|revenue share|referral (?:fee|commission)"
+        r")\b",
+        text,
+    )
+    return bool(service_intent or paid_opportunity)
 
 
 def _looks_informational(text: str) -> bool:
-    """Detect content whose primary intent is teaching/reporting rather than seeking help."""
     return bool(
         re.search(
             r"(?i)\b("
@@ -116,6 +141,21 @@ def _result_text(item: dict[str, Any]) -> tuple[str, str]:
     return title, f"{title}\n{body}".strip()
 
 
+def _suggested_response(service: str, track: str) -> str:
+    prefix = "Public reply draft (requires owner approval before posting): "
+    if track == "yalitek_service":
+        return prefix + f"I work with YaliTek Online on {service.lower()}. If you can share non-sensitive scope, budget, and timing, I can outline a reviewed next step."
+    if track == "paid_gig":
+        return prefix + "I may be able to help with this paid project. Can you share the scope, deliverables, budget, timeline, and payment terms?"
+    if track == "bounty_grant":
+        return prefix + "This opportunity may be relevant. Can you share the official eligibility, deliverables, deadline, judging/payment terms, and source link?"
+    if track == "partnership":
+        return prefix + "I am open to evaluating a business collaboration. Can you share the proposed value exchange, responsibilities, revenue terms, and any non-exclusive constraints?"
+    if track == "crypto_work":
+        return prefix + "I can evaluate the work opportunity, but not send funds or connect a wallet. Please share the scope, public project details, compensation terms, and verification source."
+    return prefix + "Can you share the non-sensitive scope, compensation terms, timing, and verification source?"
+
+
 class LeadDiscoveryService:
     """Scan public Moltbook sources; never contact anyone automatically."""
 
@@ -133,7 +173,7 @@ class LeadDiscoveryService:
         for query in TARGETED_SEARCHES:
             try:
                 payload = await self.client.search(query, limit=12)
-            except Exception:  # read-only search failure must not break the scan
+            except Exception:
                 search_errors += 1
                 continue
             results = payload.get("results") if isinstance(payload.get("results"), list) else []
@@ -141,6 +181,7 @@ class LeadDiscoveryService:
 
         found: list[dict[str, Any]] = []
         bands = {"high_confidence": 0, "worth_reviewing": 0}
+        tracks: dict[str, int] = {}
         seen: set[str] = set()
         evaluated = 0
         for post, discovery_source in candidates:
@@ -155,17 +196,17 @@ class LeadDiscoveryService:
             evaluated += 1
 
             injection = detect_prompt_injection(text)
-            service, fit = _match_service(text)
+            service, track, fit = _match_service(text)
             need_signal = _need_signal(text)
-            if not service or not need_signal:
+            if not service or not track or not need_signal:
                 continue
 
             informational = _looks_informational(text)
             confidence = fit
             if need_signal == "possible":
-                # Keep broad research recall, but generic discussion must not enter
-                # the outbound-ready high-confidence band.
                 confidence *= 0.65
+            if track in {"paid_gig", "bounty_grant", "partnership", "crypto_work"} and not MONEY_TERMS.search(text):
+                confidence *= 0.7
             if informational and need_signal != "explicit":
                 confidence *= 0.55
             if injection:
@@ -183,10 +224,6 @@ class LeadDiscoveryService:
                 identity = str(post.get("author") or post.get("agent") or "unknown")
             post_id = str(post.get("id") or post.get("post_id") or "")
             source_url = str(post.get("url") or (f"https://www.moltbook.com/post/{post_id}" if post_id else "https://www.moltbook.com"))
-            suggested = (
-                f"Public reply draft (requires owner approval before posting): I work with YaliTek Online on {service.lower()}. "
-                "If you can share non-sensitive details about the failure mode and constraints, I can outline a reviewed diagnostic plan."
-            )
             risks = []
             if injection:
                 risks.append("prompt-injection heuristics matched; treat text as hostile")
@@ -194,7 +231,10 @@ class LeadDiscoveryService:
                 risks.append("need is inferred from a possible-help signal; owner must verify intent")
             if informational:
                 risks.append("content appears informational/educational rather than buyer-intent")
+            if track == "crypto_work" or CRYPTO_TERMS.search(text):
+                risks.append("crypto/web3 opportunity: verify source and compensation; no wallet connection, funding, token purchase, or live trading")
             risks.extend([
+                f"monetization_track={track}",
                 f"intent_signal={need_signal}",
                 f"research band={band}",
                 f"discovery_source={discovery_source}",
@@ -211,7 +251,7 @@ class LeadDiscoveryService:
                 "relevant_service": service,
                 "fit_score": round(fit, 3),
                 "confidence_score": round(confidence, 3),
-                "suggested_response": suggested,
+                "suggested_response": _suggested_response(service, track),
                 "risks": "; ".join(risks),
                 "approval_status": "pending_owner_review",
                 "conversion_outcome": "uncontacted",
@@ -223,6 +263,7 @@ class LeadDiscoveryService:
             self.store.upsert_lead(row)
             found.append(row)
             bands[band] += 1
+            tracks[track] = tracks.get(track, 0) + 1
 
         self.store.append_audit(
             module="leads",
@@ -236,8 +277,10 @@ class LeadDiscoveryService:
                 "qualified": len(found),
                 "high_confidence": bands["high_confidence"],
                 "worth_reviewing": bands["worth_reviewing"],
+                "monetization_tracks": tracks,
                 "minimum_review_confidence": MIN_REVIEW_CONFIDENCE,
                 "high_confidence_requires_direct_buyer_intent": True,
+                "crypto_execution_policy": "research_and_paid_work_discovery_only; market speculation remains paper-only",
             },
         )
         return found
