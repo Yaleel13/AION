@@ -16,6 +16,7 @@ import {
 import type { PresenceState } from "@/lib/aion/types"
 import { AionPresence } from "@/components/aion-presence"
 import { CommandComposer } from "@/components/command-composer"
+import { OwnerCapabilityRegistry } from "@/components/owner-capability-registry"
 import { OwnerMemoryInspector } from "@/components/owner-memory-inspector"
 import { OwnerMoltbookResearch } from "@/components/owner-moltbook-research"
 import { OwnerOpportunityReview } from "@/components/owner-opportunity-review"
@@ -68,7 +69,7 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
     if (!status.storage.configured) return "AION is online, but durable production storage is not configured. Scheduled operations and cross-session operational state must remain gated until Postgres is connected."
     if (status.kill_switch.engaged) return "AION's kill switch is engaged. Read-only visibility remains available while autonomous execution is blocked."
     if (status.autonomy.live_writes_enabled) return "AION has durable storage and live autonomy writes are enabled under the current policy gates."
-    return "AION's runtime is online with durable storage. Autonomous writes remain disabled or dry-run unless the owner explicitly activates them."
+    return "AION's runtime is online with durable storage. Permissions are capability-specific; consequential external execution remains independently gated."
   }, [status])
 
   return <div className="flex min-h-dvh flex-col animate-fade">
@@ -77,7 +78,7 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
       <AionPresence state={presence} size={96} />
       <h1 className="mt-4 font-serif text-3xl font-light tracking-[0.12em] text-foreground">BOARDROOM</h1>
       <p className="mt-1 text-xs uppercase tracking-[0.24em] text-muted-foreground">Strategic Command · Live Runtime</p>
-      <p className="mt-2 max-w-xl text-[0.7rem] text-muted-foreground/80">Live owner runtime, acceptance evidence, protected memory, read-only Moltbook research, and the owner opportunity-review queue.</p>
+      <p className="mt-2 max-w-xl text-[0.7rem] text-muted-foreground/80">Live owner runtime, capability permissions, acceptance evidence, protected memory, research, and owner-controlled opportunity review.</p>
     </div>
 
     <div className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-3 px-4 pb-40 lg:grid-cols-3">
@@ -96,13 +97,14 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
 
         <Panel title="Autonomy"><dl className="space-y-3 text-sm"><div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Mode</dt><dd className="font-medium capitalize text-foreground">{status.autonomy.mode}</dd></div><div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Dry run</dt><dd className="font-medium text-foreground">{status.autonomy.dry_run ? "Yes" : "No"}</dd></div><div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Live writes</dt><dd className="font-medium text-foreground">{status.autonomy.live_writes_enabled ? "Enabled" : "Disabled"}</dd></div><div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Experiment</dt><dd className="font-medium text-foreground">{status.autonomy.experiment_active ? "Active" : "Inactive"}</dd></div></dl></Panel>
 
+        <Panel title="Capability Registry" subtitle="Phase 9 · least privilege" className="lg:col-span-3"><OwnerCapabilityRegistry /></Panel>
         <Panel title="Reliability Acceptance" subtitle="Phase 8 · production evidence" className="lg:col-span-3"><OwnerReliabilityAcceptance /></Panel>
         <Panel title="Moltbook Research" subtitle="Stage 2 · read-only" className="lg:col-span-3"><OwnerMoltbookResearch /></Panel>
         <Panel title="Opportunity Review" subtitle="Phases 5–7 · owner controlled" className="lg:col-span-3"><OwnerOpportunityReview /></Panel>
         <Panel title="Long-term Memory" subtitle="Owner only · read-only" className="lg:col-span-3"><OwnerMemoryInspector /></Panel>
 
         <Panel title="Paper Market" className="lg:col-span-2"><div className="flex items-start gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><FlaskConical className="h-4 w-4" /></span><div><p className="text-sm font-medium text-foreground">Price mode · {status.paper_market_data.price_mode}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{status.paper_market_data.note}</p><p className="mt-2 text-xs font-medium text-foreground">Live trading · {status.paper_market_data.live_trading ? "Enabled" : "No"}</p></div></div></Panel>
-        <Panel title="Next Operational Gate"><p className="text-sm leading-relaxed text-foreground/90">{!status.storage.configured ? "Connect the dedicated AION Postgres database to unlock durable scheduled operations." : !status.moltbook.api_key_present ? "Connect the approved Moltbook credential before enabling live Moltbook research." : !status.moltbook.outbound_enabled ? "Research, review, and quality learning are active. Controlled outbound remains locked until separately activated." : !status.moltbook.execute_enabled ? "Owner approval is available under its quality gate; external execution remains separately locked." : "Controlled comment execution is gated by owner approval, exact-content tokens, quotas, and the kill switch."}</p></Panel>
+        <Panel title="Operating Model"><p className="text-sm leading-relaxed text-foreground/90">AION expands per capability: read → propose → approve → execute. Enabling one capability never grants unrestricted permissions to another.</p></Panel>
       </> : null}
     </div>
 
