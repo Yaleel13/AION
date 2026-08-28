@@ -1,9 +1,9 @@
-"""Stage 4 approval preflight for Moltbook outbound proposals.
+"""Moltbook approval queue and controlled owner-approved comment execution.
 
-This endpoint may create persistent approval requests from Stage 3 prepared
-opportunities and may reject pending requests. It deliberately cannot approve,
-execute, contact, or publish anything. Live network writes require a separate
-explicit activation review.
+Stage 4 proposals remain durable and owner-reviewable. Phase 7 adds one narrow
+write path: a pending COMMENT may be explicitly approved and sent once when both
+controlled outbound deployment flags are enabled. No other Moltbook write action
+is supported by this endpoint.
 """
 from __future__ import annotations
 
@@ -14,6 +14,11 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, Header, HTTPException, Request
 
 from aion.moltbook.approval import OutboundAction
+from aion.moltbook.controlled_outbound import (
+    approve_and_send_comment,
+    controlled_outbound_status,
+)
+from aion.moltbook.errors import MoltbookOutboundDisabledError
 from aion.moltbook.limits import QuotaExceededError
 from aion.phase2_services import get_services, reset_services_cache
 
@@ -45,17 +50,24 @@ def _snapshot(svc) -> dict:
     approvals = [request.redacted() for request in svc.gate.list_all()]
     pending = [item for item in approvals if item.get("decision") == "pending"]
     preparation = svc.store.get_risk(PREPARATION_KEY) or {}
+    outbound = controlled_outbound_status(svc.gate)
     return {
         "ok": True,
-        "stage": 4,
-        "mode": "approval-preflight",
+        "stage": 7 if outbound["ready"] else 4,
+        "mode": "owner-approved-comments" if outbound["ready"] else "approval-preflight",
         "pending_count": len(pending),
         "approvals": approvals[:50],
         "prepared_count": int(preparation.get("prepared_count") or 0),
-        "outbound_enabled": False,
-        "execute_enabled": False,
+        "outbound_enabled": outbound["outbound_enabled"],
+        "execute_enabled": outbound["execute_enabled"],
+        "controlled_outbound": outbound,
         "published": False,
-        "note": "Approval proposals may be created or rejected. Approval-and-execution remains disabled in this build.",
+        "note": (
+            "Only exact pending comment proposals can be explicitly approved and sent. "
+            "No DMs, posts, follows, or autonomous writes are available."
+            if outbound["ready"]
+            else "Approval proposals may be created or rejected. Controlled outbound remains deployment-gated."
+        ),
     }
 
 
@@ -134,17 +146,34 @@ async def mutate_approvals(
                 request_id,
                 approved=False,
                 decided_by="owner-boardroom",
-                reason=str(body.get("reason") or "owner rejected during Stage 4 preflight"),
+                reason=str(body.get("reason") or "owner rejected during review"),
                 expected_content_hash=body.get("expected_content_hash"),
             )
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {**_snapshot(svc), "rejected": decided.redacted()}
 
-    if operation in {"approve", "execute", "approve_and_execute"}:
+    if operation == "approve_and_execute":
+        request_id = str(body.get("request_id") or "").strip()
+        expected_hash = str(body.get("expected_content_hash") or "").strip()
+        if not request_id or not expected_hash:
+            raise HTTPException(status_code=400, detail="request_id and expected_content_hash are required")
+        try:
+            result = await approve_and_send_comment(
+                svc,
+                request_id=request_id,
+                expected_content_hash=expected_hash,
+            )
+        except MoltbookOutboundDisabledError as exc:
+            raise HTTPException(status_code=423, detail=str(exc)) from exc
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {**_snapshot(svc), **result}
+
+    if operation in {"approve", "execute"}:
         raise HTTPException(
             status_code=403,
-            detail="Approval-and-execution is intentionally disabled in Stage 4 preflight. A separate explicit live-write activation review is required.",
+            detail="Separate approve-only or execute-only operations are not available. Use the explicit owner Approve & Send action so approval and exact-content execution remain bound together.",
         )
 
     raise HTTPException(status_code=400, detail="Unsupported operation")
