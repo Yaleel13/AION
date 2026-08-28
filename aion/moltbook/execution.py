@@ -8,7 +8,7 @@ true, and the approval token is single-use.
 from __future__ import annotations
 
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 import httpx
@@ -64,8 +64,13 @@ def _claim_exact_approval(
         if row.get("token_consumed_at"):
             raise ApprovalError("Approval token already consumed")
         expires_at = row.get("expires_at")
-        if expires_at and utc_now().isoformat() > str(expires_at):
-            raise ApprovalError("Approval expired")
+        if expires_at:
+            try:
+                expires = datetime.fromisoformat(str(expires_at))
+            except ValueError as exc:
+                raise ApprovalError("Approval has an invalid expiry timestamp") from exc
+            if utc_now() > expires:
+                raise ApprovalError("Approval expired")
         payload = _row_to_payload(row)
         destination = f"post:{payload.get('post_id')}"
         expected_hash = content_hash(
