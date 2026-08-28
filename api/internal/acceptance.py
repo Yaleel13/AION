@@ -38,8 +38,8 @@ async def acceptance(authorization: str | None = Header(default=None)) -> dict:
         active_memories = _count(conn, "SELECT COUNT(*) AS c FROM aion.memory_facts WHERE status = 'active'")
         linked_memories = _count(conn, "SELECT COUNT(*) AS c FROM aion.memory_facts WHERE status = 'active' AND source_conversation_id IS NOT NULL AND source_message_id IS NOT NULL")
         distinct_message_conversations = _count(conn, "SELECT COUNT(DISTINCT conversation_id) AS c FROM aion.conversation_messages WHERE role = 'user'")
-        paper_live_24h = _count(conn, "SELECT COUNT(*) AS c FROM aion.snapshots WHERE timestamp >= now() - interval '24 hours' AND is_live_market_data = TRUE")
-        paper_fallback_24h = _count(conn, "SELECT COUNT(*) AS c FROM aion.snapshots WHERE timestamp >= now() - interval '24 hours' AND is_live_market_data = FALSE")
+        paper_live_24h = _count(conn, "SELECT COUNT(*) AS c FROM aion.snapshots WHERE timestamp::timestamptz >= now() - interval '24 hours' AND is_live_market_data = TRUE")
+        paper_fallback_24h = _count(conn, "SELECT COUNT(*) AS c FROM aion.snapshots WHERE timestamp::timestamptz >= now() - interval '24 hours' AND is_live_market_data = FALSE")
     finally:
         conn.close()
 

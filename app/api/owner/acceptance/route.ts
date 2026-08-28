@@ -12,7 +12,17 @@ export async function GET(req: Request) {
       headers: { Authorization: `Bearer ${process.env.AION_OWNER_TOKEN}` },
       cache: "no-store",
     })
-    const data = await response.json()
+    const raw = await response.text()
+    let data: unknown
+    try {
+      data = raw ? JSON.parse(raw) : {}
+    } catch {
+      console.error("[AION] acceptance internal endpoint returned non-JSON:", response.status, raw.slice(0, 160))
+      return Response.json(
+        { error: "Reliability acceptance evidence is temporarily unavailable." },
+        { status: response.ok ? 502 : response.status, headers: { "Cache-Control": "no-store" } },
+      )
+    }
     return Response.json(data, { status: response.status, headers: { "Cache-Control": "no-store" } })
   } catch (error) {
     console.error("[AION] acceptance proxy error:", error instanceof Error ? error.message : String(error))
