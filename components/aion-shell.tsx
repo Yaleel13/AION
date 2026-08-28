@@ -274,13 +274,13 @@ export function AionShell() {
     }
   }, [])
 
-  const handleConnect = useCallback(
-    (title: string) => {
-      setConnectionOpen(false)
-      handleSend(`Connect ${title}.`)
-    },
-    [handleSend],
-  )
+  const handleConnect = useCallback((title: string) => {
+    setConnectionOpen(false)
+    if (title === "Terminal Session") {
+      setTerminalOpen(true)
+      setContext("AION Repository · Vercel Sandbox")
+    }
+  }, [])
 
   const isBusy = busyStates.includes(working)
   const showHero = mode === "conversation" && messages.length <= 1
@@ -291,7 +291,7 @@ export function AionShell() {
       <TopBar
         state={presence}
         mode={mode}
-        hasNotifications
+        hasNotifications={false}
         onNewConversation={handleNewConversation}
         onNotifications={() => handleSend("What needs my attention today?")}
         onSettings={() => setConnectionOpen(true)}
