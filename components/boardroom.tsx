@@ -18,8 +18,7 @@ import { AionPresence } from "@/components/aion-presence"
 import { CommandComposer } from "@/components/command-composer"
 import { OwnerMemoryInspector } from "@/components/owner-memory-inspector"
 import { OwnerMoltbookResearch } from "@/components/owner-moltbook-research"
-import { OwnerMoltbookPreparation } from "@/components/owner-moltbook-preparation"
-import { OwnerMoltbookApprovals } from "@/components/owner-moltbook-approvals"
+import { OwnerOpportunityReview } from "@/components/owner-opportunity-review"
 import { cn } from "@/lib/utils"
 
 type RuntimeStatus = {
@@ -124,7 +123,7 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
         <AionPresence state={presence} size={96} />
         <h1 className="mt-4 font-serif text-3xl font-light tracking-[0.12em] text-foreground">BOARDROOM</h1>
         <p className="mt-1 text-xs uppercase tracking-[0.24em] text-muted-foreground">Strategic Command · Live Runtime</p>
-        <p className="mt-2 max-w-xl text-[0.7rem] text-muted-foreground/80">Live owner runtime, protected memory, read-only Moltbook research, owner-review preparation, and approval preflight. External content remains untrusted until reviewed.</p>
+        <p className="mt-2 max-w-xl text-[0.7rem] text-muted-foreground/80">Live owner runtime, protected memory, read-only Moltbook research, and a unified opportunity-review queue. External content remains untrusted until reviewed; publishing remains locked.</p>
       </div>
 
       <div className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-3 px-4 pb-40 lg:grid-cols-3">
@@ -148,14 +147,13 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
             <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Experiment</dt><dd className="font-medium text-foreground">{status.autonomy.experiment_active ? "Active" : "Inactive"}</dd></div>
           </dl></Panel>
 
-          <Panel title="Moltbook Research" subtitle="Stage 2 · owner only" className="lg:col-span-3"><OwnerMoltbookResearch /></Panel>
-          <Panel title="Research Preparation" subtitle="Stage 3 · owner review only" className="lg:col-span-3"><OwnerMoltbookPreparation /></Panel>
-          <Panel title="Approval Preflight" subtitle="Stage 4 · no execution" className="lg:col-span-3"><OwnerMoltbookApprovals /></Panel>
+          <Panel title="Moltbook Research" subtitle="Stage 2 · read-only" className="lg:col-span-3"><OwnerMoltbookResearch /></Panel>
+          <Panel title="Opportunity Review" subtitle="Phase 5 · owner decision surface" className="lg:col-span-3"><OwnerOpportunityReview /></Panel>
           <Panel title="Long-term Memory" subtitle="Owner only · read-only" className="lg:col-span-3"><OwnerMemoryInspector /></Panel>
 
           <Panel title="Paper Market" className="lg:col-span-2"><div className="flex items-start gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><FlaskConical className="h-4 w-4" /></span><div><p className="text-sm font-medium text-foreground">Price mode · {status.paper_market_data.price_mode}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{status.paper_market_data.note}</p><p className="mt-2 text-xs font-medium text-foreground">Live trading · {status.paper_market_data.live_trading ? "Enabled" : "No"}</p></div></div></Panel>
 
-          <Panel title="Next Operational Gate"><p className="text-sm leading-relaxed text-foreground/90">{!status.storage.configured ? "Connect the dedicated AION Postgres database to unlock durable scheduled operations." : !status.moltbook.api_key_present ? "Connect the approved Moltbook credential before enabling live Moltbook research." : status.autonomy.dry_run ? "Stage 4 approval preflight may create or reject owner-review proposals. Approval-and-execution remains locked until a separately authorized live-write phase." : "Runtime gates are available; consequential actions still require their configured approval policy."}</p></Panel>
+          <Panel title="Next Operational Gate"><p className="text-sm leading-relaxed text-foreground/90">{!status.storage.configured ? "Connect the dedicated AION Postgres database to unlock durable scheduled operations." : !status.moltbook.api_key_present ? "Connect the approved Moltbook credential before enabling live Moltbook research." : status.autonomy.dry_run ? "Review qualified opportunities and reject weak proposals. Approval-and-execution remains locked until a separately authorized live-write phase." : "Runtime gates are available; consequential actions still require their configured approval policy."}</p></Panel>
         </> : null}
       </div>
 
