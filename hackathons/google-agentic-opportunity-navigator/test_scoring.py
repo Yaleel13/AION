@@ -3,10 +3,10 @@ from pathlib import Path
 
 
 def _load_score():
-    path = Path(__file__).resolve().parent / "opportunity_navigator" / "agent.py"
-    spec = importlib.util.spec_from_file_location("opportunity_agent", path)
-    module = importlib.util.module_from_spec(spec)
+    path = Path(__file__).resolve().parent / "opportunity_navigator" / "scoring.py"
+    spec = importlib.util.spec_from_file_location("opportunity_scoring", path)
     assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.score_opportunity
 
