@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono, Newsreader } from "next/font/google"
+import { WebMcpOpportunityTools } from "@/components/webmcp-opportunity-tools"
 import "./globals.css"
 
 const geistSans = Geist({
@@ -47,6 +48,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} bg-background`}
     >
       <body className="min-h-dvh bg-background text-foreground antialiased">
+        <WebMcpOpportunityTools />
         {children}
       </body>
     </html>
