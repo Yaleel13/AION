@@ -1,0 +1,14 @@
+{
+  "name": "AION",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "aion-api",
+      "command": "source .venv/bin/activate && python run.py"
+    },
+    {
+      "name": "aion-web",
+      "command": "npm run dev"
+    }
+  ]
+}
