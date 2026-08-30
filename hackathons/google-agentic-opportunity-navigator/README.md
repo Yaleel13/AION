@@ -2,6 +2,12 @@
 
 A new, isolated hackathon project inspired by AION's opportunity-discovery concept. It does **not** reuse AION's production runtime. The project uses Google Agent Development Kit (ADK), Gemini 3.7 Flash, FastAPI, and is packaged for Cloud Run.
 
+## Submission assets
+
+- [Architecture](./ARCHITECTURE.md)
+- [Submission copy and evidence checklist](./SUBMISSION.md)
+- [Demo runbook](./DEMO.md)
+
 ## What it does
 
 Opportunity Navigator helps a technical builder compare legitimate opportunities such as:
@@ -73,6 +79,6 @@ Before submission:
 1. Deploy this project to Google Cloud Run.
 2. Verify a real Gemini 3.7 Flash turn through ADK on the deployed service.
 3. Capture Cloud Run and request logs showing the Google-hosted backend.
-4. Create an architecture diagram showing user -> Cloud Run -> ADK -> Gemini/Vertex AI -> ranking tool -> response.
-5. Record a <=4 minute demo.
+4. Include the architecture diagram in the submission.
+5. Record a <=4 minute demo using the provided runbook.
 6. Add the final hosted URL and reproducible deployment notes here.
