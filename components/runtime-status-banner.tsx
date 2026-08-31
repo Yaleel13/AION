@@ -30,12 +30,7 @@ export function RuntimeStatusBanner({ className }: { className?: string }) {
 
   if (!status && !failed) {
     return (
-      <div
-        className={cn(
-          "border-b border-border/60 bg-surface/40 px-4 py-2 text-[0.7rem] text-muted-foreground",
-          className,
-        )}
-      >
+      <div className={cn("border-b border-border/60 bg-surface/40 px-4 py-2 text-[0.7rem] text-muted-foreground", className)}>
         Loading runtime status…
       </div>
     )
@@ -43,14 +38,8 @@ export function RuntimeStatusBanner({ className }: { className?: string }) {
 
   if (!status?.ok) {
     return (
-      <div
-        className={cn(
-          "border-b border-caution/30 bg-caution/10 px-4 py-2 text-[0.7rem] text-caution",
-          className,
-        )}
-      >
-        Runtime status unavailable
-        {status?.error ? ` — ${status.error}` : ""}. Demo surfaces below are fixtures.
+      <div className={cn("border-b border-caution/30 bg-caution/10 px-4 py-2 text-[0.7rem] text-caution", className)}>
+        Runtime status unavailable{status?.error ? ` — ${status.error}` : ""}. Demo surfaces below are fixtures.
       </div>
     )
   }
@@ -59,17 +48,19 @@ export function RuntimeStatusBanner({ className }: { className?: string }) {
 
   return (
     <div
-      className={cn(
-        "border-b border-border/60 bg-surface/50 px-4 py-2 text-[0.7rem] text-muted-foreground",
-        className,
-      )}
+      className={cn("border-b border-border/60 bg-surface/50 px-4 py-2 text-[0.7rem] text-muted-foreground", className)}
       data-source="runtime_status"
       data-fixture="false"
     >
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-1">
-        <span className="font-medium uppercase tracking-[0.14em] text-foreground/80">
-          Runtime
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 sm:hidden">
+        <span className="font-medium uppercase tracking-[0.14em] text-foreground/80">Runtime</span>
+        <span className="truncate text-right">
+          {storage.backend}{storage.schema ? `/${storage.schema}` : ""} · OpenAI {providers.openai_configured ? "on" : "off"}
         </span>
+      </div>
+
+      <div className="mx-auto hidden max-w-6xl flex-wrap items-center gap-x-4 gap-y-1 sm:flex">
+        <span className="font-medium uppercase tracking-[0.14em] text-foreground/80">Runtime</span>
         <span>
           storage: {storage.backend}
           {storage.schema ? `/${storage.schema}` : ""}
@@ -90,8 +81,7 @@ export function RuntimeStatusBanner({ className }: { className?: string }) {
           {paper_market_data.live_trading ? " · LIVE TRADING" : " · not live trading"}
         </span>
         <span>
-          providers: openai {providers.openai_configured ? "on" : "off"} · gemini{" "}
-          {providers.gemini_configured ? "on" : "off"}
+          providers: openai {providers.openai_configured ? "on" : "off"} · gemini {providers.gemini_configured ? "on" : "off"}
         </span>
       </div>
     </div>
