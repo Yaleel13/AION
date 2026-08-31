@@ -14,7 +14,6 @@ import {
   Sparkles,
 } from "lucide-react"
 import type { PresenceState } from "@/lib/aion/types"
-import { AionPresence } from "@/components/aion-presence"
 import { ConvergenceRail } from "@/components/convergence-rail"
 import { CommandComposer } from "@/components/command-composer"
 import { OwnerCapabilityRegistry } from "@/components/owner-capability-registry"
@@ -68,7 +67,7 @@ function Gate({ icon: Icon, label, value, detail, healthy }: { icon: typeof Data
   )
 }
 
-export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, listening, onExit }: { presence: PresenceState; working: PresenceState; focus: { venture: string; reasoning: string } | null; onSubmit: (text: string) => void; onVoiceToggle: () => void; listening: boolean; onExit: () => void }) {
+export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, listening, onExit, onOpenConnections }: { presence: PresenceState; working: PresenceState; focus: { venture: string; reasoning: string } | null; onSubmit: (text: string) => void; onVoiceToggle: () => void; listening: boolean; onExit: () => void; onOpenConnections?: () => void }) {
   const [status, setStatus] = useState<RuntimeStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -107,27 +106,30 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
     <div className="relative flex min-h-dvh flex-col animate-fade overflow-hidden bg-background">
       <div className="pointer-events-none fixed inset-0 aion-grid opacity-25" aria-hidden />
       <div className="pointer-events-none fixed inset-x-0 top-0 h-64 bg-gradient-to-b from-violet/12 via-cyan/5 to-transparent" aria-hidden />
-      <div className="pointer-events-none fixed left-1/2 top-24 h-72 w-72 -translate-x-1/2 rounded-full bg-cyan/5 blur-3xl" aria-hidden />
+      <div className="pointer-events-none fixed left-1/2 top-20 h-64 w-64 -translate-x-1/2 rounded-full bg-cyan/5 blur-3xl sm:top-24 sm:h-72 sm:w-72" aria-hidden />
 
-      <header className="relative z-10 border-b border-cyan/10 px-4 pb-5 pt-6 sm:px-8 sm:pt-8">
-        <button type="button" onClick={onExit} className="absolute left-4 top-5 inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:border-cyan/20 hover:bg-cyan/5 hover:text-foreground sm:left-8 sm:top-7">
+      <header className="relative z-10 border-b border-cyan/10 px-4 pb-4 pt-5 sm:px-8 sm:pb-5 sm:pt-8">
+        <button type="button" onClick={onExit} className="absolute left-3 top-3 inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:border-cyan/20 hover:bg-cyan/5 hover:text-foreground sm:left-8 sm:top-7" aria-label="Return to conversation">
           <ChevronLeft className="h-3.5 w-3.5" />Conversation
         </button>
 
-        <div className="mx-auto flex max-w-4xl flex-col items-center text-center">
-          <AionPresence state={presence} size={118} />
-          <h1 className="mt-1 font-serif text-3xl font-light tracking-[0.14em] text-foreground sm:text-4xl">BOARDROOM</h1>
-          <p className="mt-2 text-[0.68rem] uppercase tracking-[0.28em] text-cyan/70">The deeper operational chamber</p>
-          <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
+        <div className="mx-auto flex max-w-4xl flex-col items-center text-center pt-8 sm:pt-0">
+          <div className="relative h-24 w-24 overflow-hidden rounded-full border border-cyan/25 bg-cyan/5 shadow-[0_0_42px_rgba(0,190,255,.14)] sm:h-28 sm:w-28">
+            <img src="/aion-portrait" alt="Aion" className="h-full w-full object-cover object-top" />
+            <div className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-inset ring-white/5" aria-hidden />
+          </div>
+          <h1 className="mt-3 font-serif text-3xl font-light tracking-[0.12em] text-foreground sm:text-4xl sm:tracking-[0.14em]">BOARDROOM</h1>
+          <p className="mt-1.5 text-[0.62rem] uppercase tracking-[0.22em] text-cyan/70 sm:mt-2 sm:text-[0.68rem] sm:tracking-[0.28em]">The deeper operational chamber</p>
+          <p className="mt-2 max-w-2xl text-[0.72rem] leading-relaxed text-muted-foreground sm:mt-3 sm:text-sm">
             Owner-only command space for live runtime evidence, memory, research, capability permissions, opportunity review, and controlled execution.
           </p>
         </div>
-        <div className="mt-5">
+        <div className="mt-4 sm:mt-5">
           <ConvergenceRail state={presence} />
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-3 px-4 pb-40 pt-5 lg:grid-cols-12">
+      <main className="relative z-10 mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-3 px-3 pb-6 pt-4 sm:px-4 sm:pt-5 lg:grid-cols-12">
         <Chamber title="AION Brief" subtitle={status ? "live convergence" : "connecting"} className="lg:col-span-12">
           {error ? (
             <div className="flex items-start gap-3 border border-critical/25 bg-critical/5 p-4">
@@ -135,7 +137,7 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
               <div>
                 <p className="text-sm font-medium text-foreground">Live runtime status is unavailable.</p>
                 <p className="mt-1 text-xs text-muted-foreground">{error}</p>
-                <button type="button" onClick={() => void refreshStatus()} className="mt-3 border border-cyan/20 px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-cyan/5">Retry status</button>
+                <button type="button" onClick={() => void refreshStatus()} className="mt-3 min-h-10 border border-cyan/20 px-3 py-2 text-xs text-foreground transition-colors hover:bg-cyan/5">Retry status</button>
               </div>
             </div>
           ) : synthesis ? (
@@ -198,9 +200,9 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
         </> : null}
       </main>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-cyan/15 bg-background/85 px-4 py-4 backdrop-blur-xl">
+      <div className="sticky inset-x-0 bottom-0 z-30 mt-auto border-t border-cyan/15 bg-background/92 px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl sm:px-4 sm:py-4">
         <div className="mx-auto max-w-3xl">
-          <CommandComposer onSubmit={onSubmit} onVoiceToggle={onVoiceToggle} listening={listening} placeholder="Ask AION about the live runtime, a venture, or a decision…" disabled={working !== "idle" && working !== "complete"} />
+          <CommandComposer onSubmit={onSubmit} onVoiceToggle={onVoiceToggle} listening={listening} placeholder="Ask AION about the live runtime, a venture, or a decision…" disabled={working !== "idle" && working !== "complete"} onOpenConnections={onOpenConnections} />
         </div>
       </div>
     </div>
