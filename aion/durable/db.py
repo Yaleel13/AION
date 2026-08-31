@@ -241,7 +241,16 @@ def connect_postgres(url: str | None = None) -> PostgresConn:
 
     # Normalize SQLAlchemy-style URLs if pasted by mistake.
     raw = raw.replace("postgresql+psycopg://", "postgresql://", 1)
-    conn = psycopg.connect(raw, row_factory=dict_row, options="-c search_path=aion,public")
+    # Disable psycopg's automatic server-side prepared statements. Supabase and
+    # other transaction-pooling/serverless Postgres paths can switch backend
+    # sessions between statements, which makes cached prepared statement names
+    # invalid and surfaces InvalidSqlStatementName errors.
+    conn = psycopg.connect(
+        raw,
+        row_factory=dict_row,
+        options="-c search_path=aion,public",
+        prepare_threshold=None,
+    )
     conn.execute("SET search_path TO aion, public")
     return PostgresConn(conn)
 
