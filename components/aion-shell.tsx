@@ -4,17 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import type { Message, PresenceState, InterfaceMode } from "@/lib/aion/types"
 import { routeCommand } from "@/lib/aion/mock"
 import { TopBar } from "@/components/top-bar"
-import { Conversation } from "@/components/conversation/conversation"
-import { CommandComposer } from "@/components/command-composer"
-import { AionPresence } from "@/components/aion-presence"
-import { ConvergenceRail } from "@/components/convergence-rail"
+import { AionLandingPortal } from "@/components/aion-landing-portal"
 import { TerminalWorkspace } from "@/components/terminal-workspace"
 import { Boardroom } from "@/components/boardroom"
 import { ConnectionSheet } from "@/components/connection-sheet"
-import { ProjectContext } from "@/components/project-context"
 import { RuntimeStatusBanner } from "@/components/runtime-status-banner"
 import { OwnerAuthDialog } from "@/components/owner-auth-dialog"
-import { cn } from "@/lib/utils"
 
 let idCounter = 0
 const uid = () => `m${++idCounter}-${Date.now()}`
@@ -58,7 +53,6 @@ export function AionShell() {
   const [messages, setMessages] = useState<Message[]>([GREETING])
   const [working, setWorking] = useState<PresenceState>("idle")
   const [mode, setMode] = useState<InterfaceMode>("conversation")
-  const [context, setContext] = useState<string | null>(null)
   const [focus, setFocus] = useState<{ venture: string; reasoning: string } | null>(null)
   const [terminalOpen, setTerminalOpen] = useState(false)
   const [connectionOpen, setConnectionOpen] = useState(false)
@@ -161,7 +155,6 @@ export function AionShell() {
   }, [clientSessionId, conversationHydrated, messages, previousResponseId])
 
   const presence: PresenceState = listening && working === "idle" ? "listening" : working
-
   const pushMessage = useCallback((m: Message) => setMessages((prev) => [...prev, m]), [])
 
   const handleOwnerAuthenticated = useCallback(() => {
@@ -170,13 +163,17 @@ export function AionShell() {
     setMode("boardroom")
   }, [])
 
+  const handleOpenBoardroom = useCallback(() => {
+    if (ownerAuthenticated) setMode("boardroom")
+    else setOwnerAuthOpen(true)
+  }, [ownerAuthenticated])
+
   const handleSend = useCallback(
     async (text: string) => {
       const trimmed = text.trim()
       if (!trimmed || busyRef.current || !clientSessionId) return
       busyRef.current = true
       setListening(false)
-
       pushMessage({ id: uid(), role: "user", content: trimmed })
 
       const turn = routeCommand(trimmed)
@@ -216,7 +213,6 @@ export function AionShell() {
         } else if (turn.effect === "close-terminal") {
           setTerminalOpen(false)
         }
-        if (turn.context) setContext(turn.context)
 
         pushMessage({ id: uid(), role: "aion", content: turn.reply, serif: turn.serif })
         setWorking("complete")
@@ -242,7 +238,7 @@ export function AionShell() {
           }),
         })
 
-        const data = (await res.json()) as { reply?: string; responseId?: string | null; error?: string; code?: string }
+        const data = (await res.json()) as { reply?: string; responseId?: string | null; error?: string }
         if (!res.ok || !data.reply) throw new Error(data.error || `AION runtime request failed (${res.status})`)
 
         setPreviousResponseId(typeof data.responseId === "string" ? data.responseId : null)
@@ -263,7 +259,6 @@ export function AionShell() {
     setMessages([GREETING])
     setPreviousResponseId(null)
     setClientSessionId(createClientSessionId())
-    setContext(null)
     setTerminalOpen(false)
     setMode("conversation")
     setWorking("idle")
@@ -272,18 +267,17 @@ export function AionShell() {
     } catch (error) {
       console.warn("[AION] Could not clear browser conversation:", error)
     }
+    window.setTimeout(() => document.getElementById("aion-message")?.focus(), 60)
   }, [])
 
   const handleConnect = useCallback((title: string) => {
     setConnectionOpen(false)
     if (title === "Terminal Session") {
       setTerminalOpen(true)
-      setContext("AION Repository · Vercel Sandbox")
     }
   }, [])
 
   const isBusy = busyStates.includes(working)
-  const showHero = mode === "conversation" && messages.length <= 1
 
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden bg-background">
@@ -295,10 +289,7 @@ export function AionShell() {
         onNewConversation={handleNewConversation}
         onNotifications={() => handleSend("What needs my attention today?")}
         onSettings={() => setConnectionOpen(true)}
-        onAccount={() => {
-          if (ownerAuthenticated) setMode("boardroom")
-          else setOwnerAuthOpen(true)
-        }}
+        onAccount={handleOpenBoardroom}
       />
 
       {mode === "boardroom" ? (
@@ -313,64 +304,43 @@ export function AionShell() {
             onExit={() => setMode("conversation")}
           />
         </div>
-      ) : (
-        <div className="relative flex flex-1 overflow-hidden">
-          <div className="pointer-events-none absolute inset-0 aion-grid opacity-30" aria-hidden />
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-cyan/5 to-transparent" aria-hidden />
-
-          <div className={cn("relative z-10 flex min-w-0 flex-1 flex-col transition-all duration-500 ease-out", terminalOpen ? "lg:max-w-[54%]" : "max-w-full")}>
-            <div className={cn("shrink-0 transition-all duration-700", showHero ? "pt-3 sm:pt-5" : "pt-2")}>
-              <div className="mx-auto flex w-full max-w-4xl flex-col items-center px-4 text-center">
-                <div className="relative">
-                  <div className="absolute inset-x-6 bottom-2 h-12 rounded-full bg-cyan/10 blur-2xl" aria-hidden />
-                  <AionPresence state={presence} size={showHero ? 236 : 92} />
-                </div>
-                {showHero ? (
-                  <div className="-mt-2 pb-3">
-                    <h1 className="font-serif text-2xl font-light tracking-[0.08em] text-foreground sm:text-3xl">
-                      The Guide who remembers who you are becoming.
-                    </h1>
-                    <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-                      Speak naturally. AION can think with you, research, connect systems, surface memory, and open deeper operational tools when needed.
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-              <ConvergenceRail state={presence} />
-            </div>
-
-            {context && <div className="shrink-0 pt-3"><ProjectContext label={context} onDismiss={() => setContext(null)} /></div>}
-
-            <div className="flex-1 overflow-y-auto pt-4 pb-2">
-              <Conversation messages={messages} working={working} onCommand={handleSend} />
-            </div>
-
-            <div className="shrink-0 px-4 pb-5 pt-2 sm:pb-6">
-              <div className="mx-auto w-full max-w-3xl">
-                <CommandComposer
-                  onSubmit={handleSend}
-                  onVoiceToggle={() => setListening((v) => !v)}
-                  listening={listening}
-                  disabled={isBusy || !conversationHydrated}
-                  onOpenConnections={() => setConnectionOpen(true)}
-                />
-                <p className="mt-2 text-center text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
-                  Conversation first · deeper systems appear when useful
-                </p>
-              </div>
-            </div>
+      ) : terminalOpen ? (
+        <div className="relative flex min-h-0 flex-1 flex-col lg:flex-row">
+          <div className="min-h-0 flex-1 overflow-hidden lg:w-[58%]">
+            <AionLandingPortal
+              messages={messages}
+              working={working}
+              presence={presence}
+              listening={listening}
+              disabled={isBusy || !conversationHydrated}
+              ownerAuthenticated={ownerAuthenticated}
+              onSubmit={handleSend}
+              onVoiceToggle={() => setListening((v) => !v)}
+              onOpenConnections={() => setConnectionOpen(true)}
+              onOpenBoardroom={handleOpenBoardroom}
+            />
           </div>
-
-          {terminalOpen && <div className="relative z-10 hidden w-full p-3 lg:block lg:max-w-[46%]"><TerminalWorkspace onClose={() => setTerminalOpen(false)} /></div>}
+          <div className="min-h-[42dvh] border-t border-cyan/12 p-3 lg:min-h-0 lg:w-[42%] lg:border-l lg:border-t-0">
+            <TerminalWorkspace onClose={() => setTerminalOpen(false)} />
+          </div>
         </div>
+      ) : (
+        <AionLandingPortal
+          messages={messages}
+          working={working}
+          presence={presence}
+          listening={listening}
+          disabled={isBusy || !conversationHydrated}
+          ownerAuthenticated={ownerAuthenticated}
+          onSubmit={handleSend}
+          onVoiceToggle={() => setListening((v) => !v)}
+          onOpenConnections={() => setConnectionOpen(true)}
+          onOpenBoardroom={handleOpenBoardroom}
+        />
       )}
 
       <ConnectionSheet open={connectionOpen} onClose={() => setConnectionOpen(false)} onConnect={handleConnect} />
-      <OwnerAuthDialog
-        open={ownerAuthOpen}
-        onClose={() => setOwnerAuthOpen(false)}
-        onAuthenticated={handleOwnerAuthenticated}
-      />
+      <OwnerAuthDialog open={ownerAuthOpen} onClose={() => setOwnerAuthOpen(false)} onAuthenticated={handleOwnerAuthenticated} />
     </div>
   )
 }
