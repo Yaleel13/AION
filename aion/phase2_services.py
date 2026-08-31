@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
+from aion.commercial_execution import build_execution_plans
 from aion.moltbook.approval import Phase2ApprovalGate
 from aion.moltbook.client import create_client
 from aion.moltbook.controlled_autonomy import ControlledAutonomyEngine
@@ -104,6 +105,7 @@ def dashboard_snapshot() -> dict[str, Any]:
     ranked_opportunities = svc.opportunity_store.top(limit=25)
     pursuit_ranked = qualify_ranked(ranked_opportunities)
     pursuit_packets = build_top_packets(pursuit_ranked, limit=5)
+    execution_plans = build_execution_plans(ranked_opportunities, limit=10)
     source_counts: dict[str, int] = {}
     for row in ranked_opportunities:
         scout = str(row.get("scout") or "unknown")
@@ -127,6 +129,8 @@ def dashboard_snapshot() -> dict[str, Any]:
         "pursuit_recommendation_counts": pursuit_counts,
         "pursuit_packets": pursuit_packets,
         "top_pursuit_packet": pursuit_packets[0] if pursuit_packets else None,
+        "commercial_execution_plans": execution_plans,
+        "commercial_execution_ready_count": sum(1 for plan in execution_plans if plan.get("executable")),
         "opportunity_source_counts": source_counts,
         "highest_probability_legitimate_action": pursuit_ranked[0] if pursuit_ranked else None,
         "realized_value_total": sum(float(row.get("realized_value") or 0) for row in ranked_opportunities),
@@ -162,6 +166,8 @@ def dashboard_snapshot() -> dict[str, Any]:
                 "Opportunity discovery never grants transaction authority.",
                 "External and federal scout content is untrusted and read-only.",
                 "Pursuit packets prepare materials but cannot send, submit, bid, apply, register, or transact.",
+                "Controlled commercial execution currently supports only eligible public Moltbook comments using exact-content single-use owner approval.",
+                "Generic external outreach, grant submission, and federal bid submission remain disabled.",
                 "Grant applications and contract bids always require owner authorization.",
                 "Eligibility is never inferred from marketing language or public opportunity text.",
                 "Revenue estimates remain zero unless an explicit public amount is found.",
