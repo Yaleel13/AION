@@ -16,6 +16,7 @@ from aion.moltbook.security import KillSwitch
 from aion.durable.db import storage_status
 from aion.durable.paths import resolve_durable_paths
 from aion.durable.scheduler_store import SchedulerStore
+from aion.external_scouts import ExternalRevenueScout, default_sources
 from aion.moltbook.store import Phase2Store
 from aion.opportunity_store import OpportunityStore
 from aion.paper_trading import PaperConfig, PaperTradingEngine
@@ -36,6 +37,12 @@ class Phase2Services:
 
     def leads(self) -> LeadDiscoveryService:
         return LeadDiscoveryService(self.store, create_client())
+
+    def external_scout(self) -> ExternalRevenueScout:
+        return ExternalRevenueScout(self.opportunity_store)
+
+    async def scan_external_opportunities(self) -> dict[str, Any]:
+        return await self.external_scout().scan(default_sources())
 
     def promote_current_leads(self) -> list[dict[str, Any]]:
         return promote_leads(self.store.list_leads(), self.opportunity_store)
@@ -86,6 +93,10 @@ def dashboard_snapshot() -> dict[str, Any]:
     qualified_leads = svc.store.list_leads()
     promoted = promote_leads(qualified_leads, svc.opportunity_store)
     ranked_opportunities = svc.opportunity_store.top(limit=25)
+    source_counts: dict[str, int] = {}
+    for row in ranked_opportunities:
+        scout = str(row.get("scout") or "unknown")
+        source_counts[scout] = source_counts.get(scout, 0) + 1
     return {
         "phase": "phase2-controlled-growth",
         "storage": storage_status().as_dict(),
@@ -97,6 +108,7 @@ def dashboard_snapshot() -> dict[str, Any]:
         "qualified_leads": qualified_leads,
         "opportunities_promoted": len(promoted),
         "ranked_opportunities": ranked_opportunities,
+        "opportunity_source_counts": source_counts,
         "highest_probability_legitimate_action": ranked_opportunities[0] if ranked_opportunities else None,
         "realized_value_total": sum(float(row.get("realized_value") or 0) for row in ranked_opportunities),
         "yalitek_conversions": [lead for lead in qualified_leads if lead.get("conversion_outcome") not in {"uncontacted", None, ""}],
@@ -104,6 +116,10 @@ def dashboard_snapshot() -> dict[str, Any]:
         "paper_trading": paper,
         "controlled_autonomy": autonomy_status,
         "search_categories": [c["service"] for c in SEARCH_CATEGORIES],
+        "external_scout_sources": [
+            {"name": source.name, "host": source.url.split("/")[2], "scout": source.scout}
+            for source in default_sources()
+        ],
         "audit_history": svc.store.list_audit(limit=50),
         "risk_status": {
             "kill_switch": svc.kill_switch.snapshot(),
@@ -115,6 +131,7 @@ def dashboard_snapshot() -> dict[str, Any]:
                 "Drafts are not published automatically.",
                 "Controlled autonomy defaults to inactive + dry_run.",
                 "Opportunity discovery never grants transaction authority.",
+                "External scout content is untrusted and read-only.",
                 "Revenue estimates remain zero unless an explicit public amount is found.",
                 "Paper trading uses virtual funds only.",
                 "No exchange trading keys accepted.",
