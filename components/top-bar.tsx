@@ -1,9 +1,8 @@
 "use client"
 
-import { PenSquare, Bell, Settings2 } from "lucide-react"
+import { Bell, Link2, LockKeyhole, MessageCircleMore, Settings2 } from "lucide-react"
 import type { PresenceState, InterfaceMode } from "@/lib/aion/types"
 import { StatusDot } from "@/components/ui/status-dot"
-import { cn } from "@/lib/utils"
 
 const stateLabel: Record<PresenceState, string> = {
   idle: "Present",
@@ -33,64 +32,44 @@ export function TopBar({
 }) {
   const busy = state !== "idle" && state !== "complete"
 
+  const jump = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
+
   return (
-    <header className="relative z-30 flex items-center justify-between gap-3 border-b border-cyan/10 bg-background/72 px-4 py-3 backdrop-blur-xl sm:px-7">
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-cyan/20 bg-cyan/5">
-          <span className="absolute h-4 w-4 rotate-45 border border-cyan/70" aria-hidden />
-          <span className="h-1.5 w-1.5 rounded-full bg-cyan shadow-[0_0_18px_var(--cyan)]" aria-hidden />
-        </div>
-        <div className="min-w-0 leading-none">
-          <p className="truncate text-sm font-semibold tracking-[0.2em] text-foreground">AION</p>
-          <p className="mt-1 hidden truncate text-[0.58rem] uppercase tracking-[0.18em] text-muted-foreground sm:block">
-            {mode === "boardroom" ? "The Boardroom · Strategic Chamber" : "Alchemical Intelligence for Ontological Navigation"}
-          </p>
-        </div>
-      </div>
-
-      <div className="hidden items-center gap-2 rounded-full border border-cyan/15 bg-surface/55 px-3 py-1.5 sm:flex">
-        <StatusDot tone={busy ? "caution" : "violet"} pulse={busy} />
-        <span className="text-xs text-muted-foreground">
-          <span className="text-foreground/80">AION</span> · {stateLabel[state]}
+    <header className="relative z-30 flex min-h-16 items-center justify-between gap-3 border-b border-cyan/12 bg-[#040b16]/92 px-4 py-2.5 backdrop-blur-xl sm:px-6 lg:px-8">
+      <button type="button" onClick={() => jump("conversation")} className="group flex min-w-0 items-center gap-3" aria-label="AION home">
+        <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-cyan/30 bg-cyan/5 shadow-[0_0_26px_rgba(0,190,255,.08)]">
+          <span className="absolute h-5 w-5 rotate-45 border border-cyan/75" aria-hidden />
+          <span className="absolute h-5 w-5 -rotate-45 border border-violet/55" aria-hidden />
+          <span className="h-1.5 w-1.5 rounded-full bg-cyan shadow-[0_0_15px_var(--cyan)]" aria-hidden />
         </span>
-      </div>
+        <span className="font-serif text-xl font-light tracking-[0.28em] text-foreground sm:text-2xl">AION</span>
+      </button>
 
-      <div className="flex shrink-0 items-center gap-1">
-        <button
-          type="button"
-          onClick={onNewConversation}
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-cyan/7 hover:text-cyan"
-          aria-label="New conversation"
-        >
-          <PenSquare className="h-4.5 w-4.5" />
-        </button>
-        <button
-          type="button"
-          onClick={onNotifications}
-          className="relative flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-cyan/7 hover:text-cyan"
-          aria-label="What needs my attention"
-        >
-          <Bell className="h-4.5 w-4.5" />
+      {mode === "conversation" ? (
+        <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">
+          <button type="button" onClick={() => jump("conversation")} className="rounded-lg px-3 py-2 text-xs text-cyan transition-colors hover:bg-cyan/6">Home</button>
+          <button type="button" onClick={() => jump("about-aion")} className="rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-cyan/6 hover:text-foreground">About Aion</button>
+          <button type="button" onClick={() => jump("how-it-works")} className="rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-cyan/6 hover:text-foreground">How It Works</button>
+          <button type="button" onClick={() => jump("connect")} className="rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-cyan/6 hover:text-foreground">Connect</button>
+        </nav>
+      ) : (
+        <div className="hidden items-center gap-2 rounded-full border border-cyan/15 bg-surface/40 px-3 py-1.5 sm:flex">
+          <StatusDot tone={busy ? "caution" : "violet"} pulse={busy} />
+          <span className="text-xs text-muted-foreground">Boardroom · {stateLabel[state]}</span>
+        </div>
+      )}
+
+      <div className="flex shrink-0 items-center gap-1.5">
+        <button type="button" onClick={onNotifications} className="relative hidden h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-cyan/7 hover:text-cyan sm:flex" aria-label="What needs my attention">
+          <Bell className="h-4 w-4" />
           {hasNotifications && <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-magenta" />}
         </button>
-        <button
-          type="button"
-          onClick={onSettings}
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-cyan/7 hover:text-cyan"
-          aria-label="Connections and settings"
-        >
-          <Settings2 className="h-4.5 w-4.5" />
-        </button>
-        <button
-          type="button"
-          onClick={onAccount}
-          className={cn(
-            "ml-1 flex h-8 w-8 items-center justify-center rounded-full border border-magenta/30 bg-gradient-to-br from-violet/90 to-magenta/75 text-xs font-medium text-white shadow-[0_0_24px_color-mix(in_oklch,var(--magenta)_24%,transparent)]",
-          )}
-          aria-label="Owner access"
-        >
-          Y
-        </button>
+        <button type="button" onClick={onSettings} className="hidden h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-cyan/7 hover:text-cyan sm:flex" aria-label="Connections and settings"><Settings2 className="h-4 w-4" /></button>
+        <button type="button" onClick={onAccount} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-cyan/25 bg-background/30 px-3 text-xs text-foreground transition-colors hover:bg-cyan/7" aria-label="Owner access"><LockKeyhole className="h-3.5 w-3.5 text-cyan/75" /><span className="hidden sm:inline">Owner</span></button>
+        <button type="button" onClick={onNewConversation} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 px-3 text-xs font-medium text-white shadow-[0_0_22px_rgba(0,170,255,.15)] transition-transform hover:-translate-y-px"><MessageCircleMore className="h-3.5 w-3.5" /><span className="hidden sm:inline">Begin Conversation</span><span className="sm:hidden">Chat</span></button>
+        <button type="button" onClick={onSettings} className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-cyan/7 hover:text-cyan lg:hidden" aria-label="Connect"><Link2 className="h-4 w-4" /></button>
       </div>
     </header>
   )
