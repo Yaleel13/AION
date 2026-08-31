@@ -21,14 +21,15 @@ interface CommandComposerProps {
   disabled?: boolean
   placeholder?: string
   onOpenConnections?: () => void
+  voiceAvailable?: boolean
 }
 
 const advancedCapabilities = [
-  { icon: Github, label: "Connect repository", command: "Connect this repository." },
-  { icon: FolderGit2, label: "Open a project", command: "Open YaliTek." },
-  { icon: TerminalSquare, label: "Open terminal", command: "Open it in the terminal." },
-  { icon: Link2, label: "Research a link", command: "Research this link for me." },
-  { icon: Paperclip, label: "Upload files", command: "" },
+  { icon: Github, label: "Connect repository", kind: "connections" as const },
+  { icon: FolderGit2, label: "Open a project", kind: "prefill" as const, value: "Open project: " },
+  { icon: TerminalSquare, label: "Open terminal", kind: "command" as const, value: "Open it in the terminal." },
+  { icon: Link2, label: "Research a link", kind: "prefill" as const, value: "Research this link: " },
+  { icon: Paperclip, label: "Upload files", kind: "connections" as const },
 ]
 
 export function CommandComposer({
@@ -38,6 +39,7 @@ export function CommandComposer({
   disabled,
   placeholder = "Speak to AION…",
   onOpenConnections,
+  voiceAvailable = false,
 }: CommandComposerProps) {
   const [value, setValue] = useState("")
   const [menuOpen, setMenuOpen] = useState(false)
@@ -64,6 +66,23 @@ export function CommandComposer({
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`
   }
 
+  const handleCapability = (capability: (typeof advancedCapabilities)[number]) => {
+    setMenuOpen(false)
+    if (capability.kind === "connections") {
+      onOpenConnections?.()
+      return
+    }
+    if (capability.kind === "command") {
+      onSubmit(capability.value)
+      return
+    }
+    setValue(capability.value)
+    window.setTimeout(() => {
+      taRef.current?.focus()
+      if (taRef.current) autosize(taRef.current)
+    }, 0)
+  }
+
   return (
     <div className="relative">
       {menuOpen && (
@@ -83,22 +102,15 @@ export function CommandComposer({
                 Open connections
               </button>
             )}
-            {advancedCapabilities.map((c) => (
+            {advancedCapabilities.map((capability) => (
               <button
-                key={c.label}
+                key={capability.label}
                 type="button"
-                onClick={() => {
-                  setMenuOpen(false)
-                  if (c.command) {
-                    onSubmit(c.command)
-                  } else if (onOpenConnections) {
-                    onOpenConnections()
-                  }
-                }}
+                onClick={() => handleCapability(capability)}
                 className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-foreground/85 transition-colors hover:bg-cyan/7"
               >
-                <c.icon className="h-4 w-4 text-cyan-muted" />
-                {c.label}
+                <capability.icon className="h-4 w-4 text-cyan-muted" />
+                {capability.label}
               </button>
             ))}
           </div>
@@ -146,24 +158,29 @@ export function CommandComposer({
         <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
-            onClick={onVoiceToggle}
+            onClick={voiceAvailable ? onVoiceToggle : undefined}
+            disabled={!voiceAvailable || disabled}
             className={cn(
               "flex h-10 w-10 items-center justify-center rounded-xl transition-all",
               listening
                 ? "bg-magenta/12 text-magenta"
-                : "text-muted-foreground hover:bg-cyan/8 hover:text-cyan",
+                : voiceAvailable
+                  ? "text-muted-foreground hover:bg-cyan/8 hover:text-cyan"
+                  : "cursor-not-allowed text-muted-foreground/35",
             )}
-            aria-label={listening ? "Stop listening" : "Speak to AION"}
-            aria-pressed={listening}
+            aria-label={voiceAvailable ? (listening ? "Stop listening" : "Speak to AION") : "Voice input not connected"}
+            title={voiceAvailable ? "Voice input" : "Voice input is not connected yet"}
+            aria-pressed={voiceAvailable ? listening : undefined}
           >
             <Mic className="h-4.5 w-4.5" />
           </button>
 
           <button
             type="button"
-            onClick={() => onSubmit("Call me and walk me through it.")}
-            className="hidden h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-all hover:bg-cyan/8 hover:text-cyan sm:flex"
-            aria-label="Voice call mode"
+            disabled
+            className="hidden h-10 w-10 cursor-not-allowed items-center justify-center rounded-xl text-muted-foreground/35 sm:flex"
+            aria-label="Voice calling not connected"
+            title="Voice calling is not connected yet"
           >
             <PhoneCall className="h-4 w-4" />
           </button>
