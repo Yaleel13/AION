@@ -302,6 +302,7 @@ export function AionShell() {
             onSubmit={handleSend}
             onVoiceToggle={() => setListening((v) => !v)}
             onExit={() => setMode("conversation")}
+            onOpenConnections={() => setConnectionOpen(true)}
           />
         </div>
       ) : terminalOpen ? (
