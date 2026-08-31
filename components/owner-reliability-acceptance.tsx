@@ -45,12 +45,17 @@ export function OwnerReliabilityAcceptance() {
     }
   }, [])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    void load()
+    const refresh = () => void load()
+    window.addEventListener("aion:boardroom-refresh", refresh)
+    return () => window.removeEventListener("aion:boardroom-refresh", refresh)
+  }, [load])
 
   if (loading && !data) return <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Reading acceptance evidence…</div>
 
   return <div className="space-y-3">
-    <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-medium text-foreground">Production acceptance evidence</p><p className="mt-1 text-xs text-muted-foreground">Grounded in durable AION state and current runtime gates.</p></div><button type="button" onClick={() => void load()} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs hover:bg-muted"><RefreshCw className="h-3.5 w-3.5" />Refresh</button></div>
+    <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-medium text-foreground">Production acceptance evidence</p><p className="mt-1 text-xs text-muted-foreground">Grounded in durable AION state and current runtime gates.</p></div><button type="button" onClick={() => void load()} disabled={loading} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs hover:bg-muted disabled:opacity-60">{loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}Refresh</button></div>
     {error ? <p className="rounded-lg border border-critical/30 bg-critical/5 p-3 text-xs text-critical">{error}</p> : null}
     {data ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
       <Check label="Direct OpenAI" ok={data.direct_openai.accepted} detail={`${data.direct_openai.conversations} durable OpenAI Responses conversation(s); ${data.direct_openai.gateway_conversations} Gateway conversation(s).`} />
