@@ -1,7 +1,6 @@
 @import "tailwindcss";
 
 @theme inline {
-  /* Core surfaces — obsidian / graphite with a faint indigo cast */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
@@ -18,23 +17,27 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  /* Gold = intelligence, priority, activation */
+  /* Canon palette: cyan = system signal, violet = deeper cognition, magenta = rare activation */
+  --color-cyan: var(--cyan);
+  --color-cyan-foreground: var(--cyan-foreground);
+  --color-cyan-muted: var(--cyan-muted);
+  --color-violet: var(--violet);
+  --color-violet-foreground: var(--violet-foreground);
+  --color-violet-muted: var(--violet-muted);
+  --color-magenta: var(--magenta);
+  --color-magenta-muted: var(--magenta-muted);
+
+  /* Legacy gold remains available for old components but is no longer the primary identity color. */
   --color-gold: var(--gold);
   --color-gold-foreground: var(--gold-foreground);
   --color-gold-muted: var(--gold-muted);
 
-  /* Violet = AION identity, deeper cognition */
-  --color-violet: var(--violet);
-  --color-violet-foreground: var(--violet-foreground);
-  --color-violet-muted: var(--violet-muted);
-
-  /* Semantic state (never color-only — always paired with label/icon) */
   --color-positive: var(--positive);
   --color-caution: var(--caution);
   --color-critical: var(--critical);
 
-  --color-primary: var(--gold);
-  --color-primary-foreground: var(--gold-foreground);
+  --color-primary: var(--cyan);
+  --color-primary-foreground: var(--cyan-foreground);
   --color-accent: var(--violet);
   --color-accent-foreground: var(--violet-foreground);
 
@@ -59,29 +62,37 @@
 :root {
   --radius: 0.75rem;
 
-  --background: oklch(0.15 0.009 285);
-  --foreground: oklch(0.93 0.012 75);
-  --surface: oklch(0.185 0.01 285);
-  --surface-raised: oklch(0.215 0.011 285);
-  --card: oklch(0.185 0.01 285);
-  --card-foreground: oklch(0.93 0.012 75);
-  --popover: oklch(0.2 0.011 285);
-  --popover-foreground: oklch(0.93 0.012 75);
+  /* Midnight blue rather than graphite: closer to the Visual Canon / App Branding Guide. */
+  --background: oklch(0.115 0.028 255);
+  --foreground: oklch(0.94 0.014 225);
+  --surface: oklch(0.155 0.032 255);
+  --surface-raised: oklch(0.19 0.036 255);
+  --card: oklch(0.155 0.032 255);
+  --card-foreground: oklch(0.94 0.014 225);
+  --popover: oklch(0.17 0.034 255);
+  --popover-foreground: oklch(0.94 0.014 225);
 
-  --muted: oklch(0.24 0.011 285);
-  --muted-foreground: oklch(0.66 0.012 285);
-  --border: oklch(0.28 0.012 285);
-  --border-strong: oklch(0.36 0.014 285);
-  --input: oklch(0.24 0.011 285);
-  --ring: oklch(0.8 0.1 85);
+  --muted: oklch(0.205 0.031 255);
+  --muted-foreground: oklch(0.7 0.035 235);
+  --border: oklch(0.28 0.055 248);
+  --border-strong: oklch(0.39 0.075 242);
+  --input: oklch(0.2 0.035 255);
+  --ring: oklch(0.8 0.15 205);
 
-  --gold: oklch(0.82 0.105 85);
-  --gold-foreground: oklch(0.18 0.02 85);
-  --gold-muted: oklch(0.72 0.07 85);
+  --cyan: oklch(0.82 0.15 205);
+  --cyan-foreground: oklch(0.13 0.03 250);
+  --cyan-muted: oklch(0.65 0.12 205);
 
-  --violet: oklch(0.66 0.13 292);
+  --violet: oklch(0.67 0.18 292);
   --violet-foreground: oklch(0.97 0.01 292);
-  --violet-muted: oklch(0.6 0.09 292);
+  --violet-muted: oklch(0.58 0.13 292);
+
+  --magenta: oklch(0.68 0.19 340);
+  --magenta-muted: oklch(0.56 0.14 340);
+
+  --gold: oklch(0.79 0.1 85);
+  --gold-foreground: oklch(0.18 0.02 85);
+  --gold-muted: oklch(0.69 0.07 85);
 
   --positive: oklch(0.74 0.13 155);
   --caution: oklch(0.82 0.12 85);
@@ -89,49 +100,37 @@
 }
 
 @layer base {
-  * {
-    border-color: var(--border);
-  }
+  * { border-color: var(--border); }
+
   html {
     background-color: var(--background);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
+
   body {
-    background-color: var(--background);
+    background:
+      radial-gradient(circle at 50% -10%, color-mix(in oklch, var(--cyan) 8%, transparent), transparent 34rem),
+      radial-gradient(circle at 85% 20%, color-mix(in oklch, var(--violet) 7%, transparent), transparent 28rem),
+      var(--background);
     color: var(--foreground);
     font-family: var(--font-sans);
   }
+
   ::selection {
-    background-color: color-mix(in oklch, var(--gold) 30%, transparent);
+    background-color: color-mix(in oklch, var(--cyan) 32%, transparent);
     color: var(--foreground);
   }
-  /* Refined scrollbars for the console feel */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: var(--border-strong);
-    border-radius: 999px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: var(--muted-foreground);
-  }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
 }
 
 @keyframes breathe {
-  0%, 100% {
-    opacity: 0.55;
-    transform: scale(0.98);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.02);
-  }
+  0%, 100% { opacity: 0.55; transform: scale(0.98); }
+  50% { opacity: 1; transform: scale(1.02); }
 }
 
 @keyframes orbit {
@@ -145,14 +144,8 @@
 }
 
 @keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes fade {
@@ -171,17 +164,21 @@
 }
 
 .aion-grain {
-  background-image: radial-gradient(
-    circle at 50% 40%,
-    color-mix(in oklch, var(--violet) 8%, transparent),
-    transparent 60%
-  );
+  background-image:
+    linear-gradient(color-mix(in oklch, var(--cyan) 3%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklch, var(--cyan) 3%, transparent) 1px, transparent 1px),
+    radial-gradient(circle at 50% 40%, color-mix(in oklch, var(--violet) 9%, transparent), transparent 62%);
+  background-size: 44px 44px, 44px 44px, auto;
+}
+
+.aion-canon-panel {
+  background: linear-gradient(180deg, color-mix(in oklch, var(--surface) 90%, transparent), color-mix(in oklch, var(--background) 96%, transparent));
+  border: 1px solid color-mix(in oklch, var(--cyan) 18%, var(--border));
+  box-shadow: inset 0 1px 0 color-mix(in oklch, var(--cyan) 8%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
