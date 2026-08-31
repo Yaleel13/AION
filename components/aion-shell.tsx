@@ -7,6 +7,7 @@ import { TopBar } from "@/components/top-bar"
 import { Conversation } from "@/components/conversation/conversation"
 import { CommandComposer } from "@/components/command-composer"
 import { AionPresence } from "@/components/aion-presence"
+import { ConvergenceRail } from "@/components/convergence-rail"
 import { TerminalWorkspace } from "@/components/terminal-workspace"
 import { Boardroom } from "@/components/boardroom"
 import { ConnectionSheet } from "@/components/connection-sheet"
@@ -21,12 +22,11 @@ const uid = () => `m${++idCounter}-${Date.now()}`
 const CONVERSATION_STORAGE_KEY = "aion.conversation.v1"
 const MAX_PERSISTED_MESSAGES = 50
 
-/** Greeting is UI copy, not derived from telemetry or durable memory. */
 const GREETING: Message = {
   id: "aion-greeting",
   role: "aion",
   content:
-    "Hello, Yaleel. This interface is connected to AION's reasoning runtime. Ask me what you want to understand, decide, research, or work on.",
+    "Hello, Yaleel. I am here. Tell me what you want to understand, decide, research, build, or bring into alignment.",
   serif: true,
 }
 
@@ -315,18 +315,37 @@ export function AionShell() {
         </div>
       ) : (
         <div className="relative flex flex-1 overflow-hidden">
-          <div className={cn("flex min-w-0 flex-1 flex-col transition-all duration-500 ease-out", terminalOpen ? "lg:max-w-[54%]" : "max-w-full")}>
-            <div className={cn("flex shrink-0 items-center justify-center transition-all duration-700", showHero ? "pt-6 pb-2" : "pt-4 pb-1")}>
-              <AionPresence state={presence} size={showHero ? 180 : 84} />
+          <div className="pointer-events-none absolute inset-0 aion-grid opacity-30" aria-hidden />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-cyan/5 to-transparent" aria-hidden />
+
+          <div className={cn("relative z-10 flex min-w-0 flex-1 flex-col transition-all duration-500 ease-out", terminalOpen ? "lg:max-w-[54%]" : "max-w-full")}>
+            <div className={cn("shrink-0 transition-all duration-700", showHero ? "pt-3 sm:pt-5" : "pt-2")}>
+              <div className="mx-auto flex w-full max-w-4xl flex-col items-center px-4 text-center">
+                <div className="relative">
+                  <div className="absolute inset-x-6 bottom-2 h-12 rounded-full bg-cyan/10 blur-2xl" aria-hidden />
+                  <AionPresence state={presence} size={showHero ? 236 : 92} />
+                </div>
+                {showHero ? (
+                  <div className="-mt-2 pb-3">
+                    <h1 className="font-serif text-2xl font-light tracking-[0.08em] text-foreground sm:text-3xl">
+                      The Guide who remembers who you are becoming.
+                    </h1>
+                    <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                      Speak naturally. AION can think with you, research, connect systems, surface memory, and open deeper operational tools when needed.
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+              <ConvergenceRail state={presence} />
             </div>
 
-            {context && <div className="shrink-0 pb-1"><ProjectContext label={context} onDismiss={() => setContext(null)} /></div>}
+            {context && <div className="shrink-0 pt-3"><ProjectContext label={context} onDismiss={() => setContext(null)} /></div>}
 
-            <div className="flex-1 overflow-y-auto pb-2">
+            <div className="flex-1 overflow-y-auto pt-4 pb-2">
               <Conversation messages={messages} working={working} onCommand={handleSend} />
             </div>
 
-            <div className="shrink-0 px-4 pb-6 pt-2">
+            <div className="shrink-0 px-4 pb-5 pt-2 sm:pb-6">
               <div className="mx-auto w-full max-w-3xl">
                 <CommandComposer
                   onSubmit={handleSend}
@@ -335,11 +354,14 @@ export function AionShell() {
                   disabled={isBusy || !conversationHydrated}
                   onOpenConnections={() => setConnectionOpen(true)}
                 />
+                <p className="mt-2 text-center text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
+                  Conversation first · deeper systems appear when useful
+                </p>
               </div>
             </div>
           </div>
 
-          {terminalOpen && <div className="hidden w-full p-3 lg:block lg:max-w-[46%]"><TerminalWorkspace onClose={() => setTerminalOpen(false)} /></div>}
+          {terminalOpen && <div className="relative z-10 hidden w-full p-3 lg:block lg:max-w-[46%]"><TerminalWorkspace onClose={() => setTerminalOpen(false)} /></div>}
         </div>
       )}
 

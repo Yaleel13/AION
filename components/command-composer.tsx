@@ -27,7 +27,7 @@ const advancedCapabilities = [
   { icon: Github, label: "Connect repository", command: "Connect this repository." },
   { icon: FolderGit2, label: "Open a project", command: "Open YaliTek." },
   { icon: TerminalSquare, label: "Open terminal", command: "Open it in the terminal." },
-  { icon: Link2, label: "Paste a link", command: "Research this link for me." },
+  { icon: Link2, label: "Research a link", command: "Research this link for me." },
   { icon: Paperclip, label: "Upload files", command: "" },
 ]
 
@@ -52,7 +52,6 @@ export function CommandComposer({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Respect CJK IME composition — don't submit mid-composition.
     if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
@@ -70,7 +69,7 @@ export function CommandComposer({
       {menuOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} aria-hidden />
-          <div className="absolute bottom-full left-0 z-20 mb-3 w-64 animate-rise overflow-hidden rounded-xl border border-border bg-popover/95 p-1 shadow-2xl backdrop-blur-md">
+          <div className="absolute bottom-full left-0 z-20 mb-3 w-64 animate-rise overflow-hidden rounded-2xl border border-cyan/15 bg-popover/95 p-1.5 shadow-2xl backdrop-blur-xl">
             {onOpenConnections && (
               <button
                 type="button"
@@ -78,10 +77,10 @@ export function CommandComposer({
                   setMenuOpen(false)
                   onOpenConnections()
                 }}
-                className="mb-1 flex w-full items-center gap-3 rounded-lg border-b border-border/60 px-3 py-2.5 text-left text-sm text-foreground/85 transition-colors hover:bg-muted"
+                className="mb-1 flex w-full items-center gap-3 rounded-xl border-b border-cyan/10 px-3 py-2.5 text-left text-sm text-foreground/90 transition-colors hover:bg-cyan/7"
               >
-                <Plus className="h-4 w-4 text-gold" />
-                Connect AION…
+                <Plus className="h-4 w-4 text-cyan" />
+                Open connections
               </button>
             )}
             {advancedCapabilities.map((c) => (
@@ -92,9 +91,9 @@ export function CommandComposer({
                   setMenuOpen(false)
                   if (c.command) onSubmit(c.command)
                 }}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-foreground/85 transition-colors hover:bg-muted"
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-foreground/85 transition-colors hover:bg-cyan/7"
               >
-                <c.icon className="h-4 w-4 text-muted-foreground" />
+                <c.icon className="h-4 w-4 text-cyan-muted" />
                 {c.label}
               </button>
             ))}
@@ -104,18 +103,19 @@ export function CommandComposer({
 
       <div
         className={cn(
-          "flex items-end gap-2 rounded-2xl border bg-surface/80 p-2 pl-2.5 backdrop-blur-md transition-all",
+          "relative flex items-end gap-2 overflow-hidden rounded-[1.35rem] border bg-surface/84 p-2 pl-2.5 backdrop-blur-xl transition-all",
+          "before:pointer-events-none before:absolute before:inset-x-5 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-cyan/60 before:to-transparent",
           listening
-            ? "border-gold/50 shadow-[0_0_0_1px_var(--gold),0_8px_40px_-12px_var(--gold)]"
-            : "border-border shadow-[0_8px_40px_-16px_rgba(0,0,0,0.8)] focus-within:border-border-strong",
+            ? "border-magenta/35 shadow-[0_0_0_1px_color-mix(in_oklch,var(--magenta)_34%,transparent),0_18px_60px_-28px_var(--magenta)]"
+            : "border-cyan/15 shadow-[0_14px_50px_-30px_rgba(0,0,0,0.95)] focus-within:border-cyan/35",
         )}
       >
         <button
           type="button"
           onClick={() => setMenuOpen((o) => !o)}
           className={cn(
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-all hover:bg-muted hover:text-foreground",
-            menuOpen && "rotate-45 bg-muted text-foreground",
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-all hover:bg-cyan/8 hover:text-cyan",
+            menuOpen && "rotate-45 bg-cyan/8 text-cyan",
           )}
           aria-label="Advanced capabilities"
           aria-expanded={menuOpen}
@@ -135,7 +135,7 @@ export function CommandComposer({
           onKeyDown={handleKeyDown}
           placeholder={listening ? "Listening…" : placeholder}
           aria-label="Message to AION"
-          className="max-h-[200px] min-h-[36px] flex-1 resize-none bg-transparent py-2 text-[0.95rem] leading-relaxed text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
+          className="max-h-[200px] min-h-[40px] flex-1 resize-none bg-transparent py-2.5 text-[0.98rem] leading-relaxed text-foreground placeholder:text-muted-foreground/65 focus:outline-none"
         />
 
         <div className="flex shrink-0 items-center gap-1">
@@ -143,10 +143,10 @@ export function CommandComposer({
             type="button"
             onClick={onVoiceToggle}
             className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-xl transition-all",
+              "flex h-10 w-10 items-center justify-center rounded-xl transition-all",
               listening
-                ? "bg-gold/15 text-gold"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                ? "bg-magenta/12 text-magenta"
+                : "text-muted-foreground hover:bg-cyan/8 hover:text-cyan",
             )}
             aria-label={listening ? "Stop listening" : "Speak to AION"}
             aria-pressed={listening}
@@ -157,7 +157,7 @@ export function CommandComposer({
           <button
             type="button"
             onClick={() => onSubmit("Call me and walk me through it.")}
-            className="hidden h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-all hover:bg-muted hover:text-foreground sm:flex"
+            className="hidden h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-all hover:bg-cyan/8 hover:text-cyan sm:flex"
             aria-label="Voice call mode"
           >
             <PhoneCall className="h-4 w-4" />
@@ -168,9 +168,9 @@ export function CommandComposer({
             onClick={submit}
             disabled={!value.trim() || disabled}
             className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-xl transition-all",
+              "flex h-10 w-10 items-center justify-center rounded-xl transition-all",
               value.trim() && !disabled
-                ? "bg-gold text-gold-foreground hover:bg-gold/90"
+                ? "bg-cyan text-cyan-foreground shadow-[0_0_24px_color-mix(in_oklch,var(--cyan)_24%,transparent)] hover:bg-cyan/90"
                 : "bg-muted text-muted-foreground",
             )}
             aria-label="Send"

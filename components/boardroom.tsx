@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import type { PresenceState } from "@/lib/aion/types"
 import { AionPresence } from "@/components/aion-presence"
+import { ConvergenceRail } from "@/components/convergence-rail"
 import { CommandComposer } from "@/components/command-composer"
 import { OwnerCapabilityRegistry } from "@/components/owner-capability-registry"
 import { OwnerCommercialExecution } from "@/components/owner-commercial-execution"
@@ -37,12 +38,34 @@ type RuntimeStatus = {
   providers: { openai_configured: boolean; gemini_configured: boolean }
 }
 
-function Panel({ title, subtitle, children, className }: { title: string; subtitle?: string; children: React.ReactNode; className?: string }) {
-  return <section className={cn("flex flex-col rounded-2xl border border-border bg-surface/50 p-4 backdrop-blur-sm", className)}><div className="mb-3 flex items-baseline justify-between gap-2"><h2 className="text-[0.7rem] font-medium uppercase tracking-[0.16em] text-muted-foreground">{title}</h2>{subtitle ? <span className="text-[0.7rem] text-muted-foreground/70">{subtitle}</span> : null}</div>{children}</section>
+function Chamber({ title, subtitle, children, className }: { title: string; subtitle?: string; children: React.ReactNode; className?: string }) {
+  return (
+    <section className={cn("relative overflow-hidden border border-cyan/15 bg-surface/35 p-4 backdrop-blur-md sm:p-5", className)}>
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan/55 to-transparent" aria-hidden />
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-[0.68rem] font-medium uppercase tracking-[0.22em] text-cyan/80">{title}</h2>
+        {subtitle ? <span className="text-[0.66rem] uppercase tracking-[0.14em] text-muted-foreground/70">{subtitle}</span> : null}
+      </div>
+      {children}
+    </section>
+  )
 }
 
 function Gate({ icon: Icon, label, value, detail, healthy }: { icon: typeof Database; label: string; value: string; detail: string; healthy: boolean }) {
-  return <div className="rounded-xl border border-border/70 bg-background/40 p-3"><div className="flex items-start gap-3"><span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", healthy ? "bg-positive/10 text-positive" : "bg-caution/10 text-caution")}><Icon className="h-4 w-4" /></span><div className="min-w-0"><p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">{label}</p><p className="mt-0.5 text-sm font-medium text-foreground">{value}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{detail}</p></div></div></div>
+  return (
+    <div className="relative border-l border-cyan/20 bg-background/25 px-3 py-3.5">
+      <div className="flex items-start gap-3">
+        <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full border", healthy ? "border-positive/30 bg-positive/8 text-positive" : "border-caution/30 bg-caution/8 text-caution")}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[0.62rem] uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+          <p className="mt-1 text-sm font-medium text-foreground">{value}</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{detail}</p>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, listening, onExit }: { presence: PresenceState; working: PresenceState; focus: { venture: string; reasoning: string } | null; onSubmit: (text: string) => void; onVoiceToggle: () => void; listening: boolean; onExit: () => void }) {
@@ -80,44 +103,106 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
     return "AION's runtime is online with durable storage. Permissions are capability-specific; unrestricted global autonomy is not available."
   }, [status])
 
-  return <div className="flex min-h-dvh flex-col animate-fade">
-    <div className="relative flex flex-col items-center px-4 pb-6 pt-8 text-center">
-      <button type="button" onClick={onExit} className="absolute left-4 top-6 inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:left-8"><ChevronLeft className="h-3.5 w-3.5" />Conversation</button>
-      <AionPresence state={presence} size={96} />
-      <h1 className="mt-4 font-serif text-3xl font-light tracking-[0.12em] text-foreground">BOARDROOM</h1>
-      <p className="mt-1 text-xs uppercase tracking-[0.24em] text-muted-foreground">Strategic Command · Live Runtime</p>
-      <p className="mt-2 max-w-xl text-[0.7rem] text-muted-foreground/80">Live owner runtime, reliability evidence, least-privilege capability permissions, protected memory, revenue research, opportunity review, and controlled commercial execution.</p>
+  return (
+    <div className="relative flex min-h-dvh flex-col animate-fade overflow-hidden bg-background">
+      <div className="pointer-events-none fixed inset-0 aion-grid opacity-25" aria-hidden />
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-64 bg-gradient-to-b from-violet/12 via-cyan/5 to-transparent" aria-hidden />
+      <div className="pointer-events-none fixed left-1/2 top-24 h-72 w-72 -translate-x-1/2 rounded-full bg-cyan/5 blur-3xl" aria-hidden />
+
+      <header className="relative z-10 border-b border-cyan/10 px-4 pb-5 pt-6 sm:px-8 sm:pt-8">
+        <button type="button" onClick={onExit} className="absolute left-4 top-5 inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:border-cyan/20 hover:bg-cyan/5 hover:text-foreground sm:left-8 sm:top-7">
+          <ChevronLeft className="h-3.5 w-3.5" />Conversation
+        </button>
+
+        <div className="mx-auto flex max-w-4xl flex-col items-center text-center">
+          <AionPresence state={presence} size={118} />
+          <h1 className="mt-1 font-serif text-3xl font-light tracking-[0.14em] text-foreground sm:text-4xl">BOARDROOM</h1>
+          <p className="mt-2 text-[0.68rem] uppercase tracking-[0.28em] text-cyan/70">The deeper operational chamber</p>
+          <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
+            Owner-only command space for live runtime evidence, memory, research, capability permissions, opportunity review, and controlled execution.
+          </p>
+        </div>
+        <div className="mt-5">
+          <ConvergenceRail state={presence} />
+        </div>
+      </header>
+
+      <main className="relative z-10 mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-3 px-4 pb-40 pt-5 lg:grid-cols-12">
+        <Chamber title="AION Brief" subtitle={status ? "live convergence" : "connecting"} className="lg:col-span-12">
+          {error ? (
+            <div className="flex items-start gap-3 border border-critical/25 bg-critical/5 p-4">
+              <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-critical" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Live runtime status is unavailable.</p>
+                <p className="mt-1 text-xs text-muted-foreground">{error}</p>
+                <button type="button" onClick={() => void refreshStatus()} className="mt-3 border border-cyan/20 px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-cyan/5">Retry status</button>
+              </div>
+            </div>
+          ) : synthesis ? (
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-cyan/25 bg-cyan/8 text-cyan"><Sparkles className="h-4 w-4" /></span>
+              <div>
+                <p className="max-w-4xl text-sm leading-relaxed text-foreground/90">{synthesis}</p>
+                <p className="mt-2 text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground/60">Runtime refreshed after actions and every 30 seconds</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Reading AION runtime…</div>
+          )}
+          {focus ? (
+            <div className="mt-4 border-l border-violet/50 bg-violet/5 px-4 py-3">
+              <p className="flex items-center gap-2 text-sm font-medium text-violet"><Brain className="h-4 w-4" />Focus on {focus.venture}</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-foreground/90">{focus.reasoning}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Authenticated venture telemetry is not inferred from this focus request.</p>
+            </div>
+          ) : null}
+        </Chamber>
+
+        {status ? <>
+          <Chamber title="Runtime Gates" subtitle="verified systems" className="lg:col-span-8">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Gate icon={Database} label="Storage" value={status.storage.configured ? status.storage.backend : "Not durable"} detail={status.storage.detail || "No storage detail reported."} healthy={status.storage.configured && status.storage.backend === "postgres"} />
+              <Gate icon={Network} label="Moltbook" value={status.moltbook.mode || "Unconfigured"} detail={`API key ${status.moltbook.api_key_present ? "present" : "absent"}; outbound ${status.moltbook.outbound_enabled ? "enabled" : "disabled"}; execution ${status.moltbook.execute_enabled ? "enabled" : "disabled"}.`} healthy={status.moltbook.api_key_present && status.moltbook.mode === "live"} />
+              <Gate icon={status.kill_switch.engaged ? ShieldOff : ShieldCheck} label="Kill switch" value={status.kill_switch.engaged ? "Engaged" : "Clear"} detail={status.kill_switch.engaged ? status.kill_switch.reason || "Execution is blocked." : "No emergency stop is engaged."} healthy={!status.kill_switch.engaged} />
+              <Gate icon={Brain} label="Direct providers" value={status.providers.openai_configured || status.providers.gemini_configured ? "Configured" : "No direct key"} detail={`OpenAI ${status.providers.openai_configured ? "configured" : "not configured"}; Gemini ${status.providers.gemini_configured ? "configured" : "not configured"}.`} healthy={status.providers.openai_configured || status.providers.gemini_configured} />
+            </div>
+          </Chamber>
+
+          <Chamber title="Autonomy" subtitle="current policy" className="lg:col-span-4">
+            <dl className="divide-y divide-cyan/10 text-sm">
+              <div className="flex items-center justify-between gap-3 py-2.5 first:pt-0"><dt className="text-muted-foreground">Mode</dt><dd className="font-medium capitalize text-foreground">{status.autonomy.mode}</dd></div>
+              <div className="flex items-center justify-between gap-3 py-2.5"><dt className="text-muted-foreground">Dry run</dt><dd className="font-medium text-foreground">{status.autonomy.dry_run ? "Yes" : "No"}</dd></div>
+              <div className="flex items-center justify-between gap-3 py-2.5"><dt className="text-muted-foreground">Live writes</dt><dd className="font-medium text-foreground">{status.autonomy.live_writes_enabled ? "Enabled" : "Disabled"}</dd></div>
+              <div className="flex items-center justify-between gap-3 py-2.5 pb-0"><dt className="text-muted-foreground">Experiment</dt><dd className="font-medium text-foreground">{status.autonomy.experiment_active ? "Active" : "Inactive"}</dd></div>
+            </dl>
+          </Chamber>
+
+          <Chamber title="Reliability Acceptance" subtitle="Phase 8 · production evidence" className="lg:col-span-12"><OwnerReliabilityAcceptance /></Chamber>
+          <Chamber title="Capability Permissions" subtitle="Phase 9 · least privilege" className="lg:col-span-12"><OwnerCapabilityRegistry /></Chamber>
+          <Chamber title="Operator Briefing" subtitle="Phase 9 · owner priorities" className="lg:col-span-12"><OwnerOperatorBriefing /></Chamber>
+          <Chamber title="Moltbook Research" subtitle="Stage 2 · read-only" className="lg:col-span-12"><OwnerMoltbookResearch /></Chamber>
+          <Chamber title="Opportunity Review" subtitle="Phases 5–7 · owner controlled" className="lg:col-span-12"><OwnerOpportunityReview /></Chamber>
+          <Chamber title="Commercial Pursuit Execution" subtitle="owner gated · exact-content controls" className="lg:col-span-12"><OwnerCommercialExecution /></Chamber>
+          <Chamber title="Long-term Memory" subtitle="owner only · read-only" className="lg:col-span-12"><OwnerMemoryInspector /></Chamber>
+
+          <Chamber title="Paper Market" subtitle="simulation only" className="lg:col-span-7">
+            <div className="flex items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-cyan/20 bg-cyan/5 text-cyan"><FlaskConical className="h-4 w-4" /></span>
+              <div><p className="text-sm font-medium text-foreground">Price mode · {status.paper_market_data.price_mode}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{status.paper_market_data.note}</p><p className="mt-2 text-xs font-medium text-foreground">Live trading · {status.paper_market_data.live_trading ? "Enabled" : "No"}</p></div>
+            </div>
+          </Chamber>
+
+          <Chamber title="Next Operational Gate" subtitle="path forward" className="lg:col-span-5">
+            <p className="text-sm leading-relaxed text-foreground/90">{!status.storage.configured ? "Connect the dedicated AION Postgres database to unlock durable scheduled operations." : !status.moltbook.api_key_present ? "Connect the approved Moltbook credential before enabling live Moltbook research." : !status.moltbook.outbound_enabled ? "Research, review, pursuit packets, and preparation are active. Controlled commercial approval remains locked until the outbound gate is enabled." : !status.moltbook.execute_enabled ? "Exact commercial content can be owner-approved, but publishing remains separately locked until the execute gate is enabled." : "Eligible commercial comments can proceed only through Prepare → Approve exact content → Execute with a single-use token, quotas, and the kill switch."}</p>
+          </Chamber>
+        </> : null}
+      </main>
+
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-cyan/15 bg-background/85 px-4 py-4 backdrop-blur-xl">
+        <div className="mx-auto max-w-3xl">
+          <CommandComposer onSubmit={onSubmit} onVoiceToggle={onVoiceToggle} listening={listening} placeholder="Ask AION about the live runtime, a venture, or a decision…" disabled={working !== "idle" && working !== "complete"} />
+        </div>
+      </div>
     </div>
-
-    <div className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-3 px-4 pb-40 lg:grid-cols-3">
-      <Panel title="AION Brief" subtitle={status ? "Live · refreshes after actions and every 30s" : "Connecting"} className="lg:col-span-3">
-        {error ? <div className="flex items-start gap-3 rounded-xl border border-critical/30 bg-critical/5 p-4"><CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-critical" /><div><p className="text-sm font-medium text-foreground">Live runtime status is unavailable.</p><p className="mt-1 text-xs text-muted-foreground">{error}</p><button type="button" onClick={() => void refreshStatus()} className="mt-2 rounded-lg border border-border px-2.5 py-1.5 text-xs text-foreground hover:bg-muted">Retry status</button></div></div> : synthesis ? <div className="flex items-start gap-3"><span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gold/12 text-gold"><Sparkles className="h-4 w-4" /></span><p className="max-w-4xl text-sm leading-relaxed text-foreground/90">{synthesis}</p></div> : <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Reading AION runtime…</div>}
-        {focus ? <div className="mt-4 rounded-xl border border-gold/40 bg-gold/8 p-4"><p className="flex items-center gap-2 text-sm font-medium text-gold"><Brain className="h-4 w-4" />Focus on {focus.venture}</p><p className="mt-1.5 text-sm leading-relaxed text-foreground/90">{focus.reasoning}</p><p className="mt-1 text-xs text-muted-foreground">Authenticated venture telemetry is not inferred from this focus request.</p></div> : null}
-      </Panel>
-
-      {status ? <>
-        <Panel title="Runtime Gates" subtitle="Verified" className="lg:col-span-2"><div className="grid gap-2.5 sm:grid-cols-2">
-          <Gate icon={Database} label="Storage" value={status.storage.configured ? status.storage.backend : "Not durable"} detail={status.storage.detail || "No storage detail reported."} healthy={status.storage.configured && status.storage.backend === "postgres"} />
-          <Gate icon={Network} label="Moltbook" value={status.moltbook.mode || "Unconfigured"} detail={`API key ${status.moltbook.api_key_present ? "present" : "absent"}; outbound ${status.moltbook.outbound_enabled ? "enabled" : "disabled"}; execution ${status.moltbook.execute_enabled ? "enabled" : "disabled"}.`} healthy={status.moltbook.api_key_present && status.moltbook.mode === "live"} />
-          <Gate icon={status.kill_switch.engaged ? ShieldOff : ShieldCheck} label="Kill switch" value={status.kill_switch.engaged ? "Engaged" : "Clear"} detail={status.kill_switch.engaged ? status.kill_switch.reason || "Execution is blocked." : "No emergency stop is engaged."} healthy={!status.kill_switch.engaged} />
-          <Gate icon={Brain} label="Direct providers" value={status.providers.openai_configured || status.providers.gemini_configured ? "Configured" : "No direct key"} detail={`OpenAI ${status.providers.openai_configured ? "configured" : "not configured"}; Gemini ${status.providers.gemini_configured ? "configured" : "not configured"}.`} healthy={status.providers.openai_configured || status.providers.gemini_configured} />
-        </div></Panel>
-
-        <Panel title="Autonomy"><dl className="space-y-3 text-sm"><div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Mode</dt><dd className="font-medium capitalize text-foreground">{status.autonomy.mode}</dd></div><div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Dry run</dt><dd className="font-medium text-foreground">{status.autonomy.dry_run ? "Yes" : "No"}</dd></div><div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Live writes</dt><dd className="font-medium text-foreground">{status.autonomy.live_writes_enabled ? "Enabled" : "Disabled"}</dd></div><div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Experiment</dt><dd className="font-medium text-foreground">{status.autonomy.experiment_active ? "Active" : "Inactive"}</dd></div></dl></Panel>
-
-        <Panel title="Reliability Acceptance" subtitle="Phase 8 · production evidence" className="lg:col-span-3"><OwnerReliabilityAcceptance /></Panel>
-        <Panel title="Capability Permissions" subtitle="Phase 9 · least privilege" className="lg:col-span-3"><OwnerCapabilityRegistry /></Panel>
-        <Panel title="Operator Briefing" subtitle="Phase 9 · owner priorities" className="lg:col-span-3"><OwnerOperatorBriefing /></Panel>
-        <Panel title="Moltbook Research" subtitle="Stage 2 · read-only" className="lg:col-span-3"><OwnerMoltbookResearch /></Panel>
-        <Panel title="Opportunity Review" subtitle="Phases 5–7 · owner controlled" className="lg:col-span-3"><OwnerOpportunityReview /></Panel>
-        <Panel title="Commercial Pursuit Execution" subtitle="Owner gated · exact-content controls" className="lg:col-span-3"><OwnerCommercialExecution /></Panel>
-        <Panel title="Long-term Memory" subtitle="Owner only · read-only" className="lg:col-span-3"><OwnerMemoryInspector /></Panel>
-
-        <Panel title="Paper Market" className="lg:col-span-2"><div className="flex items-start gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><FlaskConical className="h-4 w-4" /></span><div><p className="text-sm font-medium text-foreground">Price mode · {status.paper_market_data.price_mode}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{status.paper_market_data.note}</p><p className="mt-2 text-xs font-medium text-foreground">Live trading · {status.paper_market_data.live_trading ? "Enabled" : "No"}</p></div></div></Panel>
-        <Panel title="Next Operational Gate"><p className="text-sm leading-relaxed text-foreground/90">{!status.storage.configured ? "Connect the dedicated AION Postgres database to unlock durable scheduled operations." : !status.moltbook.api_key_present ? "Connect the approved Moltbook credential before enabling live Moltbook research." : !status.moltbook.outbound_enabled ? "Research, review, pursuit packets, and preparation are active. Controlled commercial approval remains locked until the outbound gate is enabled." : !status.moltbook.execute_enabled ? "Exact commercial content can be owner-approved, but publishing remains separately locked until the execute gate is enabled." : "Eligible commercial comments can proceed only through Prepare → Approve exact content → Execute with a single-use token, quotas, and the kill switch."}</p></Panel>
-      </> : null}
-    </div>
-
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border/60 bg-background/80 px-4 py-4 backdrop-blur-xl"><div className="mx-auto max-w-3xl"><CommandComposer onSubmit={onSubmit} onVoiceToggle={onVoiceToggle} listening={listening} placeholder="Ask AION about the live runtime or a decision…" disabled={working !== "idle" && working !== "complete"} /></div></div>
-  </div>
+  )
 }
