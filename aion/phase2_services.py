@@ -19,6 +19,7 @@ from aion.durable.scheduler_store import SchedulerStore
 from aion.external_scouts import ExternalRevenueScout, default_sources
 from aion.federal_scouts import FederalOpportunityScout
 from aion.moltbook.store import Phase2Store
+from aion.opportunity_qualification import qualify_ranked
 from aion.opportunity_store import OpportunityStore
 from aion.paper_trading import PaperConfig, PaperTradingEngine
 from aion.paper_trading.cached_prices import CachedPriceProvider
@@ -100,10 +101,15 @@ def dashboard_snapshot() -> dict[str, Any]:
     qualified_leads = svc.store.list_leads()
     promoted = promote_leads(qualified_leads, svc.opportunity_store)
     ranked_opportunities = svc.opportunity_store.top(limit=25)
+    pursuit_ranked = qualify_ranked(ranked_opportunities)
     source_counts: dict[str, int] = {}
     for row in ranked_opportunities:
         scout = str(row.get("scout") or "unknown")
         source_counts[scout] = source_counts.get(scout, 0) + 1
+    pursuit_counts: dict[str, int] = {}
+    for row in pursuit_ranked:
+        recommendation = str((row.get("qualification") or {}).get("recommendation") or "unknown")
+        pursuit_counts[recommendation] = pursuit_counts.get(recommendation, 0) + 1
     return {
         "phase": "phase2-controlled-growth",
         "storage": storage_status().as_dict(),
@@ -115,8 +121,10 @@ def dashboard_snapshot() -> dict[str, Any]:
         "qualified_leads": qualified_leads,
         "opportunities_promoted": len(promoted),
         "ranked_opportunities": ranked_opportunities,
+        "pursuit_ranked_opportunities": pursuit_ranked,
+        "pursuit_recommendation_counts": pursuit_counts,
         "opportunity_source_counts": source_counts,
-        "highest_probability_legitimate_action": ranked_opportunities[0] if ranked_opportunities else None,
+        "highest_probability_legitimate_action": pursuit_ranked[0] if pursuit_ranked else None,
         "realized_value_total": sum(float(row.get("realized_value") or 0) for row in ranked_opportunities),
         "yalitek_conversions": [lead for lead in qualified_leads if lead.get("conversion_outcome") not in {"uncontacted", None, ""}],
         "attributed_revenue_total": sum(float(lead.get("revenue_attributed") or 0) for lead in qualified_leads),
@@ -131,6 +139,12 @@ def dashboard_snapshot() -> dict[str, Any]:
             {"name": "grants.gov", "mode": "public_no_auth"},
             {"name": "sam.gov", "mode": "api_key_if_configured", "configured": bool((os.getenv("SAM_GOV_API_KEY") or "").strip())},
         ],
+        "qualification_configuration": {
+            "sam_registration_verified": (os.getenv("AION_SAM_REGISTERED") or "").strip().lower() in {"1", "true", "yes", "on"},
+            "small_business_verified": (os.getenv("AION_SMALL_BUSINESS_VERIFIED") or "").strip().lower() in {"1", "true", "yes", "on"},
+            "grant_eligibility_verified": (os.getenv("AION_GRANT_ELIGIBILITY_VERIFIED") or "").strip().lower() in {"1", "true", "yes", "on"},
+            "principle": "unknown eligibility remains unknown until owner-verified",
+        },
         "audit_history": svc.store.list_audit(limit=50),
         "risk_status": {
             "kill_switch": svc.kill_switch.snapshot(),
@@ -144,6 +158,7 @@ def dashboard_snapshot() -> dict[str, Any]:
                 "Opportunity discovery never grants transaction authority.",
                 "External and federal scout content is untrusted and read-only.",
                 "Grant applications and contract bids always require owner authorization.",
+                "Eligibility is never inferred from marketing language or public opportunity text.",
                 "Revenue estimates remain zero unless an explicit public amount is found.",
                 "Paper trading uses virtual funds only.",
                 "No exchange trading keys accepted.",
