@@ -124,6 +124,7 @@ export function CommandComposer({
         </button>
 
         <textarea
+          id="aion-message"
           ref={taRef}
           rows={1}
           value={value}
