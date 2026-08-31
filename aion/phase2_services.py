@@ -17,6 +17,7 @@ from aion.durable.db import storage_status
 from aion.durable.paths import resolve_durable_paths
 from aion.durable.scheduler_store import SchedulerStore
 from aion.external_scouts import ExternalRevenueScout, default_sources
+from aion.federal_scouts import FederalOpportunityScout
 from aion.moltbook.store import Phase2Store
 from aion.opportunity_store import OpportunityStore
 from aion.paper_trading import PaperConfig, PaperTradingEngine
@@ -41,8 +42,14 @@ class Phase2Services:
     def external_scout(self) -> ExternalRevenueScout:
         return ExternalRevenueScout(self.opportunity_store)
 
+    def federal_scout(self) -> FederalOpportunityScout:
+        return FederalOpportunityScout(self.opportunity_store)
+
     async def scan_external_opportunities(self) -> dict[str, Any]:
         return await self.external_scout().scan(default_sources())
+
+    async def scan_federal_opportunities(self) -> dict[str, Any]:
+        return await self.federal_scout().scan_all()
 
     def promote_current_leads(self) -> list[dict[str, Any]]:
         return promote_leads(self.store.list_leads(), self.opportunity_store)
@@ -120,6 +127,10 @@ def dashboard_snapshot() -> dict[str, Any]:
             {"name": source.name, "host": source.url.split("/")[2], "scout": source.scout}
             for source in default_sources()
         ],
+        "federal_scout_sources": [
+            {"name": "grants.gov", "mode": "public_no_auth"},
+            {"name": "sam.gov", "mode": "api_key_if_configured", "configured": bool((os.getenv("SAM_GOV_API_KEY") or "").strip())},
+        ],
         "audit_history": svc.store.list_audit(limit=50),
         "risk_status": {
             "kill_switch": svc.kill_switch.snapshot(),
@@ -131,7 +142,8 @@ def dashboard_snapshot() -> dict[str, Any]:
                 "Drafts are not published automatically.",
                 "Controlled autonomy defaults to inactive + dry_run.",
                 "Opportunity discovery never grants transaction authority.",
-                "External scout content is untrusted and read-only.",
+                "External and federal scout content is untrusted and read-only.",
+                "Grant applications and contract bids always require owner authorization.",
                 "Revenue estimates remain zero unless an explicit public amount is found.",
                 "Paper trading uses virtual funds only.",
                 "No exchange trading keys accepted.",
