@@ -1,5 +1,16 @@
 import { hasValidOwnerSession } from "@/lib/aion/owner-session"
 
+async function readUpstreamBody(response: Response) {
+  const text = await response.text()
+  if (!text) return {}
+
+  try {
+    return JSON.parse(text) as Record<string, unknown>
+  } catch {
+    return { detail: text.slice(0, 500) }
+  }
+}
+
 async function proxy(req: Request, method: "GET" | "POST") {
   if (!hasValidOwnerSession(req.headers.get("cookie"))) {
     return Response.json({ error: "Owner authentication required." }, { status: 401 })
@@ -16,10 +27,12 @@ async function proxy(req: Request, method: "GET" | "POST") {
       },
       cache: "no-store",
     })
-    const data = await response.json()
+    const data = await readUpstreamBody(response)
     if (!response.ok) {
+      const detail = typeof data.detail === "string" ? data.detail : undefined
+      const error = typeof data.error === "string" ? data.error : undefined
       return Response.json(
-        { error: data?.detail || data?.error || "Moltbook research is unavailable." },
+        { error: detail || error || "Moltbook research is unavailable." },
         { status: response.status },
       )
     }
