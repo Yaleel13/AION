@@ -23,6 +23,7 @@ from aion.opportunity_qualification import qualify_ranked
 from aion.opportunity_store import OpportunityStore
 from aion.paper_trading import PaperConfig, PaperTradingEngine
 from aion.paper_trading.cached_prices import CachedPriceProvider
+from aion.pursuit_packets import build_top_packets
 from aion.revenue_pipeline import promote_leads
 
 
@@ -102,6 +103,7 @@ def dashboard_snapshot() -> dict[str, Any]:
     promoted = promote_leads(qualified_leads, svc.opportunity_store)
     ranked_opportunities = svc.opportunity_store.top(limit=25)
     pursuit_ranked = qualify_ranked(ranked_opportunities)
+    pursuit_packets = build_top_packets(pursuit_ranked, limit=5)
     source_counts: dict[str, int] = {}
     for row in ranked_opportunities:
         scout = str(row.get("scout") or "unknown")
@@ -123,6 +125,8 @@ def dashboard_snapshot() -> dict[str, Any]:
         "ranked_opportunities": ranked_opportunities,
         "pursuit_ranked_opportunities": pursuit_ranked,
         "pursuit_recommendation_counts": pursuit_counts,
+        "pursuit_packets": pursuit_packets,
+        "top_pursuit_packet": pursuit_packets[0] if pursuit_packets else None,
         "opportunity_source_counts": source_counts,
         "highest_probability_legitimate_action": pursuit_ranked[0] if pursuit_ranked else None,
         "realized_value_total": sum(float(row.get("realized_value") or 0) for row in ranked_opportunities),
@@ -157,6 +161,7 @@ def dashboard_snapshot() -> dict[str, Any]:
                 "Controlled autonomy defaults to inactive + dry_run.",
                 "Opportunity discovery never grants transaction authority.",
                 "External and federal scout content is untrusted and read-only.",
+                "Pursuit packets prepare materials but cannot send, submit, bid, apply, register, or transact.",
                 "Grant applications and contract bids always require owner authorization.",
                 "Eligibility is never inferred from marketing language or public opportunity text.",
                 "Revenue estimates remain zero unless an explicit public amount is found.",
