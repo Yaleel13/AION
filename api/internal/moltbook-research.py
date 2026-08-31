@@ -1,8 +1,8 @@
 """Owner-token Moltbook research endpoint for Stage 2.
 
 Read-only against Moltbook. POST scans the live public feed plus targeted public
-searches and persists reviewable opportunities through the existing Phase2Store.
-GET returns the stored owner review queue. No outbound action is executed here.
+searches, persists reviewable leads, and promotes them into the shared AION
+Opportunity Ledger. No outbound action is executed here.
 """
 
 from __future__ import annotations
@@ -51,12 +51,15 @@ async def list_research(authorization: str | None = Header(default=None)) -> dic
     reset_services_cache()
     svc = get_services()
     leads = [_owner_view(row) for row in svc.store.list_leads()[:50]]
+    opportunities = svc.opportunity_store.top(limit=25)
     return {
         "ok": True,
         "stage": 2,
         "mode": "live-read-only",
         "leads": leads,
         "count": len(leads),
+        "ranked_opportunities": opportunities,
+        "highest_probability_legitimate_action": opportunities[0] if opportunities else None,
         "contacted": False,
         "outbound_enabled": False,
     }
@@ -73,6 +76,8 @@ async def scan_research(authorization: str | None = Header(default=None)) -> dic
     feed_limit = 40
     discovered = await svc.leads().scan_feed(limit=feed_limit)
     stored = svc.store.list_leads()
+    promoted = svc.promote_current_leads()
+    opportunities = svc.opportunity_store.top(limit=25)
     return {
         "ok": True,
         "stage": 2,
@@ -81,7 +86,10 @@ async def scan_research(authorization: str | None = Header(default=None)) -> dic
         "targeted_search_count": len(TARGETED_SEARCHES),
         "qualified_this_scan": len(discovered),
         "stored_count": len(stored),
+        "promoted_count": len(promoted),
         "leads": [_owner_view(row) for row in stored[:50]],
+        "ranked_opportunities": opportunities,
+        "highest_probability_legitimate_action": opportunities[0] if opportunities else None,
         "contacted": False,
         "outbound_enabled": False,
         "execute_enabled": False,
