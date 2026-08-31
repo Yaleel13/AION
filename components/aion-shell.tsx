@@ -270,6 +270,11 @@ export function AionShell() {
     window.setTimeout(() => document.getElementById("aion-message")?.focus(), 60)
   }, [])
 
+  const handleAttention = useCallback(() => {
+    setMode("conversation")
+    window.setTimeout(() => void handleSend("What needs my attention today?"), 0)
+  }, [handleSend])
+
   const handleConnect = useCallback((title: string) => {
     setConnectionOpen(false)
     if (title === "Terminal Session") {
@@ -286,8 +291,9 @@ export function AionShell() {
         state={presence}
         mode={mode}
         hasNotifications={false}
+        onHome={() => setMode("conversation")}
         onNewConversation={handleNewConversation}
-        onNotifications={() => handleSend("What needs my attention today?")}
+        onNotifications={handleAttention}
         onSettings={() => setConnectionOpen(true)}
         onAccount={handleOpenBoardroom}
       />
