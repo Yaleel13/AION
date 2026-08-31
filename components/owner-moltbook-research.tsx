@@ -37,6 +37,7 @@ export function OwnerMoltbookResearch() {
   const [loading, setLoading] = useState(true)
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -55,12 +56,15 @@ export function OwnerMoltbookResearch() {
 
   const scan = useCallback(async () => {
     setScanning(true)
+    setNotice(null)
     try {
       const response = await fetch("/api/owner/moltbook-research", { method: "POST", cache: "no-store" })
       const body = (await response.json()) as ResearchResponse
       if (!response.ok || !body.ok) throw new Error(body.error || `Research scan failed (${response.status})`)
       setData(body)
       setError(null)
+      setNotice(`Scan complete. ${body.qualified_this_scan ?? 0} qualified this scan; ${body.stored_count ?? body.count ?? body.leads.length} stored.`)
+      window.dispatchEvent(new CustomEvent("aion:boardroom-refresh", { detail: { source: "moltbook-scan" } }))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Moltbook research scan unavailable")
     } finally {
@@ -94,24 +98,26 @@ export function OwnerMoltbookResearch() {
           <button
             type="button"
             onClick={() => void load()}
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-foreground hover:bg-muted"
+            disabled={loading || scanning}
+            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-foreground hover:bg-muted disabled:opacity-60"
           >
-            <RefreshCw className="h-3.5 w-3.5" />
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
             Refresh
           </button>
           <button
             type="button"
             onClick={() => void scan()}
-            disabled={scanning}
+            disabled={scanning || loading}
             className="inline-flex items-center gap-2 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2 text-xs font-medium text-gold hover:bg-gold/15 disabled:opacity-60"
           >
             {scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />}
-            Scan Moltbook
+            {scanning ? "Scanning…" : "Scan Moltbook"}
           </button>
         </div>
       </div>
 
       {error ? <p className="rounded-lg border border-critical/30 bg-critical/5 p-3 text-xs text-critical">{error}</p> : null}
+      {notice ? <p className="rounded-lg border border-positive/30 bg-positive/5 p-3 text-xs text-positive">{notice}</p> : null}
 
       {data ? (
         <div className="grid gap-2 sm:grid-cols-4">
