@@ -94,6 +94,10 @@ function statusClass(status: QueueStatus) {
   return "border-positive/30 bg-positive/10 text-positive"
 }
 
+function signalBoardroom(source: string) {
+  window.dispatchEvent(new CustomEvent("aion:boardroom-refresh", { detail: { source } }))
+}
+
 export function OwnerOpportunityReview() {
   const [preparation, setPreparation] = useState<PreparationResponse | null>(null)
   const [approvals, setApprovals] = useState<ApprovalResponse | null>(null)
@@ -144,6 +148,8 @@ export function OwnerOpportunityReview() {
       const body = (await response.json()) as ApprovalResponse
       if (!response.ok || !body.ok) throw new Error(body.error || `Approval operation failed (${response.status})`)
       setApprovals(body)
+      if (key === "propose") setNotice(`Proposal queue updated. ${body.pending_count} proposal${body.pending_count === 1 ? "" : "s"} pending owner decision.`)
+      if (key.startsWith("reject:")) setNotice("Proposal rejected. The queue and Boardroom metrics have been refreshed.")
       if (body.approved?.request_id && body.approval_token) {
         setApprovalTokens((current) => ({ ...current, [body.approved!.request_id]: body.approval_token! }))
         setNotice("Exact draft approved. The single-use token is held only in this browser session; execution is a separate action.")
@@ -157,6 +163,7 @@ export function OwnerOpportunityReview() {
         setNotice(`Controlled comment executed successfully (HTTP ${body.execution.status_code}).`)
       }
       setError(null)
+      signalBoardroom(key)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Approval operation unavailable")
     } finally {
@@ -166,12 +173,15 @@ export function OwnerOpportunityReview() {
 
   const prepare = useCallback(async () => {
     setWorking("prepare")
+    setNotice(null)
     try {
       const response = await fetch("/api/owner/moltbook-preparation", { method: "POST", cache: "no-store" })
       const body = (await response.json()) as PreparationResponse
       if (!response.ok) throw new Error(body.error || `Preparation failed (${response.status})`)
       setPreparation(body)
+      setNotice(`Review preparation complete. ${body.prepared_count} of ${body.source_lead_count} qualified opportunities are prepared.`)
       setError(null)
+      signalBoardroom("prepare-review")
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Preparation unavailable")
     } finally {
@@ -181,6 +191,7 @@ export function OwnerOpportunityReview() {
 
   const setDisposition = useCallback(async (leadId: string, disposition: Disposition) => {
     setWorking(`review:${leadId}`)
+    setNotice(null)
     try {
       const response = await fetch("/api/owner/moltbook-reviews", {
         method: "POST",
@@ -191,7 +202,10 @@ export function OwnerOpportunityReview() {
       const body = (await response.json()) as ReviewResponse
       if (!response.ok || !body.ok) throw new Error(body.error || `Review update failed (${response.status})`)
       setReviews(body)
+      const label = DISPOSITIONS.find((item) => item.value === disposition)?.label ?? disposition
+      setNotice(`Opportunity marked ${label}. Quality metrics are now ${body.reviewed_count} reviewed${body.precision == null ? "" : ` at ${Math.round(body.precision * 100)}% precision`}.`)
       setError(null)
+      signalBoardroom("opportunity-review")
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Review feedback unavailable")
     } finally {
@@ -199,7 +213,15 @@ export function OwnerOpportunityReview() {
     }
   }, [])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    void load()
+    const refresh = (event: Event) => {
+      const source = (event as CustomEvent<{ source?: string }>).detail?.source
+      if (source !== "opportunity-review" && source !== "prepare-review" && source !== "propose" && !source?.startsWith("reject:") && !source?.startsWith("approve:") && !source?.startsWith("execute:")) void load()
+    }
+    window.addEventListener("aion:boardroom-refresh", refresh)
+    return () => window.removeEventListener("aion:boardroom-refresh", refresh)
+  }, [load])
 
   const approvalsByLead = useMemo(() => {
     const map = new Map<string, Approval>()
@@ -222,6 +244,7 @@ export function OwnerOpportunityReview() {
 
   const precisionPct = reviews?.precision == null ? "—" : `${Math.round(reviews.precision * 100)}%`
   const quality = approvals?.quality_gate
+  const busy = Boolean(working) || loading
 
   return (
     <div className="space-y-4">
@@ -231,14 +254,14 @@ export function OwnerOpportunityReview() {
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Research, quality feedback, proposal review, and—only when separately activated—two-step owner-approved comment execution. No direct messages or autonomous outreach.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => void load()} disabled={Boolean(working)} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs hover:bg-muted disabled:opacity-60"><RefreshCw className="h-3.5 w-3.5" />Refresh</button>
-          <button type="button" onClick={() => void prepare()} disabled={Boolean(working)} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs hover:bg-muted disabled:opacity-60">{working === "prepare" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileCheck2 className="h-3.5 w-3.5" />}Prepare Review</button>
-          <button type="button" onClick={() => void post({ operation: "propose_prepared" }, "propose")} disabled={Boolean(working)} className="inline-flex items-center gap-2 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2 text-xs font-medium text-gold disabled:opacity-60">{working === "propose" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}Create Proposals</button>
+          <button type="button" onClick={() => void load()} disabled={busy} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs hover:bg-muted disabled:opacity-60">{loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}Refresh</button>
+          <button type="button" onClick={() => void prepare()} disabled={busy} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs hover:bg-muted disabled:opacity-60">{working === "prepare" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileCheck2 className="h-3.5 w-3.5" />}{working === "prepare" ? "Preparing…" : "Prepare Review"}</button>
+          <button type="button" onClick={() => void post({ operation: "propose_prepared" }, "propose")} disabled={busy} className="inline-flex items-center gap-2 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2 text-xs font-medium text-gold disabled:opacity-60">{working === "propose" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}{working === "propose" ? "Creating…" : "Create Proposals"}</button>
         </div>
       </div>
 
       {error ? <p className="rounded-lg border border-critical/30 bg-critical/5 p-3 text-xs text-critical">{error}</p> : null}
-      {notice ? <p className="rounded-lg border border-positive/30 bg-positive/5 p-3 text-xs text-positive">{notice}</p> : null}
+      {notice ? <p role="status" aria-live="polite" className="rounded-lg border border-positive/30 bg-positive/5 p-3 text-xs text-positive">{notice}</p> : null}
       {approvals?.quota_reached ? <p className="rounded-lg border border-caution/30 bg-caution/5 p-3 text-xs text-caution">{approvals.quota_message || "The 8-item proposal quota has been reached."}</p> : null}
 
       <div className="grid gap-2 sm:grid-cols-6">
@@ -268,13 +291,13 @@ export function OwnerOpportunityReview() {
             <div className="rounded-lg border border-border/70 bg-background/40 px-3 py-2 text-right text-xs text-muted-foreground"><p>Fit <span className="font-medium text-foreground">{Math.round(item.fit_score * 100)}%</span></p><p>Confidence <span className="font-medium text-foreground">{Math.round(item.confidence_score * 100)}%</span></p></div>
           </div>
           <div className="mt-4 grid gap-3 lg:grid-cols-2"><div className="rounded-lg border border-border/60 bg-background/30 p-3"><p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">AION assessment</p><p className="mt-2 text-xs leading-relaxed text-foreground/85">Passed Stage 3. Owner disposition is required before approval. Risks · {item.risks}</p></div><div className="rounded-lg border border-gold/20 bg-gold/5 p-3"><p className="text-[0.65rem] uppercase tracking-wider text-gold">Exact proposed response</p><p className="mt-2 text-xs leading-relaxed text-foreground/90">{item.response_draft}</p></div></div>
-          <div className="mt-3 flex flex-wrap gap-1.5">{DISPOSITIONS.map((option) => <button key={option.value} type="button" disabled={Boolean(working)} onClick={() => void setDisposition(item.lead_id, option.value)} className={cn("rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-60", review?.disposition === option.value ? "border-gold/40 bg-gold/10 text-gold" : "border-border text-muted-foreground hover:bg-muted")}>{option.label}</button>)}</div>
+          <div className="mt-3 flex flex-wrap gap-1.5">{DISPOSITIONS.map((option) => <button key={option.value} type="button" disabled={busy} onClick={() => void setDisposition(item.lead_id, option.value)} className={cn("rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-60", review?.disposition === option.value ? "border-gold/40 bg-gold/10 text-gold" : "border-border text-muted-foreground hover:bg-muted")}>{working === `review:${item.lead_id}` && review?.disposition !== option.value ? "Updating…" : option.label}</button>)}</div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
             <div className="flex flex-wrap items-center gap-3 text-[0.7rem] text-muted-foreground"><a href={item.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-gold hover:underline">Open source <ExternalLink className="h-3 w-3" /></a>{approval ? <span>Proposal · {approval.decision}</span> : <span>No durable proposal yet</span>}</div>
             <div className="flex flex-wrap gap-2">
-              {approval?.decision === "pending" ? <button type="button" disabled={Boolean(working)} onClick={() => void post({ operation: "reject", request_id: approval.request_id, expected_content_hash: approval.content_hash }, `reject:${approval.request_id}`)} className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted disabled:opacity-60"><XCircle className="h-3.5 w-3.5" />Reject</button> : null}
-              {canApprove ? <button type="button" disabled={Boolean(working)} onClick={() => void post({ operation: "approve", request_id: approval!.request_id, expected_content_hash: approval!.content_hash }, `approve:${approval!.request_id}`)} className="inline-flex items-center gap-1 rounded-lg border border-gold/40 bg-gold/10 px-2.5 py-1.5 text-xs font-medium text-gold disabled:opacity-60"><ShieldCheck className="h-3.5 w-3.5" />Approve exact draft</button> : null}
-              {canExecute ? <button type="button" disabled={Boolean(working)} onClick={() => void post({ operation: "execute", request_id: approval!.request_id, approval_token: token }, `execute:${approval!.request_id}`)} className="inline-flex items-center gap-1 rounded-lg border border-positive/40 bg-positive/10 px-2.5 py-1.5 text-xs font-medium text-positive disabled:opacity-60"><Send className="h-3.5 w-3.5" />Execute once</button> : null}
+              {approval?.decision === "pending" ? <button type="button" disabled={busy} onClick={() => void post({ operation: "reject", request_id: approval.request_id, expected_content_hash: approval.content_hash }, `reject:${approval.request_id}`)} className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted disabled:opacity-60">{working === `reject:${approval.request_id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}Reject</button> : null}
+              {canApprove ? <button type="button" disabled={busy} onClick={() => void post({ operation: "approve", request_id: approval!.request_id, expected_content_hash: approval!.content_hash }, `approve:${approval!.request_id}`)} className="inline-flex items-center gap-1 rounded-lg border border-gold/40 bg-gold/10 px-2.5 py-1.5 text-xs font-medium text-gold disabled:opacity-60">{working === `approve:${approval!.request_id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}Approve exact draft</button> : null}
+              {canExecute ? <button type="button" disabled={busy} onClick={() => void post({ operation: "execute", request_id: approval!.request_id, approval_token: token }, `execute:${approval!.request_id}`)} className="inline-flex items-center gap-1 rounded-lg border border-positive/40 bg-positive/10 px-2.5 py-1.5 text-xs font-medium text-positive disabled:opacity-60">{working === `execute:${approval!.request_id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}Execute once</button> : null}
             </div>
           </div>
         </article>
