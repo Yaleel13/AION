@@ -12,10 +12,10 @@ const features = [
 ]
 
 const connections = [
-  { icon: Mail, title: "Email", text: "Use connected messaging" },
-  { icon: MessageCircle, title: "Text", text: "Continue through messaging" },
-  { icon: PhoneCall, title: "Call", text: "Open voice guidance" },
-  { icon: Link2, title: "Links", text: "Share context and sources" },
+  { icon: Mail, title: "Email", text: "Messaging provider not connected", status: "Not connected", action: "connections" as const },
+  { icon: MessageCircle, title: "Text", text: "SMS provider not connected", status: "Not connected", action: "connections" as const },
+  { icon: PhoneCall, title: "Call", text: "Voice calling not connected", status: "Not connected", action: "connections" as const },
+  { icon: Link2, title: "Links", text: "Paste or research a link in chat", status: "Available", action: "composer" as const },
 ]
 
 export function AionLandingPortal({
@@ -41,6 +41,14 @@ export function AionLandingPortal({
   onOpenConnections: () => void
   onOpenBoardroom: () => void
 }) {
+  const handleConnection = (action: "connections" | "composer") => {
+    if (action === "connections") {
+      onOpenConnections()
+      return
+    }
+    document.getElementById("aion-message")?.focus()
+  }
+
   return (
     <main className="relative flex-1 overflow-y-auto px-3 pb-5 sm:px-5 lg:overflow-hidden lg:px-6">
       <div className="pointer-events-none absolute inset-0 aion-grid opacity-25" aria-hidden />
@@ -114,12 +122,18 @@ export function AionLandingPortal({
 
           <section id="connect" className="flex-1 rounded-[1.4rem] border border-cyan/22 bg-[#071426]/82 p-5 shadow-[inset_0_1px_0_rgba(93,223,255,.06)]">
             <h2 className="font-serif text-2xl font-light text-foreground">Connect with Aion Anywhere</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Seamless guidance across available touchpoints.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Connected and planned touchpoints are labeled explicitly.</p>
             <div className="mt-4 space-y-2.5">
-              {connections.map(({ icon: Icon, title, text }) => (
-                <button key={title} type="button" onClick={onOpenConnections} className="group flex w-full items-center gap-3 rounded-xl border border-cyan/14 bg-background/24 p-3.5 text-left transition-colors hover:border-cyan/30 hover:bg-cyan/5">
+              {connections.map(({ icon: Icon, title, text, status, action }) => (
+                <button key={title} type="button" onClick={() => handleConnection(action)} className="group flex w-full items-center gap-3 rounded-xl border border-cyan/14 bg-background/24 p-3.5 text-left transition-colors hover:border-cyan/30 hover:bg-cyan/5">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600/12 text-cyan"><Icon className="h-5 w-5" /></span>
-                  <span className="min-w-0 flex-1"><span className="block text-sm font-medium text-foreground">{title}</span><span className="mt-0.5 block text-xs text-muted-foreground">{text}</span></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-2">
+                      <span className="block text-sm font-medium text-foreground">{title}</span>
+                      <span className={status === "Available" ? "text-[0.58rem] uppercase tracking-[0.12em] text-cyan" : "text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground/70"}>{status}</span>
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{text}</span>
+                  </span>
                   <ArrowRight className="h-4 w-4 text-cyan/55 transition-transform group-hover:translate-x-0.5" />
                 </button>
               ))}

@@ -25,11 +25,11 @@ interface CommandComposerProps {
 }
 
 const advancedCapabilities = [
-  { icon: Github, label: "Connect repository", kind: "connections" as const },
-  { icon: FolderGit2, label: "Open a project", kind: "prefill" as const, value: "Open project: " },
+  { icon: Github, label: "Connect repository", kind: "unavailable" as const, note: "Not connected in the hosted runtime" },
+  { icon: FolderGit2, label: "Ask about a project", kind: "prefill" as const, value: "Open project: " },
   { icon: TerminalSquare, label: "Open terminal", kind: "command" as const, value: "Open it in the terminal." },
   { icon: Link2, label: "Research a link", kind: "prefill" as const, value: "Research this link: " },
-  { icon: Paperclip, label: "Upload files", kind: "connections" as const },
+  { icon: Paperclip, label: "Upload files", kind: "unavailable" as const, note: "File ingestion is not connected yet" },
 ]
 
 export function CommandComposer({
@@ -67,11 +67,8 @@ export function CommandComposer({
   }
 
   const handleCapability = (capability: (typeof advancedCapabilities)[number]) => {
+    if (capability.kind === "unavailable") return
     setMenuOpen(false)
-    if (capability.kind === "connections") {
-      onOpenConnections?.()
-      return
-    }
     if (capability.kind === "command") {
       onSubmit(capability.value)
       return
@@ -88,7 +85,7 @@ export function CommandComposer({
       {menuOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} aria-hidden />
-          <div className="absolute bottom-full left-0 z-20 mb-3 w-64 animate-rise overflow-hidden rounded-2xl border border-cyan/15 bg-popover/95 p-1.5 shadow-2xl backdrop-blur-xl">
+          <div className="absolute bottom-full left-0 z-20 mb-3 w-72 animate-rise overflow-hidden rounded-2xl border border-cyan/15 bg-popover/95 p-1.5 shadow-2xl backdrop-blur-xl">
             {onOpenConnections && (
               <button
                 type="button"
@@ -102,17 +99,30 @@ export function CommandComposer({
                 Open connections
               </button>
             )}
-            {advancedCapabilities.map((capability) => (
-              <button
-                key={capability.label}
-                type="button"
-                onClick={() => handleCapability(capability)}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-foreground/85 transition-colors hover:bg-cyan/7"
-              >
-                <capability.icon className="h-4 w-4 text-cyan-muted" />
-                {capability.label}
-              </button>
-            ))}
+            {advancedCapabilities.map((capability) => {
+              const unavailable = capability.kind === "unavailable"
+              return (
+                <button
+                  key={capability.label}
+                  type="button"
+                  onClick={() => handleCapability(capability)}
+                  disabled={unavailable}
+                  title={unavailable ? capability.note : undefined}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors",
+                    unavailable
+                      ? "cursor-not-allowed text-muted-foreground/45"
+                      : "text-foreground/85 hover:bg-cyan/7",
+                  )}
+                >
+                  <capability.icon className={cn("h-4 w-4", unavailable ? "text-muted-foreground/35" : "text-cyan-muted")} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block">{capability.label}</span>
+                    {unavailable && <span className="mt-0.5 block text-[0.65rem] text-muted-foreground/55">{capability.note}</span>}
+                  </span>
+                </button>
+              )
+            })}
           </div>
         </>
       )}
