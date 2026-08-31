@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Brain,
   ChevronLeft,
@@ -48,22 +48,28 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
   const [status, setStatus] = useState<RuntimeStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    let active = true
-    async function refresh() {
-      try {
-        const response = await fetch("/api/runtime/status", { cache: "no-store" })
-        const body = (await response.json()) as RuntimeStatus & { error?: string }
-        if (!response.ok || !body.ok) throw new Error(body.error || `Runtime status failed (${response.status})`)
-        if (active) { setStatus(body); setError(null) }
-      } catch (reason) {
-        if (active) setError(reason instanceof Error ? reason.message : "Runtime status unavailable")
-      }
+  const refreshStatus = useCallback(async () => {
+    try {
+      const response = await fetch("/api/runtime/status", { cache: "no-store" })
+      const body = (await response.json()) as RuntimeStatus & { error?: string }
+      if (!response.ok || !body.ok) throw new Error(body.error || `Runtime status failed (${response.status})`)
+      setStatus(body)
+      setError(null)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Runtime status unavailable")
     }
-    void refresh()
-    const interval = window.setInterval(refresh, 30_000)
-    return () => { active = false; window.clearInterval(interval) }
   }, [])
+
+  useEffect(() => {
+    void refreshStatus()
+    const interval = window.setInterval(() => void refreshStatus(), 30_000)
+    const refresh = () => void refreshStatus()
+    window.addEventListener("aion:boardroom-refresh", refresh)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener("aion:boardroom-refresh", refresh)
+    }
+  }, [refreshStatus])
 
   const synthesis = useMemo(() => {
     if (!status) return null
@@ -75,7 +81,7 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
 
   return <div className="flex min-h-dvh flex-col animate-fade">
     <div className="relative flex flex-col items-center px-4 pb-6 pt-8 text-center">
-      <button onClick={onExit} className="absolute left-4 top-6 inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:left-8"><ChevronLeft className="h-3.5 w-3.5" />Conversation</button>
+      <button type="button" onClick={onExit} className="absolute left-4 top-6 inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:left-8"><ChevronLeft className="h-3.5 w-3.5" />Conversation</button>
       <AionPresence state={presence} size={96} />
       <h1 className="mt-4 font-serif text-3xl font-light tracking-[0.12em] text-foreground">BOARDROOM</h1>
       <p className="mt-1 text-xs uppercase tracking-[0.24em] text-muted-foreground">Strategic Command · Live Runtime</p>
@@ -83,8 +89,8 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
     </div>
 
     <div className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-3 px-4 pb-40 lg:grid-cols-3">
-      <Panel title="AION Brief" subtitle={status ? "Live · refreshes every 30s" : "Connecting"} className="lg:col-span-3">
-        {error ? <div className="flex items-start gap-3 rounded-xl border border-critical/30 bg-critical/5 p-4"><CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-critical" /><div><p className="text-sm font-medium text-foreground">Live runtime status is unavailable.</p><p className="mt-1 text-xs text-muted-foreground">{error}</p></div></div> : synthesis ? <div className="flex items-start gap-3"><span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gold/12 text-gold"><Sparkles className="h-4 w-4" /></span><p className="max-w-4xl text-sm leading-relaxed text-foreground/90">{synthesis}</p></div> : <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Reading AION runtime…</div>}
+      <Panel title="AION Brief" subtitle={status ? "Live · refreshes after actions and every 30s" : "Connecting"} className="lg:col-span-3">
+        {error ? <div className="flex items-start gap-3 rounded-xl border border-critical/30 bg-critical/5 p-4"><CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-critical" /><div><p className="text-sm font-medium text-foreground">Live runtime status is unavailable.</p><p className="mt-1 text-xs text-muted-foreground">{error}</p><button type="button" onClick={() => void refreshStatus()} className="mt-2 rounded-lg border border-border px-2.5 py-1.5 text-xs text-foreground hover:bg-muted">Retry status</button></div></div> : synthesis ? <div className="flex items-start gap-3"><span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gold/12 text-gold"><Sparkles className="h-4 w-4" /></span><p className="max-w-4xl text-sm leading-relaxed text-foreground/90">{synthesis}</p></div> : <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Reading AION runtime…</div>}
         {focus ? <div className="mt-4 rounded-xl border border-gold/40 bg-gold/8 p-4"><p className="flex items-center gap-2 text-sm font-medium text-gold"><Brain className="h-4 w-4" />Focus on {focus.venture}</p><p className="mt-1.5 text-sm leading-relaxed text-foreground/90">{focus.reasoning}</p><p className="mt-1 text-xs text-muted-foreground">Authenticated venture telemetry is not inferred from this focus request.</p></div> : null}
       </Panel>
 

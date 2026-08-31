@@ -1,12 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/utils/supabase/middleware";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   try {
     const { response } = await updateSession(request);
     return response;
   } catch {
-    // Last-resort guard: never surface MIDDLEWARE_INVOCATION_FAILED for
+    // Last-resort guard: never surface a proxy invocation failure for
     // optional Supabase session refresh.
     return NextResponse.next({
       request: {
