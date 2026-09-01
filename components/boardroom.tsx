@@ -26,6 +26,7 @@ import { OwnerMoltbookResearch } from "@/components/owner-moltbook-research"
 import { OwnerOpportunityReview } from "@/components/owner-opportunity-review"
 import { OwnerOperatorBriefing } from "@/components/owner-operator-briefing"
 import { OwnerReliabilityAcceptance } from "@/components/owner-reliability-acceptance"
+import { defer } from "@/lib/defer"
 import { cn } from "@/lib/utils"
 
 type RuntimeStatusView = RuntimeStatus
@@ -77,7 +78,7 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
   }, [])
 
   useEffect(() => {
-    void refreshStatus()
+    defer(() => { void refreshStatus() })
     const interval = window.setInterval(() => void refreshStatus(), 30_000)
     const refresh = () => void refreshStatus()
     window.addEventListener("aion:boardroom-refresh", refresh)

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { ExternalLink, FileCheck2, Loader2, RefreshCw, Send, ShieldCheck, XCircle } from "lucide-react"
+import { defer } from "@/lib/defer"
 import { cn } from "@/lib/utils"
 
 type PreparedItem = {
@@ -214,7 +215,7 @@ export function OwnerOpportunityReview() {
   }, [])
 
   useEffect(() => {
-    void load()
+    defer(() => { void load() })
     const refresh = (event: Event) => {
       const source = (event as CustomEvent<{ source?: string }>).detail?.source
       if (source !== "opportunity-review" && source !== "prepare-review" && source !== "propose" && !source?.startsWith("reject:") && !source?.startsWith("approve:") && !source?.startsWith("execute:")) void load()

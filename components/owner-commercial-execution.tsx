@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { CheckCircle2, Loader2, Play, RefreshCw, Send, ShieldCheck, XCircle } from "lucide-react"
+import { defer } from "@/lib/defer"
 
 type ExecutionPlan = {
   opportunity_id: string
@@ -134,7 +135,7 @@ export function OwnerCommercialExecution() {
     }
   }, [])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => { defer(() => { void load() }) }, [load])
 
   const executable = useMemo(() => data?.plans?.filter((plan) => plan.executable) ?? [], [data])
   const preparationOnly = useMemo(() => data?.plans?.filter((plan) => !plan.executable) ?? [], [data])

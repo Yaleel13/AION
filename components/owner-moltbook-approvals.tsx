@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { Loader2, RefreshCw, ShieldCheck, XCircle } from "lucide-react"
+import { defer } from "@/lib/defer"
 
 type Approval = {
   request_id: string
@@ -69,7 +70,7 @@ export function OwnerMoltbookApprovals() {
     }
   }, [])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => { defer(() => { void load() }) }, [load])
 
   if (loading && !data) {
     return <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading approval preflight…</div>
