@@ -3,6 +3,7 @@
 **Date:** 2026-09-01
 **Project:** `gtviwpevltuqhygsbsou` (AION, West US/Oregon)
 **Scope:** Read-only production inventory
+**Schema export:** [supabase/aion_schema.sql](../supabase/aion_schema.sql), SHA-256 `58F0353820E8B01B09EB1B021B926554973A5DAB4DBA51191794663A3EC6E547`
 
 ## Verified
 
@@ -58,22 +59,30 @@ trades
 ```
 
 - Tables holding active data include `opportunities` (213 estimated rows), `leads` (127), `audit_events` (381), `snapshots` (444), `daily_reports` (5), `drafts` (14), and `approvals` (10).
+- A full `aion` schema export completed successfully on 2026-09-01 after Docker Desktop became available.
+- RLS is enabled on `conversations`, `conversation_messages`, and `memory_facts`. No policies are present in the exported `aion` schema.
+- The export contains no views, functions, or `SECURITY DEFINER` routines in schema `aion`.
+- Schema/table/sequence grants are limited to the dedicated `aion_app` role.
 
 ## Repository Comparison
 
-The committed reference schema is [aion/durable/postgres_schema.sql](../aion/durable/postgres_schema.sql). It covers the Phase 2, scheduler, audit, and paper-trading tables, while the live database additionally contains application-facing opportunity, conversation, memory, metadata, snapshot, position, and trade tables.
+The committed reference schema is [aion/durable/postgres_schema.sql](../aion/durable/postgres_schema.sql). All 19 tables in that reference exist in the live schema. The live schema additionally contains eight application-facing tables: `conversation_messages`, `conversations`, `memory_facts`, `meta`, `opportunities`, `positions`, `snapshots`, and `trades`.
 
-This is a verified repository-versus-live inventory difference. It is not yet classified as drift requiring a migration because the remote migration DDL has not been exported for column, index, view, function, trigger, grant, or RLS comparison.
+This is a verified repository-versus-live inventory difference. The schema export provides the current source of truth for a future migration reconciliation; no remote schema changes were made during this audit.
 
-## Pending Evidence
+## Index Findings
 
-A full schema dump with `supabase db dump --linked --schema aion` is blocked on this workstation because Supabase CLI v2.39.2 invokes its Postgres Docker image and Docker Desktop is not installed. Native `psql` and `pg_dump` are also unavailable.
+- The ranking, lead content-hash, opportunity primary-key, metadata, risk-state, and quota indexes show active usage.
+- Several indexes report no scans on empty or near-empty tables. This is expected at the current data volume and is not a removal recommendation.
+- `autonomy_quota_events` has two equivalent indexes on `(action, created_at)`: `idx_aion_quota_action_time` and `idx_autonomy_quota_action_time`. Confirm their definitions against the applied migration history before removing either one.
 
-Complete the DDL-level audit after installing and starting Docker Desktop, then run:
+## Follow-up
+
+The local Supabase workspace has no migration files, while the remote project has 12 applied migrations. Reconstruct or pull the migration history before making schema changes, then use a reviewed migration to reconcile any approved differences.
+
+For a refreshed audit:
 
 ```powershell
 supabase db dump --linked --schema aion --file supabase/aion_schema.sql
 supabase inspect db index-stats --linked
 ```
-
-Compare the export with the committed schema and document views, functions, triggers, indexes, grants, and RLS policies before making any migration changes.
