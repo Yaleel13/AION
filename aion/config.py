@@ -14,7 +14,7 @@ MOLTBOOK_BASE_URL: str = os.getenv(
     "MOLTBOOK_BASE_URL", "https://www.moltbook.com/api/v1"
 )
 MOLTBOOK_MODE: str = os.getenv("MOLTBOOK_MODE", "mock")
-AION_MODEL: str = os.getenv("AION_MODEL", "gpt-5.6-terra")
+AION_MODEL: str = os.getenv("AION_MODEL", "gpt-5.4")
 AION_SESSION_DB: str = os.getenv("AION_SESSION_DB", "/tmp/aion_sessions.db")
 AION_MAX_TURNS: int = int(os.getenv("AION_MAX_TURNS", "8"))
 APP_HOST: str = os.getenv("APP_HOST", "0.0.0.0")

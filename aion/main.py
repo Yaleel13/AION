@@ -15,6 +15,7 @@ from aion.schemas import (
     ChatGPTRequest,
     GeminiRequest,
 )
+from aion.http_errors import owner_request_error, upstream_provider_error
 from aion.services import query_chatgpt, query_gemini
 
 
@@ -88,7 +89,7 @@ async def agent_endpoint(request: AgentRequest) -> AgentResponse:
         result = await run_aion(request.message, request.session_id)
         return AgentResponse.model_validate(result)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise upstream_provider_error(exc) from exc
 
 
 @app.post("/chatgpt", response_model=AIResponse, summary="Query ChatGPT (legacy)")
@@ -99,7 +100,7 @@ async def chatgpt_endpoint(request: ChatGPTRequest) -> AIResponse:
     try:
         return await query_chatgpt(request)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise upstream_provider_error(exc) from exc
 
 
 @app.post("/gemini", response_model=AIResponse, summary="Query Gemini (legacy)")
@@ -110,7 +111,7 @@ async def gemini_endpoint(request: GeminiRequest) -> AIResponse:
     try:
         return await query_gemini(request)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise upstream_provider_error(exc) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +187,7 @@ async def owner_decide(
             expected_content_hash=body.get("expected_content_hash"),
         )
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise owner_request_error(exc) from exc
     payload = req.redacted()
     # Return raw token once if newly approved (owner must store it securely).
     if req.approval_token:
@@ -268,8 +269,12 @@ async def owner_execute(
             payload=body["payload"],
             destination=str(body["destination"]),
         )
-    except (MoltbookOutboundDisabledError, KeyError, Exception) as exc:  # noqa: BLE001
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except MoltbookOutboundDisabledError as exc:
+        raise HTTPException(status_code=423, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise owner_request_error(exc) from exc
     # Still do not call Moltbook write APIs here without an additional explicit
     # publish implementation review. Token is consumed to prevent replay.
     return {
@@ -326,4 +331,4 @@ async def owner_autonomy_dry_run_post(
     except MoltbookOutboundDisabledError as exc:
         raise HTTPException(status_code=423, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise owner_request_error(exc) from exc

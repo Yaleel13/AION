@@ -38,6 +38,7 @@ jobs:
       - run: python -m compileall -q aion api
       - run: python -m pytest tests/ -q
       - run: python scripts/check_openapi_contract.py
+      - run: python scripts/check_inventory_contract.py
       - run: pip-audit -r requirements.txt
 
   secret-pattern-check:

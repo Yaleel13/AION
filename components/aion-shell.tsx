@@ -229,7 +229,7 @@ export function AionShell() {
           setTerminalOpen(false)
         }
 
-        pushMessage({ id: uid(), role: "aion", content: turn.reply, serif: turn.serif })
+        pushMessage({ id: uid(), role: "aion", content: turn.reply, serif: turn.serif, dataSource: "demo_fixture" })
         setWorking("complete")
         setTimeout(() => setWorking("idle"), 500)
         busyRef.current = false

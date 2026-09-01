@@ -1,78 +1,89 @@
 # AION
-AION  The Alchemical Intelligence for Ontological Navigation  “The Guide who remembers who you are becoming.”
+
+AION — The Alchemical Intelligence for Ontological Navigation.  
+“The Guide who remembers who you are becoming.”
 
 ## Overview
 
-AION is a FastAPI-based service that acts as a unified gateway for receiving and forwarding data to AI providers — **ChatGPT (OpenAI)** and **Google Gemini** — plus a Phase 1 **read-only** Moltbook emissary client for research (mock by default).
+AION is a personal AI operating system with:
 
-The repository also contains a Next.js UI (`app/`, `components/`) for the AION boardroom interface.
+- **Next.js UI** (`app/`, `components/`) — conversation surface, owner Boardroom, terminal diagnostics
+- **FastAPI runtime** (`aion/`, `run.py`) — agent orchestration, Moltbook Phase 2 services, paper trading, controlled autonomy
+- **Vercel Python functions** (`api/`) — production owner APIs, runtime status, scheduled ops
 
-## Project Structure
+Demo fixtures in the conversation shell are explicitly labeled (`demo_fixture`). Live runtime evidence is available at `GET /api/runtime/status` and in the owner Boardroom.
+
+## Project structure
 
 ```
 AION/
-├── aion/
-│   ├── __init__.py     # Package init
-│   ├── config.py       # Environment-based configuration
-│   ├── main.py         # FastAPI application & endpoints
-│   ├── schemas.py      # Pydantic request/response models
-│   └── services.py     # ChatGPT & Gemini service calls
-├── tests/
-│   └── test_endpoints.py
-├── .env.example        # Template for environment variables
+├── aion/                 # FastAPI app, Moltbook, durable storage, autonomy
+├── api/                  # Vercel Python serverless routes
+├── app/                  # Next.js App Router (UI + /api/* BFF routes)
+├── components/           # Boardroom, widgets, owner panels
+├── lib/aion/             # Shared TS types, fact envelopes, mock router
+├── openapi/              # Committed FastAPI OpenAPI contract
+├── scripts/              # Inventory/OpenAPI generators and CI drift checks
+├── tests/                # pytest suite (136+ tests)
+├── aion-inventory.yaml   # Generated capability + surface manifest
 ├── requirements.txt
-└── run.py              # Server entry point
+└── run.py                # Local FastAPI entry point
 ```
 
 ## Setup
 
-1. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **Configure API keys** – copy `.env.example` to `.env` and fill in your keys:
-   ```
-   OPENAI_API_KEY=sk-...
-   GEMINI_API_KEY=AIza...
-   ```
-
-3. **Run the server**
-   ```bash
-   python run.py
-   ```
-   The API will be available at `http://localhost:8000`. Interactive docs at `http://localhost:8000/docs`.
-
-## Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check (includes Moltbook Phase 1 status) |
-| POST | `/agent` | Primary AION agent runtime |
-| POST | `/chatgpt` | Send a message to ChatGPT (legacy) |
-| POST | `/gemini` | Send a message to Gemini (legacy) |
-
-Moltbook integration details: `docs/MOLTBOOK_PHASE1.md` and `identity/MOLTBOOK_EMISSARY.md`.
-
-### Example – ChatGPT
+### Web UI
 
 ```bash
-curl -X POST http://localhost:8000/chatgpt \
-  -H "Content-Type: application/json" \
-  -d '{"message": "What is the meaning of AION?"}'
+npm ci
+cp .env.example .env.local   # fill Supabase + owner/runtime keys as needed
+npm run dev
 ```
 
-### Example – Gemini
+### Python runtime
 
 ```bash
-curl -X POST http://localhost:8000/gemini \
-  -H "Content-Type: application/json" \
-  -d '{"message": "What is the meaning of AION?"}'
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+python run.py
 ```
 
-## Running Tests
+FastAPI docs: `http://localhost:8000/docs`  
+Next.js dev: `http://localhost:3000`
+
+## Key surfaces
+
+| Surface | Path | Notes |
+|---------|------|-------|
+| Conversation | `/` | Live chat via `/api/aion/chat`; mock router for local UI demos |
+| Owner Boardroom | `/owner` (auth required) | Live runtime gates, Moltbook research, opportunity review |
+| Runtime status | `/api/runtime/status` | Truthful storage / Moltbook / autonomy snapshot |
+| Owner APIs | `/api/owner/*` | Capability registry, commercial execution, acceptance evidence |
+
+## Contracts & CI
 
 ```bash
-pip install pytest httpx
-pytest tests/ -v
+npm run lint && npm run typecheck && npm run build
+python -m pytest tests/ -q
+python scripts/check_openapi_contract.py
+python scripts/check_inventory_contract.py
 ```
+
+Regenerate manifests after surface changes:
+
+```bash
+python scripts/generate_openapi.py
+python scripts/generate_inventory.py
+```
+
+## Moltbook & autonomy docs
+
+- Phase 1 read-only: `docs/MOLTBOOK_PHASE1.md`
+- Phase 2 controlled growth: `docs/MOLTBOOK_PHASE2.md`
+- Controlled autonomy (inactive by default): `docs/MOLTBOOK_CONTROLLED_AUTONOMY.md`
+- Experiment ops cycle: `docs/MOLTBOOK_EXPERIMENT_OPS.md`
+
+## Default model
+
+`AION_MODEL` defaults to `gpt-5.4` in both the Next.js chat route and FastAPI config. Override via environment variable.
