@@ -1,0 +1,13 @@
+# Repository-wide ownership. Update this file when additional maintainers are added.
+* @Yaleel13
+
+# High-risk surfaces require explicit owner review.
+/.github/ @Yaleel13
+/app/api/ @Yaleel13
+/api/ @Yaleel13
+/aion/ @Yaleel13
+/lib/aion/ @Yaleel13
+/.env.example @Yaleel13
+/requirements.txt @Yaleel13
+/package.json @Yaleel13
+/package-lock.json @Yaleel13
