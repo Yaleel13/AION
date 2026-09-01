@@ -1025,7 +1025,7 @@ This plan sequences AION hardening across 7 phases:
 
 6. **Test Connectivity**
    ```bash
-   export AION_DATABASE_URL="postgresql://aion_app:${PASSWORD}@aws-0-us-west-2.pooler.supabase.com:6543/postgres?sslmode=require"
+   export AION_DATABASE_URL="<Supabase transaction-pooler URI from the Connect dialog>"
    python -c "from aion.durable.db import storage_status; print(storage_status())"
    ```
 
@@ -1619,5 +1619,4 @@ If critical issues occur in production:
    - Document root cause
    - Update test suite to catch issue
    - Plan fix for next deployment cycle
-
 

@@ -40,7 +40,7 @@ Initial safety values:
 
 Never place database passwords, Stripe secrets, Moltbook keys, owner tokens, or approval peppers in source control or browser-visible variables.
 
-For project `gtviwpevltuqhygsbsou`, the transaction-pooler username must be `aion_app.gtviwpevltuqhygsbsou`, not `postgres`. Use the pooler host shown in the Supabase Connect dialog and the current `aion_app` password. A direct-host placeholder such as `postgresql://postgres:[YOUR-PASSWORD]@db...` is not a usable production secret.
+For project `gtviwpevltuqhygsbsou`, the transaction-pooler username must be `aion_app.gtviwpevltuqhygsbsou`, not `postgres`. Copy the transaction-pooler URI from the Supabase Connect dialog and substitute the current `aion_app` password in the secret manager. The direct-host template shown by Supabase is not a usable production secret for this deployment.
 
 ## Hour 0-1: prove the rails
 
