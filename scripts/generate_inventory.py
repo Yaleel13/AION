@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from aion.capabilities import capability_registry  # noqa: E402
+from aion.capabilities import capability_catalog  # noqa: E402
 from aion.main import app  # noqa: E402
 
 
@@ -69,7 +69,7 @@ def main() -> int:
                 }
             )
 
-    capabilities = capability_registry()
+    capabilities = capability_catalog()
     integrations = []
     for name, entry in sorted(capabilities["capabilities"].items()):
         integrations.append(
