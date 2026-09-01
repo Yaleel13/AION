@@ -1,5 +1,5 @@
 version: 1
-generated_at: '2026-09-01T04:41:26.609709+00:00'
+generated_at: '2026-09-01T06:25:59.330392+00:00'
 repository: Yaleel13/AION
 surfaces:
   fastapi_routes:
@@ -310,6 +310,7 @@ ci_checks:
 - python -m compileall -q aion api
 - pytest tests/ -q
 - python scripts/check_openapi_contract.py
+- python scripts/check_inventory_contract.py
 - pip-audit
 - npm audit --audit-level=high
 - secret-pattern-check

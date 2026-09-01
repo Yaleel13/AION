@@ -108,6 +108,7 @@ def main() -> int:
             "python -m compileall -q aion api",
             "pytest tests/ -q",
             "python scripts/check_openapi_contract.py",
+            "python scripts/check_inventory_contract.py",
             "pip-audit",
             "npm audit --audit-level=high",
             "secret-pattern-check",
