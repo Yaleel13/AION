@@ -1,5 +1,5 @@
 version: 1
-generated_at: '2026-09-01T20:41:17.906666+00:00'
+generated_at: '2026-09-01T23:23:52.257551+00:00'
 repository: Yaleel13/AION
 surfaces:
   fastapi_routes:
@@ -250,6 +250,14 @@ surfaces:
     owner: vercel-python
   - path: /api/owner/campaign/seed
     file: api/owner/campaign/seed.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/owner/checkout/prepare
+    file: api/owner/checkout/prepare.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/owner/checkout/webhook
+    file: api/owner/checkout/webhook.py
     runtime: python
     owner: vercel-python
   - path: /api/owner/dashboard
