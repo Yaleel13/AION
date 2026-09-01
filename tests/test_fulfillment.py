@@ -116,8 +116,7 @@ def test_fulfill_paid_orders_batch_processes(tmp_path: Path) -> None:
     results = fulfill_paid_orders(store)
     assert len(results) == 2
     assert all(r["status"] == "success" for r in results)
-    assert results[0]["realized_value"] == 10.0
-    assert results[1]["realized_value"] == 20.0
+    assert sorted(r["realized_value"] for r in results) == [10.0, 20.0]
 
     # Verify pending order is still pending
     orders = store.list_payment_orders()

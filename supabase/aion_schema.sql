@@ -424,6 +424,28 @@ CREATE TABLE IF NOT EXISTS "aion"."opportunities" (
 ALTER TABLE "aion"."opportunities" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "aion"."payment_orders" (
+    "order_id" "text" NOT NULL,
+    "opportunity_id" "text" NOT NULL,
+    "amount_cents" integer NOT NULL,
+    "currency" "text" NOT NULL,
+    "customer_email" "text" DEFAULT ''::"text" NOT NULL,
+    "status" "text" DEFAULT 'pending_owner_approval'::"text" NOT NULL,
+    "idempotency_key" "text" DEFAULT ''::"text" NOT NULL,
+    "commercial_execution_id" "text" DEFAULT ''::"text" NOT NULL,
+    "stripe_session_id" "text" DEFAULT ''::"text" NOT NULL,
+    "stripe_checkout_url" "text" DEFAULT ''::"text" NOT NULL,
+    "payment_intent_id" "text" DEFAULT ''::"text" NOT NULL,
+    "created_at" "text" NOT NULL,
+    "updated_at" "text" NOT NULL,
+    CONSTRAINT "payment_orders_amount_cents_check" CHECK (("amount_cents" > 0)),
+    CONSTRAINT "payment_orders_status_check" CHECK (("status" = ANY (ARRAY['pending_owner_approval'::"text", 'paid'::"text", 'fulfilled'::"text", 'cancelled'::"text", 'expired'::"text"])))
+);
+
+
+ALTER TABLE "aion"."payment_orders" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "aion"."paper_meta" (
     "key" "text" NOT NULL,
     "value" "text" NOT NULL
@@ -773,6 +795,10 @@ ALTER TABLE ONLY "aion"."opportunities"
     ADD CONSTRAINT "opportunities_scout_source_customer_problem_proposed_soluti_key" UNIQUE ("scout", "source", "customer_problem", "proposed_solution");
 
 
+ALTER TABLE ONLY "aion"."payment_orders"
+    ADD CONSTRAINT "payment_orders_pkey" PRIMARY KEY ("order_id");
+
+
 
 ALTER TABLE ONLY "aion"."paper_meta"
     ADD CONSTRAINT "paper_meta_pkey" PRIMARY KEY ("key");
@@ -833,6 +859,15 @@ CREATE INDEX "conversation_messages_fts_idx" ON "aion"."conversation_messages" U
 
 
 CREATE INDEX "idx_aion_opportunities_rank" ON "aion"."opportunities" USING "btree" ("durable_value_score" DESC, "discovered_at" DESC);
+
+
+CREATE UNIQUE INDEX "idx_aion_payment_orders_idempotency" ON "aion"."payment_orders" USING "btree" ("idempotency_key") WHERE ("idempotency_key" <> ''::"text");
+
+
+CREATE INDEX "idx_aion_payment_orders_status_created" ON "aion"."payment_orders" USING "btree" ("status", "created_at" DESC);
+
+
+ALTER TABLE "aion"."payment_orders" ENABLE ROW LEVEL SECURITY;
 
 
 
@@ -1006,6 +1041,9 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "aion"."paper_positions" TO "aion_app
 
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "aion"."paper_snapshots" TO "aion_app";
+
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "aion"."payment_orders" TO "aion_app";
 
 
 

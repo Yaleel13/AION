@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import time
 
 from aion.opportunity_store import OpportunityStore
 from aion.stripe_runtime import StripeRuntime, build_stripe_signature
@@ -19,7 +20,7 @@ def test_stripe_runtime_is_not_ready_until_explicitly_enabled(monkeypatch) -> No
 def test_stripe_signature_verifies_valid_signed_payload(monkeypatch) -> None:
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "supersecret")
     payload = json.dumps({"type": "checkout.session.completed", "id": "cs_test_123"}).encode()
-    timestamp = "1700000000"
+    timestamp = str(int(time.time()))
     signature = build_stripe_signature(payload, timestamp, "supersecret")
     header = f"t={timestamp},v1={signature}"
 
@@ -29,7 +30,7 @@ def test_stripe_signature_verifies_valid_signed_payload(monkeypatch) -> None:
 def test_stripe_signature_rejects_tampered_payload(monkeypatch) -> None:
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "supersecret")
     payload = json.dumps({"type": "checkout.session.completed", "id": "cs_test_123"}).encode()
-    timestamp = "1700000000"
+    timestamp = str(int(time.time()))
     valid = build_stripe_signature(payload, timestamp, "supersecret")
     bad_payload = json.dumps({"type": "checkout.session.completed", "id": "cs_test_456"}).encode()
     bad_header = f"t={timestamp},v1={valid}"
@@ -48,12 +49,23 @@ def test_stripe_runtime_builds_checkout_payload_when_ready(monkeypatch) -> None:
         currency="usd",
         success_url="https://example.com/success",
         order_id="order_123",
+        opportunity_id="opp_123",
     )
 
     assert runtime.is_ready_for_checkout() is True
     assert payload["mode"] == "payment"
     assert payload["success_url"].endswith("/success")
     assert payload["metadata"]["order_id"] == "order_123"
+    assert payload["metadata"]["opportunity_id"] == "opp_123"
+
+
+def test_stripe_signature_rejects_stale_signed_payload(monkeypatch) -> None:
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "supersecret")
+    payload = json.dumps({"type": "checkout.session.completed", "id": "evt_old"}).encode()
+    timestamp = str(int(time.time()) - 301)
+    signature = build_stripe_signature(payload, timestamp, "supersecret")
+
+    assert StripeRuntime().verify_webhook_signature(payload, f"t={timestamp},v1={signature}") is False
 
 
 def test_opportunity_store_records_payment_order_in_ledger(tmp_path) -> None:

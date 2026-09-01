@@ -328,6 +328,7 @@ async def owner_checkout_prepare(
         amount_cents=amount_cents,
         currency=currency,
         customer_email=str(body.get("customer_email") or ""),
+        commercial_execution_id=str(body.get("commercial_execution_id") or ""),
     )
 
     # Try to create a live Stripe session
@@ -338,6 +339,7 @@ async def owner_checkout_prepare(
             currency=currency,
             success_url=success_url,
             order_id=order_id,
+            opportunity_id=opportunity_id,
             customer_email=str(body.get("customer_email") or ""),
         )
         checkout_info = {
@@ -351,19 +353,8 @@ async def owner_checkout_prepare(
             (session["session_id"], session["checkout_url"], order_id),
         )
         store._conn.commit()
-    except Exception:
-        # Fall back to returning checkout params if stripe not available or error
-        payload = runtime.create_checkout_session_payload(
-            amount_cents=amount_cents,
-            currency=currency,
-            success_url=success_url,
-            order_id=order_id,
-            customer_email=str(body.get("customer_email") or ""),
-        )
-        checkout_info = {
-            "params": payload,
-            "live": False,
-        }
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Stripe checkout session creation failed") from exc
 
     return {"status": "ready", "order": order, "checkout": checkout_info}
 
@@ -384,6 +375,8 @@ async def owner_checkout_webhook(
     event = __import__("json").loads(payload.decode("utf-8"))
     event_id = str(event.get("id") or "").strip()
     event_type = str(event.get("type") or "unknown")
+    if event_type not in {"checkout.session.completed", "checkout.session.async_payment_succeeded"}:
+        return {"status": "ignored", "event_type": event_type, "event_id": event_id}
     session = (event.get("data") or {}).get("object") or {}
     order_id = str((session.get("metadata") or {}).get("order_id") or "").strip()
     opportunity_id = str((session.get("metadata") or {}).get("opportunity_id") or "")
@@ -409,11 +402,11 @@ async def owner_checkout_webhook(
             amount_cents=amount,
             currency=currency,
             customer_email=customer_email,
-            status="paid" if event_type == "checkout.session.completed" else "pending_owner_approval",
+            status="paid",
             idempotency_key=event_id,
+            commercial_execution_id=str((session.get("metadata") or {}).get("commercial_execution_id") or ""),
         )
-        if event_type == "checkout.session.completed":
-            store.record_result(opportunity_id or order_id, result="stripe_checkout_completed", realized_value=max(0.0, amount / 100.0))
+        store.record_result(opportunity_id or order_id, result="stripe_checkout_completed", realized_value=max(0.0, amount / 100.0))
 
     return {
         "status": "processed",

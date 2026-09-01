@@ -7,6 +7,7 @@ contracts, grants, or agent networks without being a sales lead.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from aion.durable.db import connect_phase2, database_url
@@ -50,7 +51,46 @@ class OpportunityStore:
             );
             CREATE INDEX IF NOT EXISTS idx_opportunities_rank
               ON opportunities(durable_value_score DESC, discovered_at DESC);
+            CREATE TABLE IF NOT EXISTS payment_orders (
+              order_id TEXT PRIMARY KEY,
+              opportunity_id TEXT NOT NULL,
+              amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+              currency TEXT NOT NULL,
+              customer_email TEXT NOT NULL DEFAULT '',
+              status TEXT NOT NULL DEFAULT 'pending_owner_approval',
+              idempotency_key TEXT NOT NULL DEFAULT '',
+              commercial_execution_id TEXT NOT NULL DEFAULT '',
+              stripe_session_id TEXT NOT NULL DEFAULT '',
+              stripe_checkout_url TEXT NOT NULL DEFAULT '',
+              payment_intent_id TEXT NOT NULL DEFAULT '',
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_orders_idempotency
+              ON payment_orders(idempotency_key) WHERE idempotency_key <> '';
+            CREATE INDEX IF NOT EXISTS idx_payment_orders_status_created
+              ON payment_orders(status, created_at DESC);
             """
+        )
+        existing_columns = {
+            str(row[1]) for row in self._conn.execute("PRAGMA table_info(payment_orders)").fetchall()
+        }
+        sqlite_additions = {
+            "idempotency_key": "TEXT NOT NULL DEFAULT ''",
+            "commercial_execution_id": "TEXT NOT NULL DEFAULT ''",
+            "stripe_session_id": "TEXT NOT NULL DEFAULT ''",
+            "stripe_checkout_url": "TEXT NOT NULL DEFAULT ''",
+            "payment_intent_id": "TEXT NOT NULL DEFAULT ''",
+            "updated_at": "TEXT NOT NULL DEFAULT ''",
+        }
+        for column, definition in sqlite_additions.items():
+            if column not in existing_columns:
+                self._conn.execute(
+                    f"ALTER TABLE payment_orders ADD COLUMN {column} {definition}"
+                )
+        self._conn.execute(
+            """CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_orders_idempotency
+               ON payment_orders(idempotency_key) WHERE idempotency_key <> ''"""
         )
         self._conn.commit()
 
@@ -114,49 +154,34 @@ class OpportunityStore:
         customer_email: str = "",
         status: str = "pending_owner_approval",
         idempotency_key: str = "",
+        commercial_execution_id: str = "",
     ) -> dict[str, Any]:
-        # Ensure table exists
-        self._conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS payment_orders (
-              order_id TEXT PRIMARY KEY,
-              opportunity_id TEXT NOT NULL,
-              amount_cents INTEGER NOT NULL,
-              currency TEXT NOT NULL,
-              customer_email TEXT NOT NULL DEFAULT '',
-              status TEXT NOT NULL DEFAULT 'pending_owner_approval',
-              created_at TEXT NOT NULL
-            )
-            """
-        )
-
-        # Try to add missing columns to existing tables (idempotent migration)
-        # Note: Can't add UNIQUE via ALTER TABLE on existing table, so we add nullable columns
-        for col_def in [
-            "idempotency_key TEXT",  # No UNIQUE constraint for ALTER compatibility
-            "updated_at TEXT",
-            "stripe_session_id TEXT",
-            "stripe_checkout_url TEXT",
-            "payment_intent_id TEXT",
-        ]:
-            try:
-                self._conn.execute(f"ALTER TABLE payment_orders ADD COLUMN {col_def}")
-            except Exception:
-                pass  # Column already exists, that's fine
-
-        # Insert the base payment order (always works, uses base columns)
+        now = datetime.now(timezone.utc).isoformat()
         self._conn.execute(
             """
             INSERT INTO payment_orders (
               order_id, opportunity_id, amount_cents, currency, customer_email,
-              status, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+              status, idempotency_key, commercial_execution_id, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(order_id) DO UPDATE SET
               opportunity_id=excluded.opportunity_id,
               amount_cents=excluded.amount_cents,
               currency=excluded.currency,
               customer_email=excluded.customer_email,
-              status=excluded.status
+              status=CASE
+                WHEN payment_orders.status = 'fulfilled' THEN payment_orders.status
+                WHEN payment_orders.status = 'paid' AND excluded.status <> 'fulfilled' THEN payment_orders.status
+                ELSE excluded.status
+              END,
+              idempotency_key=CASE
+                WHEN excluded.idempotency_key <> '' THEN excluded.idempotency_key
+                ELSE payment_orders.idempotency_key
+              END,
+              commercial_execution_id=CASE
+                WHEN excluded.commercial_execution_id <> '' THEN excluded.commercial_execution_id
+                ELSE payment_orders.commercial_execution_id
+              END,
+              updated_at=excluded.updated_at
             """,
             (
                 order_id,
@@ -165,28 +190,12 @@ class OpportunityStore:
                 str(currency).lower(),
                 customer_email,
                 status,
+                idempotency_key,
+                commercial_execution_id,
+                now,
+                now,
             ),
         )
-
-        # Now update with optional columns if they exist and we have values
-        if idempotency_key:
-            try:
-                self._conn.execute(
-                    "UPDATE payment_orders SET idempotency_key = ?, updated_at = datetime('now') WHERE order_id = ?",
-                    (idempotency_key, order_id),
-                )
-            except Exception:
-                pass  # Column might not exist, that's fine (graceful degradation)
-
-        # Always update updated_at to current timestamp
-        try:
-            self._conn.execute(
-                "UPDATE payment_orders SET updated_at = datetime('now') WHERE order_id = ?",
-                (order_id,),
-            )
-        except Exception:
-            pass  # Column might not exist
-
         self._conn.commit()
         row = self._conn.execute(
             "SELECT * FROM payment_orders WHERE order_id = ?",
@@ -205,15 +214,11 @@ class OpportunityStore:
         """Check if an idempotency_key has already been processed (webhook replay protection)."""
         if not idempotency_key:
             return False
-        try:
-            row = self._conn.execute(
-                "SELECT 1 FROM payment_orders WHERE idempotency_key = ?",
-                (idempotency_key,),
-            ).fetchone()
-            return row is not None
-        except Exception:
-            # If the column doesn't exist, return False (graceful degradation)
-            return False
+        row = self._conn.execute(
+            "SELECT 1 FROM payment_orders WHERE idempotency_key = ?",
+            (idempotency_key,),
+        ).fetchone()
+        return row is not None
 
     def record_revenue_attribution(self, order_id: str, opportunity_id: str, commercial_execution_id: str = "") -> bool:
         """Record that a payment order is attributed to a commercial execution.
@@ -231,28 +236,17 @@ class OpportunityStore:
         if not order_id:
             return False
 
-        # Ensure column exists for revenue attribution
-        try:
-            self._conn.execute(
-                "ALTER TABLE payment_orders ADD COLUMN commercial_execution_id TEXT"
-            )
-        except Exception:
-            pass  # Column already exists
-
-        try:
-            # Update the payment order with commercial execution attribution
-            self._conn.execute(
-                """
-                UPDATE payment_orders
-                SET commercial_execution_id = ?, updated_at = datetime('now')
-                WHERE order_id = ?
-                """,
-                (commercial_execution_id, order_id),
-            )
-            self._conn.commit()
-            return True
-        except Exception:
-            return False
+        updated_at = datetime.now(timezone.utc).isoformat()
+        self._conn.execute(
+            """
+            UPDATE payment_orders
+            SET commercial_execution_id = ?, updated_at = ?
+            WHERE order_id = ?
+            """,
+            (commercial_execution_id, updated_at, order_id),
+        )
+        self._conn.commit()
+        return True
 
     def get_revenue_by_execution(self, opportunity_id: str = "") -> list[dict[str, Any]]:
         """Get attributed revenue grouped by commercial execution.
