@@ -34,6 +34,18 @@ def test_runtime_status_shape_and_safe_defaults():
     assert "openai_configured" in data["providers"]
     assert "gemini_configured" in data["providers"]
     assert data["safety"]["paper_is_not_live_trading"] is True
+    assert data["payment_rails"]["payment_orders_ledger"] is True
+
+
+def test_runtime_status_ledger_is_independent_of_stripe_configuration(monkeypatch):
+    monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
+    monkeypatch.delenv("STRIPE_WEBHOOK_SECRET", raising=False)
+    monkeypatch.delenv("STRIPE_CHECKOUT_ENABLED", raising=False)
+
+    data = client.get("/runtime/status").json()
+
+    assert data["payment_rails"]["stripe_ready_for_checkout"] is False
+    assert data["payment_rails"]["payment_orders_ledger"] is True
 
 
 def test_runtime_status_respects_dry_run_env(monkeypatch):

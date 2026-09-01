@@ -13,6 +13,22 @@ from aion.moltbook.security import KillSwitch
 from aion.moltbook.settings import load_moltbook_settings
 
 
+def _payment_orders_ledger_available() -> bool:
+    """Return whether the durable payment ledger can actually be queried."""
+    from aion.opportunity_store import OpportunityStore
+
+    store = None
+    try:
+        store = OpportunityStore()
+        store._conn.execute("SELECT 1 FROM payment_orders LIMIT 1").fetchone()
+        return True
+    except Exception:  # noqa: BLE001 — status must fail closed without crashing
+        return False
+    finally:
+        if store is not None:
+            store.close()
+
+
 def build_runtime_status() -> dict[str, Any]:
     """Assemble a non-secret snapshot of real runtime gates and backends."""
     from aion.stripe_runtime import StripeRuntime
@@ -47,7 +63,7 @@ def build_runtime_status() -> dict[str, Any]:
         "stripe_configured": stripe.is_configured(),
         "stripe_checkout_enabled": stripe.checkout_enabled,
         "stripe_ready_for_checkout": stripe.is_ready_for_checkout(),
-        "payment_orders_ledger": stripe.is_ready_for_checkout(),
+        "payment_orders_ledger": _payment_orders_ledger_available(),
     }
 
     policy = AutonomyPolicy.from_env()
