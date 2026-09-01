@@ -73,7 +73,7 @@ gcloud run deploy opportunity-navigator \
   --source . \
   --region us-central1 \
   --allow-unauthenticated \
-  --set-env-vars GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=agent-aion,GOOGLE_CLOUD_LOCATION=global
+  "--set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=agent-aion,GOOGLE_CLOUD_LOCATION=global"
 ```
 
 For production, prefer Vertex AI credentials/service identity rather than baking API keys into the image.

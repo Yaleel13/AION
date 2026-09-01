@@ -548,7 +548,7 @@ typescript: {
 
 ### Pre-Deployment Checklist Items
 
-- [ ] Enable TypeScript type checking in production build
+- [x] Enable TypeScript type checking in production build (`ignoreBuildErrors: false`; `npx tsc --noEmit` passes)
 - [ ] Configure OPENAI_API_KEY
 - [ ] Configure AION_OWNER_TOKEN (long random value)
 - [ ] Configure AION_APPROVAL_TOKEN_PEPPER
@@ -556,11 +556,11 @@ typescript: {
 - [ ] Set AION_DATABASE_URL to Supabase/Postgres for durability
 - [ ] Create Supabase schema and `aion_storage_status` view
 - [ ] Verify Supabase `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- [ ] Fix failing test: `test_capability_fit_supports_existing_yalitek_services`
-- [ ] Add rate limiting to public `/agent` endpoint
+- [x] Fix failing test: `test_capability_fit_supports_existing_yalitek_services`
+- [x] Add rate limiting to public `/agent` endpoint
 - [ ] Test Gemini API integration
 - [ ] Review and sign off on owner-only Phase 2 endpoints
-- [ ] Document prod-only environment variables
+- [x] Document prod-only environment variables in `.env.example`
 
 ### Post-Deployment Validation
 

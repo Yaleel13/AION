@@ -51,9 +51,9 @@ Deployment status (Aug 31, 2026):
 - [x] Service status: ACTIVE and serving 100% traffic
 - [x] Service logs confirm: "Uvicorn running on http://0.0.0.0:8080"
 - [ ] Public `/health` response: Blocked by organization policy on current Google account
-- [x] Authenticated access via gcloud works; service is fully operational
+- [x] Authenticated `/health` access via gcloud returns `200 OK`
 - [x] Demo video: Will show Cloud Run console, logs proving FastAPI is running, and code architecture
-- [ ] Real Gemini turn executed through Google ADK on the public URL is blocked by the same organization policy.
+- [x] Real Gemini turn executed through Google ADK using authenticated Cloud Run access; public invocation remains blocked by organization policy.
 - [x] Cloud Run request/log evidence captured from the active service revision
 - [x] Final project ID: **agent-aion**
 - [x] Final region: **us-central1**

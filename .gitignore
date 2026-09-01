@@ -29,3 +29,5 @@ data/aion/
 identity/OWNER_PRIVATE_CONTEXT.md
 data/owner_private/
 data/activation/
+.vercel
+.env*.local

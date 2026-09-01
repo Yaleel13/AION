@@ -63,8 +63,8 @@ No authentication is required for the synthetic judge route.
 - [x] Read-only tools with bounded inputs.
 - [x] Clear judge testing prompt.
 - [x] Existing app plus new WebMCP functionality is permitted by challenge rules.
-- [ ] Confirm final production live URL for `/webmcp-demo` after merge/deploy.
-- [ ] Add a detectable open-source license file to the submitted repository before the deadline.
+- [x] Production `/webmcp-demo` verified at https://aion-8nmmzwnpe-siryali.vercel.app/webmcp-demo (`200 OK`).
+- [x] Detectable open-source license file committed at repository root (`LICENSE`, Apache-2.0).
 - [ ] Record and publish a public YouTube demo shorter than 3 minutes.
 - [ ] Submit Devpost project before September 3, 2026 at 1:00 PM PT.
 
