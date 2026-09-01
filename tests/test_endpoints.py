@@ -1,6 +1,7 @@
 """Tests for AION FastAPI endpoints."""
 
 from unittest.mock import AsyncMock, patch
+import time
 
 from fastapi.testclient import TestClient
 
@@ -172,7 +173,7 @@ def test_owner_checkout_webhook_accepts_valid_signed_event(monkeypatch):
         },
     }
     raw = __import__("json").dumps(payload).encode()
-    timestamp = "1700000000"
+    timestamp = str(int(time.time()))
     signature = __import__("hmac").new(
         b"whsec_123",
         f"{timestamp}.{raw.decode('utf-8')}".encode("utf-8"),
@@ -235,7 +236,7 @@ def test_webhook_replay_protection_rejects_duplicate_event(monkeypatch):
         },
     }
     raw = __import__("json").dumps(payload).encode()
-    timestamp = "1700000000"
+    timestamp = str(int(time.time()))
     signature = __import__("hmac").new(
         b"whsec_123",
         f"{timestamp}.{raw.decode('utf-8')}".encode("utf-8"),

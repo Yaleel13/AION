@@ -7,6 +7,7 @@ disabled until explicit authorization.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from aion.opportunity_store import OpportunityStore
@@ -50,8 +51,8 @@ def process_completed_payment_order(
         )
         # Mark order as fulfilled
         store._conn.execute(
-            "UPDATE payment_orders SET status = ? WHERE order_id = ?",
-            ("fulfilled", order_id),
+            "UPDATE payment_orders SET status = ?, updated_at = ? WHERE order_id = ? AND status = ?",
+            ("fulfilled", datetime.now(timezone.utc).isoformat(), order_id, "paid"),
         )
         store._conn.commit()
 

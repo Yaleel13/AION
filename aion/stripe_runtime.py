@@ -11,6 +11,7 @@ import hashlib
 import hmac
 import json
 import os
+import time
 from typing import Any
 
 try:
@@ -53,7 +54,7 @@ class StripeRuntime:
     def is_ready_for_checkout(self) -> bool:
         return self.checkout_enabled and self.is_configured()
 
-    def verify_webhook_signature(self, payload: bytes, header: str) -> bool:
+    def verify_webhook_signature(self, payload: bytes, header: str, *, tolerance_seconds: int = 300) -> bool:
         if not self.webhook_secret:
             return False
         if not header:
@@ -61,17 +62,24 @@ class StripeRuntime:
 
         parts = [part.strip() for part in header.split(",")]
         timestamp = None
-        signature = None
+        signatures: list[str] = []
         for part in parts:
             if part.startswith("t="):
                 timestamp = part.split("=", 1)[1]
             elif part.startswith("v1="):
-                signature = part.split("=", 1)[1]
-        if not timestamp or not signature:
+                signatures.append(part.split("=", 1)[1])
+        if not timestamp or not signatures:
+            return False
+
+        try:
+            signed_at = int(timestamp)
+        except ValueError:
+            return False
+        if abs(int(time.time()) - signed_at) > max(0, int(tolerance_seconds)):
             return False
 
         expected = build_stripe_signature(payload, timestamp, self.webhook_secret)
-        return hmac.compare_digest(expected, signature)
+        return any(hmac.compare_digest(expected, signature) for signature in signatures)
 
     def safe_checkout_params(self, *, amount_cents: int, currency: str, success_url: str) -> dict[str, Any]:
         if not self.is_ready_for_checkout():
@@ -95,6 +103,7 @@ class StripeRuntime:
         currency: str,
         success_url: str,
         order_id: str,
+        opportunity_id: str,
         customer_email: str | None = None,
     ) -> dict[str, Any]:
         params = self.safe_checkout_params(
@@ -104,6 +113,7 @@ class StripeRuntime:
         )
         params["metadata"] = {
             "order_id": order_id,
+            "opportunity_id": opportunity_id,
             "customer_email": customer_email or "",
             "source": "aion-owner-approved-checkout",
         }
@@ -116,6 +126,7 @@ class StripeRuntime:
         currency: str,
         success_url: str,
         order_id: str,
+        opportunity_id: str,
         customer_email: str | None = None,
     ) -> dict[str, Any]:
         """Create a live Stripe checkout session.
@@ -137,6 +148,7 @@ class StripeRuntime:
         )
         params["metadata"] = {
             "order_id": order_id,
+            "opportunity_id": opportunity_id,
             "customer_email": customer_email or "",
             "source": "aion-owner-approved-checkout",
         }

@@ -22,7 +22,7 @@ def _next_api_routes() -> list[dict[str, str]]:
     routes: list[dict[str, str]] = []
     for path in sorted(ROOT.glob("app/api/**/route.ts")):
         rel = path.relative_to(ROOT)
-        route_path = "/" + str(rel.parent).replace("app", "").replace("\\", "/")
+        route_path = "/" + Path(*rel.parent.parts[1:]).as_posix()
         routes.append(
             {
                 "path": route_path,
