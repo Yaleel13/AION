@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from aion.main import app
+from aion.rate_limit import ClientSlidingWindowRateLimiter
 from aion.schemas import AIResponse
 
 client = TestClient(app)
@@ -50,6 +51,25 @@ def test_agent_endpoint_no_key():
     with patch("aion.main.config.OPENAI_API_KEY", ""):
         response = client.post("/agent", json={"message": "Hello"})
     assert response.status_code == 503
+
+
+@patch("aion.main.config.OPENAI_API_KEY", "test-key")
+@patch("aion.main.run_aion", new_callable=AsyncMock)
+def test_agent_endpoint_rate_limit(mock_run):
+    mock_run.return_value = {
+        "agent": "AION",
+        "session_id": "test-session",
+        "response": "Runtime operational.",
+        "requires_approval": False,
+        "usage": {"requests": 1, "input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+    }
+    with patch("aion.main.agent_rate_limiter", ClientSlidingWindowRateLimiter(1)):
+        first_response = client.post("/agent", json={"message": "First request"})
+        second_response = client.post("/agent", json={"message": "Second request"})
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 429
+    assert second_response.headers["retry-after"]
 
 
 @patch("aion.main.config.OPENAI_API_KEY", "test-key")

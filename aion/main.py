@@ -1,13 +1,15 @@
 """FastAPI application – entry point for the AION server."""
 
 from contextlib import asynccontextmanager
+import math
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 
 from aion import config
 from aion.agent_runtime import run_aion
 from aion.moltbook.errors import MoltbookConfigError
 from aion.moltbook.settings import load_moltbook_settings
+from aion.rate_limit import ClientSlidingWindowRateLimiter, RateLimitExceeded
 from aion.schemas import (
     AIResponse,
     AgentRequest,
@@ -59,6 +61,9 @@ app = FastAPI(
     version="0.2.0",
     lifespan=lifespan,
 )
+agent_rate_limiter = ClientSlidingWindowRateLimiter(
+    max_requests=config.AGENT_RATE_LIMIT_PER_MINUTE
+)
 
 
 @app.get("/health")
@@ -81,10 +86,19 @@ async def runtime_status() -> dict:
 
 
 @app.post("/agent", response_model=AgentResponse, summary="Run AION")
-async def agent_endpoint(request: AgentRequest) -> AgentResponse:
+async def agent_endpoint(request: AgentRequest, http_request: Request) -> AgentResponse:
     """Run one turn through the primary AION agent orchestrator."""
     if not config.OPENAI_API_KEY:
         raise HTTPException(status_code=503, detail="OPENAI_API_KEY is not configured")
+    client_id = http_request.client.host if http_request.client else "unknown"
+    try:
+        agent_rate_limiter.acquire(client_id)
+    except RateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=str(exc),
+            headers={"Retry-After": str(math.ceil(exc.retry_after_seconds))},
+        ) from exc
     try:
         result = await run_aion(request.message, request.session_id)
         return AgentResponse.model_validate(result)
