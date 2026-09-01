@@ -57,7 +57,7 @@ export function routeCommand(input: string): AionTurn {
   if (has("repo", "github", "repository", "aion repo")) {
     return {
       working: "researching",
-      reply: "Here's the current state of Yaleel13/AION.",
+      reply: "Here's an illustrative repository snapshot for Yaleel13/AION — demo fixture data, not a live GitHub query.",
       context: "AION Repository",
       widgets: [
         {
@@ -84,7 +84,8 @@ export function routeCommand(input: string): AionTurn {
   if (has("deploy", "deployment", "vercel", "production status")) {
     return {
       working: "researching",
-      reply: "Production is healthy. Here's the latest deployment for the AION service.",
+      reply:
+        "Here's an illustrative production deployment card — demo fixture data. For live status, open the Boardroom or call GET /api/runtime/status.",
       widgets: [
         {
           kind: "deployment",
@@ -103,7 +104,7 @@ export function routeCommand(input: string): AionTurn {
     return {
       working: "executing",
       reply:
-        "I've traced the failure to the Resend webhook handler. Here's the repair in progress — I'll hold before deploying.",
+        "Demo execution timeline: a webhook repair scenario. This is a scripted illustration — nothing is running against production.",
       widgets: [
         {
           kind: "execution",
@@ -151,7 +152,7 @@ export function routeCommand(input: string): AionTurn {
   if (has("email me", "email this", "send me", "email the")) {
     return {
       working: "executing",
-      reply: "Prepared and sent. You'll also find it here.",
+      reply: "Demo: here's how an outbound delivery would appear in the UI. Nothing was actually sent.",
       widgets: [
         {
           kind: "communication",
@@ -171,7 +172,8 @@ export function routeCommand(input: string): AionTurn {
   if (has("text me", "sms", "notify me")) {
     return {
       working: "thinking",
-      reply: "Understood — I'll text you the moment the deployment reports healthy.",
+      reply:
+        "Demo: a deployment health watch would text you when checks pass. No notification connector is configured in this build.",
       widgets: [
         {
           kind: "communication",
@@ -218,7 +220,7 @@ export function routeCommand(input: string): AionTurn {
     return {
       working: "executing",
       reply:
-        "Access granted for this session. I'll work within those bounds and pause for your explicit approval before anything irreversible.",
+        "Demo: access would be granted for this session within the stated bounds. No production systems were changed.",
       context: "Session access · granted",
     }
   }
@@ -244,7 +246,7 @@ export function routeCommand(input: string): AionTurn {
     const name = has("yalitek") ? "YaliTek" : ventures[0]
     return {
       working: "researching",
-      reply: `Here's where ${name} stands right now.`,
+      reply: `Demo venture snapshot for ${name} — illustrative metrics only, not live integrations.`,
       context: `Working in: ${name} Production`,
       widgets: [
         {
@@ -265,7 +267,7 @@ export function routeCommand(input: string): AionTurn {
   if (has("attention", "focus", "what should i", "today", "priorities", "prepare me")) {
     return {
       working: "thinking",
-      reply: "Three things deserve your attention this morning. In order.",
+      reply: "Demo morning brief — three illustrative priorities. Open the Boardroom for live runtime evidence.",
       widgets: [
         {
           kind: "project",
@@ -327,7 +329,8 @@ export function routeCommand(input: string): AionTurn {
         : "opened"
     return {
       working: "thinking",
-      reply: `Done — the document is ${action}. Say the word and I'll email or send it to whoever needs it.`,
+      reply:
+        `Demo: the document would be ${action}. No file was opened and nothing was delivered externally.`,
       context: "Document · Cerebral Synergy investor update",
     }
   }

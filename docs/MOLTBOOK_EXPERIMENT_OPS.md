@@ -1,6 +1,6 @@
 # Moltbook Experiment Operations — Remaining Phases
 
-**Status:** Active for the 14-day controlled-growth experiment  
+**Status:** Implemented; **inactive by default** until owner activation. Experiment ops scripts exist but do not auto-enable live writes.  
 **Depends on:** Phase 1 read-only, Phase 2 foundation, controlled-autonomy activation
 
 ## Phase map
@@ -10,7 +10,7 @@
 | 1 | Read-only Moltbook client | Done |
 | 2 | Drafts / approvals / leads / paper trading foundation | Done |
 | Controlled autonomy activation | Guardrails + live arm | Done |
-| **Experiment ops (this doc)** | Recurring cycle while quotas bind | **Execute now** |
+| **Experiment ops (this doc)** | Recurring cycle while quotas bind | **Available when owner activates** |
 
 ## Experiment ops cycle
 
