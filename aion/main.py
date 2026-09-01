@@ -329,14 +329,43 @@ async def owner_checkout_prepare(
         currency=currency,
         customer_email=str(body.get("customer_email") or ""),
     )
-    payload = runtime.create_checkout_session_payload(
-        amount_cents=amount_cents,
-        currency=currency,
-        success_url=success_url,
-        order_id=order_id,
-        customer_email=str(body.get("customer_email") or ""),
-    )
-    return {"status": "ready", "order": order, "checkout": payload}
+
+    # Try to create a live Stripe session
+    checkout_info = {}
+    try:
+        session = runtime.create_checkout_session(
+            amount_cents=amount_cents,
+            currency=currency,
+            success_url=success_url,
+            order_id=order_id,
+            customer_email=str(body.get("customer_email") or ""),
+        )
+        checkout_info = {
+            "session_id": session["session_id"],
+            "checkout_url": session["checkout_url"],
+            "live": True,
+        }
+        # Update order with session info
+        store._conn.execute(
+            "UPDATE payment_orders SET stripe_session_id = ?, stripe_checkout_url = ? WHERE order_id = ?",
+            (session["session_id"], session["checkout_url"], order_id),
+        )
+        store._conn.commit()
+    except Exception:
+        # Fall back to returning checkout params if stripe not available or error
+        payload = runtime.create_checkout_session_payload(
+            amount_cents=amount_cents,
+            currency=currency,
+            success_url=success_url,
+            order_id=order_id,
+            customer_email=str(body.get("customer_email") or ""),
+        )
+        checkout_info = {
+            "params": payload,
+            "live": False,
+        }
+
+    return {"status": "ready", "order": order, "checkout": checkout_info}
 
 
 @app.post("/owner/checkout/webhook", summary="Handle signed Stripe webhook events")
@@ -363,7 +392,7 @@ async def owner_checkout_webhook(
     customer_email = str((session.get("customer_details") or {}).get("email") or "")
 
     store = OpportunityStore()
-    
+
     # Replay protection: check if this event ID has already been processed
     if event_id and store.idempotency_key_exists(event_id):
         return {
@@ -372,7 +401,7 @@ async def owner_checkout_webhook(
             "event_type": event_type,
             "note": "This webhook event has already been processed",
         }
-    
+
     if order_id:
         store.record_payment_order(
             order_id=order_id,
@@ -410,6 +439,85 @@ async def owner_fulfill_paid_orders(
             "orders_processed": len(results),
             "results": results,
             "note": "Owner-triggered fulfillment; all paid orders marked as fulfilled and opportunities updated.",
+        }
+    except Exception as exc:  # noqa: BLE001
+        raise owner_request_error(exc) from exc
+
+
+@app.get("/owner/revenue/attributed", summary="Get revenue attributed to commercial executions")
+async def owner_revenue_attributed(
+    opportunity_id: str | None = None,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """Query revenue attributed to commercial executions.
+
+    Returns list of attributions with:
+    - commercial_execution_id: ID of execution that generated revenue
+    - opportunity_id: Associated opportunity
+    - fulfilled_amount_cents: Amount successfully fulfilled
+    - total_amount_cents: Total payment amount
+    - order_count: Number of orders attributed
+    """
+    _require_owner(authorization)
+    store = OpportunityStore()
+    try:
+        results = store.get_revenue_by_execution(opportunity_id=opportunity_id or "")
+        return {
+            "status": "success",
+            "attributions": results,
+            "total_attributed": len(results),
+            "note": "Revenue attributed to commercial executions; filtered by opportunity if provided.",
+        }
+    except Exception as exc:  # noqa: BLE001
+        raise owner_request_error(exc) from exc
+
+
+@app.post("/owner/fulfillment/scheduler/start", summary="Start automatic fulfillment scheduler")
+async def owner_start_fulfillment_scheduler(
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """Start background scheduler for automatic order fulfillment.
+
+    Scheduler is disabled by default. Set FULFILLMENT_SCHEDULER_ENABLED=true to enable.
+    """
+    _require_owner(authorization)
+    try:
+        from aion.fulfillment_scheduler import get_scheduler
+
+        scheduler = get_scheduler()
+        return scheduler.start()
+    except Exception as exc:  # noqa: BLE001
+        raise owner_request_error(exc) from exc
+
+
+@app.post("/owner/fulfillment/scheduler/stop", summary="Stop automatic fulfillment scheduler")
+async def owner_stop_fulfillment_scheduler(
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """Stop the background fulfillment scheduler."""
+    _require_owner(authorization)
+    try:
+        from aion.fulfillment_scheduler import get_scheduler
+
+        scheduler = get_scheduler()
+        return scheduler.stop()
+    except Exception as exc:  # noqa: BLE001
+        raise owner_request_error(exc) from exc
+
+
+@app.get("/owner/fulfillment/scheduler/status", summary="Get fulfillment scheduler status")
+async def owner_fulfillment_scheduler_status(
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """Get current fulfillment scheduler status and configuration."""
+    _require_owner(authorization)
+    try:
+        from aion.fulfillment_scheduler import get_scheduler
+
+        scheduler = get_scheduler()
+        return {
+            "status": "success",
+            "scheduler": scheduler.status(),
         }
     except Exception as exc:  # noqa: BLE001
         raise owner_request_error(exc) from exc

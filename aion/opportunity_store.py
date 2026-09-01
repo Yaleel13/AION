@@ -129,7 +129,7 @@ class OpportunityStore:
             )
             """
         )
-        
+
         # Try to add missing columns to existing tables (idempotent migration)
         # Note: Can't add UNIQUE via ALTER TABLE on existing table, so we add nullable columns
         for col_def in [
@@ -143,7 +143,7 @@ class OpportunityStore:
                 self._conn.execute(f"ALTER TABLE payment_orders ADD COLUMN {col_def}")
             except Exception:
                 pass  # Column already exists, that's fine
-        
+
         # Insert the base payment order (always works, uses base columns)
         self._conn.execute(
             """
@@ -167,7 +167,7 @@ class OpportunityStore:
                 status,
             ),
         )
-        
+
         # Now update with optional columns if they exist and we have values
         if idempotency_key:
             try:
@@ -177,7 +177,7 @@ class OpportunityStore:
                 )
             except Exception:
                 pass  # Column might not exist, that's fine (graceful degradation)
-        
+
         # Always update updated_at to current timestamp
         try:
             self._conn.execute(
@@ -186,7 +186,7 @@ class OpportunityStore:
             )
         except Exception:
             pass  # Column might not exist
-        
+
         self._conn.commit()
         row = self._conn.execute(
             "SELECT * FROM payment_orders WHERE order_id = ?",
@@ -214,3 +214,77 @@ class OpportunityStore:
         except Exception:
             # If the column doesn't exist, return False (graceful degradation)
             return False
+
+    def record_revenue_attribution(self, order_id: str, opportunity_id: str, commercial_execution_id: str = "") -> bool:
+        """Record that a payment order is attributed to a commercial execution.
+
+        This links a payment result back to the commercial opportunity that generated it.
+
+        Args:
+            order_id: Payment order ID
+            opportunity_id: Opportunity ID
+            commercial_execution_id: ID of the commercial execution (optional)
+
+        Returns:
+            True if attribution recorded successfully
+        """
+        if not order_id:
+            return False
+
+        # Ensure column exists for revenue attribution
+        try:
+            self._conn.execute(
+                "ALTER TABLE payment_orders ADD COLUMN commercial_execution_id TEXT"
+            )
+        except Exception:
+            pass  # Column already exists
+
+        try:
+            # Update the payment order with commercial execution attribution
+            self._conn.execute(
+                """
+                UPDATE payment_orders
+                SET commercial_execution_id = ?, updated_at = datetime('now')
+                WHERE order_id = ?
+                """,
+                (commercial_execution_id, order_id),
+            )
+            self._conn.commit()
+            return True
+        except Exception:
+            return False
+
+    def get_revenue_by_execution(self, opportunity_id: str = "") -> list[dict[str, Any]]:
+        """Get attributed revenue grouped by commercial execution.
+
+        Returns list of dicts with:
+        - commercial_execution_id
+        - opportunity_id
+        - total_amount_cents
+        - order_count
+        - fulfilled_amount_cents
+        """
+        try:
+            # Try to query with commercial_execution_id column
+            query = """
+            SELECT
+                commercial_execution_id,
+                opportunity_id,
+                SUM(CASE WHEN status = 'fulfilled' THEN amount_cents ELSE 0 END) as fulfilled_amount_cents,
+                SUM(amount_cents) as total_amount_cents,
+                COUNT(*) as order_count
+            FROM payment_orders
+            WHERE status IN ('paid', 'fulfilled')
+            """
+            params: list[Any] = []
+            if opportunity_id:
+                query += " AND opportunity_id = ?"
+                params.append(opportunity_id)
+
+            query += " GROUP BY commercial_execution_id, opportunity_id"
+
+            rows = self._conn.execute(query, params).fetchall()
+            return [dict(row) for row in rows]
+        except Exception:
+            # Column doesn't exist, return empty list (graceful degradation)
+            return []

@@ -118,33 +118,44 @@ def test_gemini_endpoint_no_key():
 
 def test_owner_prepares_checkout_when_stripe_enabled(monkeypatch):
     monkeypatch.setenv("AION_OWNER_TOKEN", "owner-token")
-    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_123")
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "test-stripe-secret")
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
     monkeypatch.setenv("STRIPE_CHECKOUT_ENABLED", "true")
 
-    response = client.post(
-        "/owner/checkout/prepare",
-        headers={"Authorization": "Bearer owner-token"},
-        json={
-            "order_id": "order_456",
-            "opportunity_id": "opp_abc",
-            "amount_cents": 1500,
-            "currency": "USD",
-            "customer_email": "buyer@example.com",
-            "success_url": "https://example.com/success",
-        },
-    )
+    # Mock Stripe session creation
+    with patch("aion.stripe_runtime.stripe.checkout.Session.create") as mock_create:
+        mock_session = type("Session", (), {
+            "id": "cs_test_123",
+            "url": "https://checkout.stripe.com/pay/cs_test_123"
+        })()
+        mock_create.return_value = mock_session
 
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "ready"
-    assert data["checkout"]["metadata"]["order_id"] == "order_456"
-    assert data["order"]["status"] == "pending_owner_approval"
+        response = client.post(
+            "/owner/checkout/prepare",
+            headers={"Authorization": "Bearer owner-token"},
+            json={
+                "order_id": "order_456",
+                "opportunity_id": "opp_abc",
+                "amount_cents": 1500,
+                "currency": "USD",
+                "customer_email": "buyer@example.com",
+                "success_url": "https://example.com/success",
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ready"
+        # Check for live session response
+        assert data["checkout"]["live"] == True
+        assert data["checkout"]["session_id"] == "cs_test_123"
+        assert data["checkout"]["checkout_url"] == "https://checkout.stripe.com/pay/cs_test_123"
+        assert data["order"]["status"] == "pending_owner_approval"
 
 
 def test_owner_checkout_webhook_accepts_valid_signed_event(monkeypatch):
     monkeypatch.setenv("AION_OWNER_TOKEN", "owner-token")
-    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_123")
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "test-stripe-secret")
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
     monkeypatch.setenv("STRIPE_CHECKOUT_ENABLED", "true")
 
@@ -181,7 +192,7 @@ def test_owner_checkout_webhook_accepts_valid_signed_event(monkeypatch):
 
 def test_owner_triggers_payment_fulfillment(monkeypatch):
     monkeypatch.setenv("AION_OWNER_TOKEN", "owner-token-test")
-    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_123")
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "test-stripe-secret")
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
     monkeypatch.setenv("STRIPE_CHECKOUT_ENABLED", "true")
 
@@ -202,7 +213,7 @@ def test_owner_triggers_payment_fulfillment(monkeypatch):
 def test_webhook_replay_protection_rejects_duplicate_event(monkeypatch):
     """Verify that duplicate Stripe webhook events are rejected via idempotency_key."""
     monkeypatch.setenv("AION_OWNER_TOKEN", "owner-token")
-    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_123")
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "test-stripe-secret")
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
     monkeypatch.setenv("STRIPE_CHECKOUT_ENABLED", "true")
 
@@ -251,3 +262,73 @@ def test_webhook_replay_protection_rejects_duplicate_event(monkeypatch):
     assert data["status"] == "duplicate"
     assert data["event_id"] == unique_event_id
     assert "already been processed" in data["note"]
+
+
+def test_owner_scheduler_start_not_enabled_by_default(monkeypatch):
+    """Scheduler is disabled by default without FULFILLMENT_SCHEDULER_ENABLED."""
+    monkeypatch.setenv("AION_OWNER_TOKEN", "owner-token")
+    monkeypatch.delenv("FULFILLMENT_SCHEDULER_ENABLED", raising=False)
+
+    response = client.post(
+        "/owner/fulfillment/scheduler/start",
+        headers={"Authorization": "Bearer owner-token"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "disabled"
+    assert "FULFILLMENT_SCHEDULER_ENABLED" in data["reason"]
+
+
+def test_owner_scheduler_start_when_enabled(monkeypatch):
+    """Scheduler starts when FULFILLMENT_SCHEDULER_ENABLED=true."""
+    monkeypatch.setenv("AION_OWNER_TOKEN", "owner-token")
+    monkeypatch.setenv("FULFILLMENT_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv("FULFILLMENT_SCHEDULER_INTERVAL_MINUTES", "30")
+
+    from aion.fulfillment_scheduler import reset_scheduler
+
+    reset_scheduler()
+    response = client.post(
+        "/owner/fulfillment/scheduler/start",
+        headers={"Authorization": "Bearer owner-token"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "started"
+    assert data["interval_minutes"] == 30
+    assert "background" in data["note"].lower()
+
+    stop_response = client.post(
+        "/owner/fulfillment/scheduler/stop",
+        headers={"Authorization": "Bearer owner-token"},
+    )
+    assert stop_response.status_code == 200
+    assert stop_response.json()["status"] == "stopped"
+
+    reset_scheduler()
+
+
+def test_owner_scheduler_status(monkeypatch):
+    """Scheduler status exposes its configured, non-running state."""
+    monkeypatch.setenv("AION_OWNER_TOKEN", "owner-token")
+    monkeypatch.setenv("FULFILLMENT_SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv("FULFILLMENT_SCHEDULER_INTERVAL_MINUTES", "45")
+
+    from aion.fulfillment_scheduler import reset_scheduler
+
+    reset_scheduler()
+    response = client.get(
+        "/owner/fulfillment/scheduler/status",
+        headers={"Authorization": "Bearer owner-token"},
+    )
+
+    assert response.status_code == 200
+    scheduler_status = response.json()["scheduler"]
+    assert scheduler_status["enabled"] is True
+    assert scheduler_status["running"] is False
+    assert scheduler_status["interval_minutes"] is None
+    assert scheduler_status["configuration"]["FULFILLMENT_SCHEDULER_INTERVAL_MINUTES"] == "45"
+
+    reset_scheduler()

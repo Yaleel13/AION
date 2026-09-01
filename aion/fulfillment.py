@@ -15,12 +15,14 @@ from aion.opportunity_store import OpportunityStore
 def process_completed_payment_order(
     store: OpportunityStore,
     order_id: str,
+    commercial_execution_id: str = "",
 ) -> dict[str, Any]:
     """Mark a payment order as fulfilled and update opportunity ledger.
 
     Args:
         store: OpportunityStore instance for durable updates
         order_id: Unique payment order identifier
+        commercial_execution_id: Optional ID of commercial execution that generated this revenue
 
     Returns:
         Dictionary with fulfillment status and side-effects applied
@@ -53,12 +55,21 @@ def process_completed_payment_order(
         )
         store._conn.commit()
 
+        # Record revenue attribution if commercial execution ID provided
+        if commercial_execution_id:
+            store.record_revenue_attribution(
+                order_id=order_id,
+                opportunity_id=opportunity_id,
+                commercial_execution_id=commercial_execution_id,
+            )
+
         return {
             "status": "success",
             "order_id": order_id,
             "opportunity_id": opportunity_id,
             "realized_value": realized_value,
             "fulfillment_action": "payment_received_and_fulfilled",
+            "attributed_to": commercial_execution_id or None,
             "note": "Opportunity marked as paid and resolved in ledger.",
         }
 

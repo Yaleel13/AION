@@ -13,6 +13,12 @@ import json
 import os
 from typing import Any
 
+try:
+    import stripe
+    STRIPE_AVAILABLE = True
+except ImportError:
+    STRIPE_AVAILABLE = False
+
 
 def _env_truthy(name: str) -> bool:
     return (os.getenv(name) or "").strip().lower() in {"1", "true", "yes", "on"}
@@ -36,6 +42,10 @@ class StripeRuntime:
         self.secret_key = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
         self.webhook_secret = (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
         self.checkout_enabled = _env_truthy("STRIPE_CHECKOUT_ENABLED")
+
+        # Configure Stripe client if available and secret key is set
+        if STRIPE_AVAILABLE and self.secret_key:
+            stripe.api_key = self.secret_key
 
     def is_configured(self) -> bool:
         return bool(self.secret_key) and bool(self.webhook_secret)
@@ -98,3 +108,46 @@ class StripeRuntime:
             "source": "aion-owner-approved-checkout",
         }
         return params
+
+    def create_checkout_session(
+        self,
+        *,
+        amount_cents: int,
+        currency: str,
+        success_url: str,
+        order_id: str,
+        customer_email: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a live Stripe checkout session.
+
+        Returns dict with:
+        - session_id: Stripe session ID
+        - checkout_url: URL customer should visit to complete payment
+        """
+        if not self.is_ready_for_checkout():
+            raise RuntimeError("Stripe checkout is disabled until STRIPE_CHECKOUT_ENABLED and secrets are configured")
+
+        if not STRIPE_AVAILABLE:
+            raise RuntimeError("stripe package not installed")
+
+        params = self.safe_checkout_params(
+            amount_cents=amount_cents,
+            currency=currency,
+            success_url=success_url,
+        )
+        params["metadata"] = {
+            "order_id": order_id,
+            "customer_email": customer_email or "",
+            "source": "aion-owner-approved-checkout",
+        }
+        if customer_email:
+            params["customer_email"] = customer_email
+
+        try:
+            session = stripe.checkout.Session.create(**params)
+            return {
+                "session_id": session.id,
+                "checkout_url": session.url,
+            }
+        except stripe.error.StripeError as e:
+            raise RuntimeError(f"Stripe API error: {e.user_message or str(e)}")

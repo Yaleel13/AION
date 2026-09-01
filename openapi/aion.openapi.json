@@ -950,6 +950,153 @@
         "summary": "Manually trigger fulfillment of all paid payment orders"
       }
     },
+    "/owner/fulfillment/scheduler/start": {
+      "post": {
+        "description": "Start background scheduler for automatic order fulfillment.\n\nScheduler is disabled by default. Set FULFILLMENT_SCHEDULER_ENABLED=true to enable.",
+        "operationId": "owner_start_fulfillment_scheduler_owner_fulfillment_scheduler_start_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Start Fulfillment Scheduler Owner Fulfillment Scheduler Start Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start automatic fulfillment scheduler"
+      }
+    },
+    "/owner/fulfillment/scheduler/status": {
+      "get": {
+        "description": "Get current fulfillment scheduler status and configuration.",
+        "operationId": "owner_fulfillment_scheduler_status_owner_fulfillment_scheduler_status_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Fulfillment Scheduler Status Owner Fulfillment Scheduler Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get fulfillment scheduler status"
+      }
+    },
+    "/owner/fulfillment/scheduler/stop": {
+      "post": {
+        "description": "Stop the background fulfillment scheduler.",
+        "operationId": "owner_stop_fulfillment_scheduler_owner_fulfillment_scheduler_stop_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Stop Fulfillment Scheduler Owner Fulfillment Scheduler Stop Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stop automatic fulfillment scheduler"
+      }
+    },
     "/owner/kill-switch": {
       "post": {
         "operationId": "owner_kill_switch_owner_kill_switch_post",
@@ -1104,6 +1251,71 @@
           }
         },
         "summary": "Run one paper-trading rebalance + mark"
+      }
+    },
+    "/owner/revenue/attributed": {
+      "get": {
+        "description": "Query revenue attributed to commercial executions.\n\nReturns list of attributions with:\n- commercial_execution_id: ID of execution that generated revenue\n- opportunity_id: Associated opportunity\n- fulfilled_amount_cents: Amount successfully fulfilled\n- total_amount_cents: Total payment amount\n- order_count: Number of orders attributed",
+        "operationId": "owner_revenue_attributed_owner_revenue_attributed_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "opportunity_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Opportunity Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Revenue Attributed Owner Revenue Attributed Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get revenue attributed to commercial executions"
       }
     },
     "/runtime/status": {
