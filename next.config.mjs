@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   // Server-only secrets (OPENAI_*, MOLTBOOK_*, GEMINI_*) must never be mapped
   // into `env` here or prefixed with NEXT_PUBLIC_. Next only inlines NEXT_PUBLIC_*.

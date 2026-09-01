@@ -115,12 +115,17 @@ export type WidgetData =
   | ConnectionWidgetData
   | PermissionWidgetData
 
+/** When set, widgets in this message are fixture data — not live provider telemetry. */
+export type MessageDataSource = "demo_fixture" | "live"
+
 export interface Message {
   id: string
   role: "user" | "aion"
   content: string
   widgets?: WidgetData[]
   serif?: boolean
+  /** Provenance for widget payloads; defaults to live when omitted. */
+  dataSource?: MessageDataSource
 }
 
 export type InterfaceMode = "conversation" | "terminal" | "boardroom"

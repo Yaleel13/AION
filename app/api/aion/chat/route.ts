@@ -56,17 +56,17 @@ function categorizeMemory(content: string): string | null {
 }
 
 function explicitMemoryRequest(message: string): ExplicitMemoryRequest {
-  const replace = message.match(/^\s*(?:please\s+)?(?:update|replace)\s+memory\s*:\s*(.+?)\s*->\s*(.+)$/is)
+  const replace = message.match(/^\s*(?:please\s+)?(?:update|replace)\s+memory\s*:\s*(.+?)\s*->\s*(.+)$/i)
   if (replace?.[1]?.trim() && replace?.[2]?.trim()) {
     const replacement = replace[2].trim()
     return { action: "replace", content: replace[1].trim(), replacement, category: categorizeMemory(replacement) }
   }
-  const remember = message.match(/^\s*(?:please\s+)?remember(?:\s+that|\s*:)?\s+(.+)$/is)
+  const remember = message.match(/^\s*(?:please\s+)?remember(?:\s+that|\s*:)?\s+([\s\S]+)$/i)
   if (remember?.[1]?.trim()) {
     const content = remember[1].trim()
     return { action: "remember", content, category: categorizeMemory(content) }
   }
-  const forget = message.match(/^\s*(?:please\s+)?forget(?:\s+that|\s*:)?\s+(.+)$/is)
+  const forget = message.match(/^\s*(?:please\s+)?forget(?:\s+that|\s*:)?\s+([\s\S]+)$/i)
   if (forget?.[1]?.trim()) return { action: "forget", content: forget[1].trim() }
   return null
 }
