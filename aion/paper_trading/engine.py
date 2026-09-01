@@ -121,11 +121,8 @@ class PaperTradingEngine:
 
     def _init(self) -> None:
         if getattr(self._conn, "backend", "sqlite") == "postgres":
-            # Ensure paper tables exist (idempotent) without SQLite PRAGMA migrations.
-            self._conn.execute(
-                "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
-            )
-            self._conn.commit()
+            # Production Postgres schema is applied by migrations. Runtime roles are
+            # intentionally denied CREATE so application startup cannot drift schema.
             return
         self._conn.executescript(
             """

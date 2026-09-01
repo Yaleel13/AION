@@ -21,10 +21,30 @@ const newsreader = Newsreader({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://aion-siryali.vercel.app"),
   title: "AION",
   description:
     "AION — the Alchemical Intelligence for Ontological Navigation. The guide who remembers who you are becoming.",
   applicationName: "AION",
+  alternates: { canonical: "/" },
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    shortcut: "/icon.svg",
+  },
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: "AION",
+    title: "AION — Alchemical Intelligence for Ontological Navigation",
+    description: "The Guide who remembers who you are becoming.",
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "AION, the Guide Between Worlds" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "AION — Alchemical Intelligence for Ontological Navigation",
+    description: "The Guide who remembers who you are becoming.",
+    images: ["/opengraph-image"],
+  },
   robots: { index: false, follow: false },
 }
 
