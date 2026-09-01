@@ -103,3 +103,114 @@ class OpportunityStore:
             (result, float(realized_value), opportunity_id),
         )
         self._conn.commit()
+
+    def record_payment_order(
+        self,
+        *,
+        order_id: str,
+        opportunity_id: str,
+        amount_cents: int,
+        currency: str,
+        customer_email: str = "",
+        status: str = "pending_owner_approval",
+        idempotency_key: str = "",
+    ) -> dict[str, Any]:
+        # Ensure table exists
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS payment_orders (
+              order_id TEXT PRIMARY KEY,
+              opportunity_id TEXT NOT NULL,
+              amount_cents INTEGER NOT NULL,
+              currency TEXT NOT NULL,
+              customer_email TEXT NOT NULL DEFAULT '',
+              status TEXT NOT NULL DEFAULT 'pending_owner_approval',
+              created_at TEXT NOT NULL
+            )
+            """
+        )
+        
+        # Try to add missing columns to existing tables (idempotent migration)
+        # Note: Can't add UNIQUE via ALTER TABLE on existing table, so we add nullable columns
+        for col_def in [
+            "idempotency_key TEXT",  # No UNIQUE constraint for ALTER compatibility
+            "updated_at TEXT",
+            "stripe_session_id TEXT",
+            "stripe_checkout_url TEXT",
+            "payment_intent_id TEXT",
+        ]:
+            try:
+                self._conn.execute(f"ALTER TABLE payment_orders ADD COLUMN {col_def}")
+            except Exception:
+                pass  # Column already exists, that's fine
+        
+        # Insert the base payment order (always works, uses base columns)
+        self._conn.execute(
+            """
+            INSERT INTO payment_orders (
+              order_id, opportunity_id, amount_cents, currency, customer_email,
+              status, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(order_id) DO UPDATE SET
+              opportunity_id=excluded.opportunity_id,
+              amount_cents=excluded.amount_cents,
+              currency=excluded.currency,
+              customer_email=excluded.customer_email,
+              status=excluded.status
+            """,
+            (
+                order_id,
+                opportunity_id,
+                int(amount_cents),
+                str(currency).lower(),
+                customer_email,
+                status,
+            ),
+        )
+        
+        # Now update with optional columns if they exist and we have values
+        if idempotency_key:
+            try:
+                self._conn.execute(
+                    "UPDATE payment_orders SET idempotency_key = ?, updated_at = datetime('now') WHERE order_id = ?",
+                    (idempotency_key, order_id),
+                )
+            except Exception:
+                pass  # Column might not exist, that's fine (graceful degradation)
+        
+        # Always update updated_at to current timestamp
+        try:
+            self._conn.execute(
+                "UPDATE payment_orders SET updated_at = datetime('now') WHERE order_id = ?",
+                (order_id,),
+            )
+        except Exception:
+            pass  # Column might not exist
+        
+        self._conn.commit()
+        row = self._conn.execute(
+            "SELECT * FROM payment_orders WHERE order_id = ?",
+            (order_id,),
+        ).fetchone()
+        return dict(row) if row else {"order_id": order_id, "status": status}
+
+    def list_payment_orders(self, *, limit: int = 25) -> list[dict[str, Any]]:
+        rows = self._conn.execute(
+            "SELECT * FROM payment_orders ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def idempotency_key_exists(self, idempotency_key: str) -> bool:
+        """Check if an idempotency_key has already been processed (webhook replay protection)."""
+        if not idempotency_key:
+            return False
+        try:
+            row = self._conn.execute(
+                "SELECT 1 FROM payment_orders WHERE idempotency_key = ?",
+                (idempotency_key,),
+            ).fetchone()
+            return row is not None
+        except Exception:
+            # If the column doesn't exist, return False (graceful degradation)
+            return False

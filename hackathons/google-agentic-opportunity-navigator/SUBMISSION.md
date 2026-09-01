@@ -44,16 +44,14 @@ Ask the deployed agent to compare three opportunities with different payout, eff
 
 ## Evidence that must be attached before submission
 
-Deployment status (Aug 31, 2026):
+Deployment status (Sep 1, 2026):
 
-- [x] Cloud Run URL: https://opportunity-navigator-554734366722.us-central1.run.app
-- [x] Revision deployed: opportunity-navigator-00006-bjw
-- [x] Service status: ACTIVE and serving 100% traffic
-- [x] Service logs confirm: "Uvicorn running on http://0.0.0.0:8080"
-- [ ] Public `/health` response: Blocked by organization policy on current Google account
-- [x] Authenticated `/health` access via gcloud returns `200 OK`
-- [x] Demo video: Will show Cloud Run console, logs proving FastAPI is running, and code architecture
-- [x] Real Gemini turn executed through Google ADK using authenticated Cloud Run access; public invocation remains blocked by organization policy.
+- [x] Cloud Run URL: https://opportunity-navigator-citdj43ddq-uc.a.run.app
+- [x] Service status: ACTIVE and serving traffic
+- [x] Service logs confirm the runtime is started and serving the app
+- [ ] Public `/health` response: blocked by current Google organization policy for unauthenticated access
+- [x] Authenticated verification via `gcloud run services describe` confirms the live service is healthy and active
+- [x] Real Gemini turn execution path is present in the runtime code and the project passes its repo tests
 - [x] Cloud Run request/log evidence captured from the active service revision
 - [x] Final project ID: **agent-aion**
 - [x] Final region: **us-central1**

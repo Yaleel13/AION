@@ -61,10 +61,10 @@ Deployment details:
 - **Project**: agent-aion
 - **Region**: us-central1
 - **Service**: opportunity-navigator
-- **Status**: DEPLOYED
-- **Public URL**: https://opportunity-navigator-554734366722.us-central1.run.app
-- **Build**: https://console.cloud.google.com/cloud-build/builds;region=us-central1/880a7cc5-5438-4aa4-b7a0-6df2d2aa7a59?project=554734366722
-- **Access note**: The Cloud Run service is live, but the current Google organization policy blocks public unauthenticated invocation. The service can be reached by authenticated GCP clients, and the deployment is now attached to the correct hackathon service.
+- **Status**: LIVE / ACTIVE
+- **Public URL**: https://opportunity-navigator-citdj43ddq-uc.a.run.app
+- **Build**: Verified via `gcloud run services describe opportunity-navigator --region=us-central1`
+- **Access note**: The current Google organization policy blocks unauthenticated browser/public invocation of this endpoint. The Cloud Run service is active and serving traffic, but direct public access from an anonymous client is restricted by policy rather than application logic.
 
 To deploy from this directory (if needed for future redeployment):
 

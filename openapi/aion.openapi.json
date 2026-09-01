@@ -644,6 +644,86 @@
         "summary": "Seed 14-day draft campaign (no publish)"
       }
     },
+    "/owner/checkout/prepare": {
+      "post": {
+        "operationId": "owner_checkout_prepare_owner_checkout_prepare_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Checkout Prepare Owner Checkout Prepare Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Prepare a Stripe checkout session for an approved order"
+      }
+    },
+    "/owner/checkout/webhook": {
+      "post": {
+        "operationId": "owner_checkout_webhook_owner_checkout_webhook_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Checkout Webhook Owner Checkout Webhook Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Handle signed Stripe webhook events"
+      }
+    },
     "/owner/dashboard": {
       "get": {
         "operationId": "owner_dashboard_owner_dashboard_get",
@@ -808,6 +888,66 @@
           }
         },
         "summary": "Execute approved outbound (disabled by default)"
+      }
+    },
+    "/owner/fulfill/paid-orders": {
+      "post": {
+        "operationId": "owner_fulfill_paid_orders_owner_fulfill_paid_orders_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Fulfill Paid Orders Owner Fulfill Paid Orders Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Manually trigger fulfillment of all paid payment orders"
       }
     },
     "/owner/kill-switch": {

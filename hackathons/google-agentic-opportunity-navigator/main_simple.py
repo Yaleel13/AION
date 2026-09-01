@@ -1,11 +1,8 @@
-"""Opportunity navigator with compatibility for both direct Gemini and ADK runner flows."""
+"""Simplified opportunity navigator without Google ADK."""
 import os
-from typing import Any
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-
 try:
     import google.genai as genai
 except ImportError:
@@ -13,9 +10,6 @@ except ImportError:
     sys.exit("google-genai not installed. Update requirements.txt")
 
 app = FastAPI()
-
-session_service = None
-runner = None
 
 # Configure CORS
 app.add_middleware(
@@ -89,6 +83,7 @@ async def health() -> dict[str, str]:
 @app.post("/agents/opportunity_navigator/messages")
 async def agent_messages(request: MessageRequest) -> dict:
     """Process messages through the opportunity navigator agent."""
+    # Extract user message
     user_message = next(
         (msg.content for msg in reversed(request.messages) if msg.role == "user"),
         None,
@@ -99,49 +94,28 @@ async def agent_messages(request: MessageRequest) -> dict:
             "error": "A user message is required.",
         }
 
-    # Compatibility path for tests and ADK-style execution.
-    if runner is not None and session_service is not None:
-        try:
-            session = await session_service.create_session(
-                app_name="opportunity_navigator",
-                user_id="user",
-            )
-            async for event in runner.run_async(
-                user_id="user",
-                session_id=session.id,
-                new_message=user_message,
-            ):
-                if getattr(event, "is_final_response", lambda: False)():
-                    parts = getattr(event.content, "parts", [])
-                    text = "".join(getattr(part, "text", "") for part in parts if getattr(part, "text", ""))
-                    return {
-                        "status": "ok",
-                        "agent": "opportunity_navigator",
-                        "session_id": session.id,
-                        "response": text,
-                    }
-            return {
-                "status": "ok",
-                "agent": "opportunity_navigator",
-                "session_id": session.id,
-                "response": "No final response generated",
-            }
-        except Exception as exc:
-            return {"status": "error", "error": str(exc)}
-
     try:
+        # Get genai client
         genai_client = get_genai_client()
-        messages = [
-            {"role": msg.role, "parts": [{"text": msg.content}]} for msg in request.messages
-        ]
+        
+        # Prepare messages for API
+        messages = []
+        for msg in request.messages:
+            messages.append({
+                "role": msg.role,
+                "parts": [{"text": msg.content}]
+            })
 
+        # Call Gemini API
         response = genai_client.models.generate_content(
             model="gemini-2.0-flash",
             contents=messages,
             system_instruction=AGENT_SYSTEM_PROMPT,
         )
-
-        response_text = response.text.strip() if getattr(response, "text", None) else "No response generated"
+        
+        # Extract response text
+        response_text = response.text.strip() if response.text else "No response generated"
+        
         return {
             "status": "ok",
             "response": response_text,

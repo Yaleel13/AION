@@ -18,7 +18,9 @@ from aion.schemas import (
     GeminiRequest,
 )
 from aion.http_errors import owner_request_error, upstream_provider_error
+from aion.opportunity_store import OpportunityStore
 from aion.services import query_chatgpt, query_gemini
+from aion.stripe_runtime import StripeRuntime
 
 
 def _moltbook_health() -> dict:
@@ -297,6 +299,120 @@ async def owner_execute(
         "published": False,
         "note": "Token consumed; network publish not performed in this build.",
     }
+
+
+@app.post("/owner/checkout/prepare", summary="Prepare a Stripe checkout session for an approved order")
+async def owner_checkout_prepare(
+    body: dict, authorization: str | None = Header(default=None)
+) -> dict:
+    _require_owner(authorization)
+    if not (os.getenv("STRIPE_CHECKOUT_ENABLED") or "").strip().lower() in {"1", "true", "yes", "on"}:
+        raise HTTPException(status_code=403, detail="Stripe checkout is disabled")
+
+    runtime = StripeRuntime()
+    if not runtime.is_ready_for_checkout():
+        raise HTTPException(status_code=503, detail="Stripe checkout is not configured")
+
+    order_id = str(body.get("order_id") or "").strip()
+    opportunity_id = str(body.get("opportunity_id") or "").strip()
+    amount_cents = int(body.get("amount_cents") or 0)
+    currency = str(body.get("currency") or "usd")
+    success_url = str(body.get("success_url") or "").strip()
+    if not order_id or not opportunity_id or amount_cents <= 0 or not success_url:
+        raise HTTPException(status_code=400, detail="order_id, opportunity_id, amount_cents, and success_url are required")
+
+    store = OpportunityStore()
+    order = store.record_payment_order(
+        order_id=order_id,
+        opportunity_id=opportunity_id,
+        amount_cents=amount_cents,
+        currency=currency,
+        customer_email=str(body.get("customer_email") or ""),
+    )
+    payload = runtime.create_checkout_session_payload(
+        amount_cents=amount_cents,
+        currency=currency,
+        success_url=success_url,
+        order_id=order_id,
+        customer_email=str(body.get("customer_email") or ""),
+    )
+    return {"status": "ready", "order": order, "checkout": payload}
+
+
+@app.post("/owner/checkout/webhook", summary="Handle signed Stripe webhook events")
+async def owner_checkout_webhook(
+    request: Request,
+) -> dict:
+    runtime = StripeRuntime()
+    if not runtime.is_ready_for_checkout():
+        raise HTTPException(status_code=503, detail="Stripe checkout is not configured")
+
+    payload = await request.body()
+    header = request.headers.get("Stripe-Signature", "")
+    if not runtime.verify_webhook_signature(payload, header):
+        raise HTTPException(status_code=400, detail="Invalid Stripe signature")
+
+    event = __import__("json").loads(payload.decode("utf-8"))
+    event_id = str(event.get("id") or "").strip()
+    event_type = str(event.get("type") or "unknown")
+    session = (event.get("data") or {}).get("object") or {}
+    order_id = str((session.get("metadata") or {}).get("order_id") or "").strip()
+    opportunity_id = str((session.get("metadata") or {}).get("opportunity_id") or "")
+    amount = int(session.get("amount_total") or 0)
+    currency = str(session.get("currency") or "usd")
+    customer_email = str((session.get("customer_details") or {}).get("email") or "")
+
+    store = OpportunityStore()
+    
+    # Replay protection: check if this event ID has already been processed
+    if event_id and store.idempotency_key_exists(event_id):
+        return {
+            "status": "duplicate",
+            "event_id": event_id,
+            "event_type": event_type,
+            "note": "This webhook event has already been processed",
+        }
+    
+    if order_id:
+        store.record_payment_order(
+            order_id=order_id,
+            opportunity_id=opportunity_id or "unknown",
+            amount_cents=amount,
+            currency=currency,
+            customer_email=customer_email,
+            status="paid" if event_type == "checkout.session.completed" else "pending_owner_approval",
+            idempotency_key=event_id,
+        )
+        if event_type == "checkout.session.completed":
+            store.record_result(opportunity_id or order_id, result="stripe_checkout_completed", realized_value=max(0.0, amount / 100.0))
+
+    return {
+        "status": "processed",
+        "event_type": event_type,
+        "order_id": order_id,
+        "amount_total": amount,
+        "currency": currency,
+    }
+
+
+@app.post("/owner/fulfill/paid-orders", summary="Manually trigger fulfillment of all paid payment orders")
+async def owner_fulfill_paid_orders(
+    body: dict, authorization: str | None = Header(default=None)
+) -> dict:
+    _require_owner(authorization)
+    store = OpportunityStore()
+    try:
+        from aion.fulfillment import fulfill_paid_orders
+
+        results = fulfill_paid_orders(store)
+        return {
+            "status": "completed",
+            "orders_processed": len(results),
+            "results": results,
+            "note": "Owner-triggered fulfillment; all paid orders marked as fulfilled and opportunities updated.",
+        }
+    except Exception as exc:  # noqa: BLE001
+        raise owner_request_error(exc) from exc
 
 
 @app.get("/owner/autonomy/status", summary="Controlled autonomy status (default inactive)")

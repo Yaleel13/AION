@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useState, startTransition } from "react"
+import { OwnerPaymentOrders } from "@/components/owner-payment-orders"
 
 type Dashboard = {
   phase?: string
@@ -264,6 +265,10 @@ export function OwnerDashboard() {
             <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-[11px]">
               {JSON.stringify(data?.qualified_leads || [], null, 2)}
             </pre>
+          </Panel>
+
+          <Panel title="Payment orders">
+            <OwnerPaymentOrders />
           </Panel>
 
           <Panel title="Audit history">

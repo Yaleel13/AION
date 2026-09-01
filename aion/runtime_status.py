@@ -15,6 +15,8 @@ from aion.moltbook.settings import load_moltbook_settings
 
 def build_runtime_status() -> dict[str, Any]:
     """Assemble a non-secret snapshot of real runtime gates and backends."""
+    from aion.stripe_runtime import StripeRuntime
+
     storage = storage_status().as_dict()
 
     try:
@@ -39,6 +41,14 @@ def build_runtime_status() -> dict[str, Any]:
             "phase": "phase7-owner-controlled-outbound",
             "error": str(exc),
         }
+
+    stripe = StripeRuntime()
+    payment_rails = {
+        "stripe_configured": stripe.is_configured(),
+        "stripe_checkout_enabled": stripe.checkout_enabled,
+        "stripe_ready_for_checkout": stripe.is_ready_for_checkout(),
+        "payment_orders_ledger": stripe.is_ready_for_checkout(),
+    }
 
     policy = AutonomyPolicy.from_env()
     dry_run_raw = (os.getenv("MOLTBOOK_AUTONOMY_DRY_RUN") or "true").strip().lower()
@@ -95,5 +105,8 @@ def build_runtime_status() -> dict[str, Any]:
             "autonomy_default": "inactive",
             "autonomy_dry_run_default": True,
             "paper_is_not_live_trading": True,
+            "payment_rails_default": "stripe_disabled_until_owner_configured",
+            "stripe_requires_explicit_enablement": True,
         },
+        "payment_rails": payment_rails,
     }

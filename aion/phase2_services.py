@@ -8,6 +8,7 @@ from functools import lru_cache
 from typing import Any
 
 from aion.commercial_execution import build_execution_plans
+from aion.fulfillment import fulfill_paid_orders
 from aion.moltbook.approval import Phase2ApprovalGate
 from aion.moltbook.client import create_client
 from aion.moltbook.controlled_autonomy import ControlledAutonomyEngine
@@ -106,6 +107,13 @@ def dashboard_snapshot() -> dict[str, Any]:
     pursuit_ranked = qualify_ranked(ranked_opportunities)
     pursuit_packets = build_top_packets(pursuit_ranked, limit=5)
     execution_plans = build_execution_plans(ranked_opportunities, limit=10)
+    try:
+        payment_orders = svc.opportunity_store.list_payment_orders(limit=50)
+    except Exception:  # noqa: BLE001
+        payment_orders = []
+    payment_pending = [o for o in payment_orders if o.get("status") == "pending_owner_approval"]
+    payment_paid = [o for o in payment_orders if o.get("status") == "paid"]
+    payment_fulfilled = [o for o in payment_orders if o.get("status") == "fulfilled"]
     source_counts: dict[str, int] = {}
     for row in ranked_opportunities:
         scout = str(row.get("scout") or "unknown")
@@ -131,6 +139,14 @@ def dashboard_snapshot() -> dict[str, Any]:
         "top_pursuit_packet": pursuit_packets[0] if pursuit_packets else None,
         "commercial_execution_plans": execution_plans,
         "commercial_execution_ready_count": sum(1 for plan in execution_plans if plan.get("executable")),
+        "payment_orders": {
+            "all": payment_orders,
+            "pending_approval": payment_pending,
+            "paid_awaiting_fulfillment": payment_paid,
+            "fulfilled": payment_fulfilled,
+            "total_paid_amount_cents": sum(int(o.get("amount_cents") or 0) for o in payment_paid),
+            "total_fulfilled_amount_cents": sum(int(o.get("amount_cents") or 0) for o in payment_fulfilled),
+        },
         "opportunity_source_counts": source_counts,
         "highest_probability_legitimate_action": pursuit_ranked[0] if pursuit_ranked else None,
         "realized_value_total": sum(float(row.get("realized_value") or 0) for row in ranked_opportunities),

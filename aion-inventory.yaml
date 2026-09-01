@@ -1,5 +1,5 @@
 version: 1
-generated_at: '2026-09-01T06:46:11.678117+00:00'
+generated_at: '2026-09-01T19:14:21.653518+00:00'
 repository: Yaleel13/AION
 surfaces:
   fastapi_routes:
@@ -48,6 +48,16 @@ surfaces:
     operation_id: owner_seed_campaign_owner_campaign_seed_post
     summary: Seed 14-day draft campaign (no publish)
     owner: fastapi
+  - method: POST
+    path: /owner/checkout/prepare
+    operation_id: owner_checkout_prepare_owner_checkout_prepare_post
+    summary: Prepare a Stripe checkout session for an approved order
+    owner: fastapi
+  - method: POST
+    path: /owner/checkout/webhook
+    operation_id: owner_checkout_webhook_owner_checkout_webhook_post
+    summary: Handle signed Stripe webhook events
+    owner: fastapi
   - method: GET
     path: /owner/dashboard
     operation_id: owner_dashboard_owner_dashboard_get
@@ -62,6 +72,11 @@ surfaces:
     path: /owner/execute
     operation_id: owner_execute_owner_execute_post
     summary: Execute approved outbound (disabled by default)
+    owner: fastapi
+  - method: POST
+    path: /owner/fulfill/paid-orders
+    operation_id: owner_fulfill_paid_orders_owner_fulfill_paid_orders_post
+    summary: Manually trigger fulfillment of all paid payment orders
     owner: fastapi
   - method: POST
     path: /owner/kill-switch
@@ -85,156 +100,160 @@ surfaces:
     owner: fastapi
   next_api_routes:
   - path: //api/aion/chat
-    handler: app/api/aion/chat/route.ts
+    handler: app\api\aion\chat\route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: //api/aion/memory
-    handler: app/api/aion/memory/route.ts
+    handler: app\api\aion\memory\route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: //api/aion/owner-session
-    handler: app/api/aion/owner-session/route.ts
+    handler: app\api\aion\owner-session\route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: //api/owner/acceptance
-    handler: app/api/owner/acceptance/route.ts
+    handler: app\api\owner\acceptance\route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: //api/owner/capabilities
-    handler: app/api/owner/capabilities/route.ts
+    handler: app\api\owner\capabilities\route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: //api/owner/commercial-execution
-    handler: app/api/owner/commercial-execution/route.ts
+    handler: app\api\owner\commercial-execution\route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: //api/owner/memory
-    handler: app/api/owner/memory/route.ts
+    handler: app\api\owner\memory\route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: //api/owner/moltbook-rovals
-    handler: app/api/owner/moltbook-approvals/route.ts
+    handler: app\api\owner\moltbook-approvals\route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: //api/owner/moltbook-preparation
-    handler: app/api/owner/moltbook-preparation/route.ts
+    handler: app\api\owner\moltbook-preparation\route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: //api/owner/moltbook-research
-    handler: app/api/owner/moltbook-research/route.ts
+    handler: app\api\owner\moltbook-research\route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: //api/owner/moltbook-reviews
-    handler: app/api/owner/moltbook-reviews/route.ts
+    handler: app\api\owner\moltbook-reviews\route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: //api/owner/operator-briefing
-    handler: app/api/owner/operator-briefing/route.ts
+    handler: app\api\owner\operator-briefing\route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: //api/owner/terminal/diagnose
-    handler: app/api/owner/terminal/diagnose/route.ts
+    handler: app\api\owner\terminal\diagnose\route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: //api/storage/status
-    handler: app/api/storage/status/route.ts
+    handler: app\api\storage\status\route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   vercel_python_functions:
+  - path: /api/cron/fulfillment
+    file: api\cron\fulfillment.py
+    runtime: python
+    owner: vercel-python
   - path: /api/cron/ops
-    file: api/cron/ops.py
+    file: api\cron\ops.py
     runtime: python
     owner: vercel-python
   - path: /api/index
-    file: api/index.py
+    file: api\index.py
     runtime: python
     owner: vercel-python
   - path: /api/internal/acceptance
-    file: api/internal/acceptance.py
+    file: api\internal\acceptance.py
     runtime: python
     owner: vercel-python
   - path: /api/internal/capabilities
-    file: api/internal/capabilities.py
+    file: api\internal\capabilities.py
     runtime: python
     owner: vercel-python
   - path: /api/internal/commercial-execution
-    file: api/internal/commercial-execution.py
+    file: api\internal\commercial-execution.py
     runtime: python
     owner: vercel-python
   - path: /api/internal/conversation
-    file: api/internal/conversation.py
+    file: api\internal\conversation.py
     runtime: python
     owner: vercel-python
   - path: /api/internal/federal-opportunities
-    file: api/internal/federal-opportunities.py
+    file: api\internal\federal-opportunities.py
     runtime: python
     owner: vercel-python
   - path: /api/internal/moltbook-approvals
-    file: api/internal/moltbook-approvals.py
+    file: api\internal\moltbook-approvals.py
     runtime: python
     owner: vercel-python
   - path: /api/internal/moltbook-preparation
-    file: api/internal/moltbook-preparation.py
+    file: api\internal\moltbook-preparation.py
     runtime: python
     owner: vercel-python
   - path: /api/internal/moltbook-research
-    file: api/internal/moltbook-research.py
+    file: api\internal\moltbook-research.py
     runtime: python
     owner: vercel-python
   - path: /api/internal/moltbook-reviews
-    file: api/internal/moltbook-reviews.py
+    file: api\internal\moltbook-reviews.py
     runtime: python
     owner: vercel-python
   - path: /api/internal/operator-briefing
-    file: api/internal/operator-briefing.py
+    file: api\internal\operator-briefing.py
     runtime: python
     owner: vercel-python
   - path: /api/internal/opportunity-qualification
-    file: api/internal/opportunity-qualification.py
+    file: api\internal\opportunity-qualification.py
     runtime: python
     owner: vercel-python
   - path: /api/internal/pursuit-packets
-    file: api/internal/pursuit-packets.py
+    file: api\internal\pursuit-packets.py
     runtime: python
     owner: vercel-python
   - path: /api/internal/revenue-scouts
-    file: api/internal/revenue-scouts.py
+    file: api\internal\revenue-scouts.py
     runtime: python
     owner: vercel-python
   - path: /api/owner/autonomy/daily-report
-    file: api/owner/autonomy/daily-report.py
+    file: api\owner\autonomy\daily-report.py
     runtime: python
     owner: vercel-python
   - path: /api/owner/autonomy/status
-    file: api/owner/autonomy/status.py
+    file: api\owner\autonomy\status.py
     runtime: python
     owner: vercel-python
   - path: /api/owner/campaign/seed
-    file: api/owner/campaign/seed.py
+    file: api\owner\campaign\seed.py
     runtime: python
     owner: vercel-python
   - path: /api/owner/dashboard
-    file: api/owner/dashboard.py
+    file: api\owner\dashboard.py
     runtime: python
     owner: vercel-python
   - path: /api/owner/kill-switch
-    file: api/owner/kill-switch.py
+    file: api\owner\kill-switch.py
     runtime: python
     owner: vercel-python
   - path: /api/owner/leads/scan
-    file: api/owner/leads/scan.py
+    file: api\owner\leads\scan.py
     runtime: python
     owner: vercel-python
   - path: /api/owner/paper/tick
-    file: api/owner/paper/tick.py
+    file: api\owner\paper\tick.py
     runtime: python
     owner: vercel-python
   - path: /api/runtime/moltbook
-    file: api/runtime/moltbook.py
+    file: api\runtime\moltbook.py
     runtime: python
     owner: vercel-python
   - path: /api/runtime/status
-    file: api/runtime/status.py
+    file: api\runtime\status.py
     runtime: python
     owner: vercel-python
 integrations:
