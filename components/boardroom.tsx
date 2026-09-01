@@ -28,6 +28,7 @@ import { OwnerOperatorBriefing } from "@/components/owner-operator-briefing"
 import { OwnerReliabilityAcceptance } from "@/components/owner-reliability-acceptance"
 import { defer } from "@/lib/defer"
 import { cn } from "@/lib/utils"
+import { AION_CANON_PORTRAIT } from "@/lib/aion/canon-portrait"
 
 type RuntimeStatusView = RuntimeStatus
 
@@ -109,7 +110,7 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
 
         <div className="mx-auto flex max-w-4xl flex-col items-center text-center pt-8 sm:pt-0">
           <div className="relative h-24 w-24 overflow-hidden rounded-full border border-cyan/25 bg-cyan/5 shadow-[0_0_42px_rgba(0,190,255,.14)] sm:h-28 sm:w-28">
-            <img src="/aion-portrait" alt="Aion" className="h-full w-full object-cover object-top" />
+            <img src={AION_CANON_PORTRAIT} alt="Aion" className="h-full w-full object-cover object-top" />
             <div className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-inset ring-white/5" aria-hidden />
           </div>
           <h1 className="mt-3 font-serif text-3xl font-light tracking-[0.12em] text-foreground sm:text-4xl sm:tracking-[0.14em]">BOARDROOM</h1>
