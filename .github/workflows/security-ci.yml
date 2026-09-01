@@ -20,6 +20,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - run: npx tsc --noEmit
       - run: npm run build
       - run: npm audit --audit-level=high
 
@@ -33,7 +34,10 @@ jobs:
           cache: pip
       - run: python -m pip install --upgrade pip pip-audit
       - run: pip install -r requirements.txt
+      - run: pip install pytest pytest-asyncio pyyaml
       - run: python -m compileall -q aion api
+      - run: python -m pytest tests/ -q
+      - run: python scripts/check_openapi_contract.py
       - run: pip-audit -r requirements.txt
 
   secret-pattern-check:

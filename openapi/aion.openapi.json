@@ -1,0 +1,991 @@
+{
+  "components": {
+    "schemas": {
+      "AIResponse": {
+        "description": "Unified response returned by legacy provider endpoints.",
+        "properties": {
+          "message": {
+            "description": "Original user message",
+            "title": "Message",
+            "type": "string"
+          },
+          "model": {
+            "description": "Model used",
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "description": "AI provider name",
+            "title": "Provider",
+            "type": "string"
+          },
+          "response": {
+            "description": "AI-generated response text",
+            "title": "Response",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "message",
+          "response"
+        ],
+        "title": "AIResponse",
+        "type": "object"
+      },
+      "AgentRequest": {
+        "description": "Payload sent to the primary AION agent runtime.",
+        "properties": {
+          "message": {
+            "description": "User request for AION",
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "session_id": {
+            "description": "Conversation/session identifier used for continuity",
+            "minLength": 1,
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "AgentRequest",
+        "type": "object"
+      },
+      "AgentResponse": {
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "requires_approval": {
+            "default": false,
+            "title": "Requires Approval",
+            "type": "boolean"
+          },
+          "response": {
+            "title": "Response",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/AgentUsage"
+          }
+        },
+        "required": [
+          "agent",
+          "session_id",
+          "response",
+          "usage"
+        ],
+        "title": "AgentResponse",
+        "type": "object"
+      },
+      "AgentUsage": {
+        "properties": {
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "requests": {
+            "title": "Requests",
+            "type": "integer"
+          },
+          "total_tokens": {
+            "title": "Total Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requests",
+          "input_tokens",
+          "output_tokens",
+          "total_tokens"
+        ],
+        "title": "AgentUsage",
+        "type": "object"
+      },
+      "ChatGPTRequest": {
+        "description": "Legacy payload sent to the ChatGPT endpoint.",
+        "properties": {
+          "message": {
+            "description": "User message to send to ChatGPT",
+            "title": "Message",
+            "type": "string"
+          },
+          "model": {
+            "default": "gpt-4o-mini",
+            "description": "OpenAI model to use",
+            "title": "Model",
+            "type": "string"
+          },
+          "system_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional system prompt",
+            "title": "System Prompt"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "ChatGPTRequest",
+        "type": "object"
+      },
+      "GeminiRequest": {
+        "description": "Legacy payload sent to the Gemini endpoint.",
+        "properties": {
+          "message": {
+            "description": "User message to send to Gemini",
+            "title": "Message",
+            "type": "string"
+          },
+          "model": {
+            "default": "gemini-1.5-flash",
+            "description": "Gemini model to use",
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "GeminiRequest",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "The Alchemical Intelligence for Ontological Navigation.",
+    "title": "AION",
+    "version": "0.2.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/agent": {
+      "post": {
+        "description": "Run one turn through the primary AION agent orchestrator.",
+        "operationId": "agent_endpoint_agent_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run AION"
+      }
+    },
+    "/chatgpt": {
+      "post": {
+        "description": "Forward a message to OpenAI ChatGPT and return the response.",
+        "operationId": "chatgpt_endpoint_chatgpt_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatGPTRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Query ChatGPT (legacy)"
+      }
+    },
+    "/gemini": {
+      "post": {
+        "description": "Forward a message to Google Gemini and return the response.",
+        "operationId": "gemini_endpoint_gemini_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeminiRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Query Gemini (legacy)"
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "Health-check endpoint.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Health Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/owner/approvals/{request_id}/decide": {
+      "post": {
+        "operationId": "owner_decide_owner_approvals__request_id__decide_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Decide Owner Approvals  Request Id  Decide Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve or reject a proposal"
+      }
+    },
+    "/owner/autonomy/daily-report": {
+      "post": {
+        "operationId": "owner_autonomy_daily_report_owner_autonomy_daily_report_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Autonomy Daily Report Owner Autonomy Daily Report Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Build today's autonomy daily report"
+      }
+    },
+    "/owner/autonomy/dry-run/post": {
+      "post": {
+        "description": "Policy rehearsal only. Refuses unless dry_run is true.\n\nActivation itself remains gated by MOLTBOOK_CONTROLLED_AUTONOMY and the\nexperiment clock. This endpoint never flips dry_run off.",
+        "operationId": "owner_autonomy_dry_run_post_owner_autonomy_dry_run_post_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Autonomy Dry Run Post Owner Autonomy Dry Run Post Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rehearse a post under policy (requires active+dry_run; never live)"
+      }
+    },
+    "/owner/autonomy/status": {
+      "get": {
+        "operationId": "owner_autonomy_status_owner_autonomy_status_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Autonomy Status Owner Autonomy Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Controlled autonomy status (default inactive)"
+      }
+    },
+    "/owner/campaign/seed": {
+      "post": {
+        "operationId": "owner_seed_campaign_owner_campaign_seed_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Seed Campaign Owner Campaign Seed Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Seed 14-day draft campaign (no publish)"
+      }
+    },
+    "/owner/dashboard": {
+      "get": {
+        "operationId": "owner_dashboard_owner_dashboard_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Dashboard Owner Dashboard Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Phase 2 owner dashboard snapshot"
+      }
+    },
+    "/owner/drafts/{draft_id}/queue": {
+      "post": {
+        "operationId": "owner_queue_draft_owner_drafts__draft_id__queue_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_id",
+            "required": true,
+            "schema": {
+              "title": "Draft Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Queue Draft Owner Drafts  Draft Id  Queue Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Queue one draft for approval"
+      }
+    },
+    "/owner/execute": {
+      "post": {
+        "description": "Refuse execution unless MOLTBOOK_PHASE2_EXECUTE=true.\n\nEven then, requires a valid single-use approval token. This endpoint exists\nfor controlled future use; Phase 2 implementation stops before publishing.",
+        "operationId": "owner_execute_owner_execute_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Execute Owner Execute Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Execute approved outbound (disabled by default)"
+      }
+    },
+    "/owner/kill-switch": {
+      "post": {
+        "operationId": "owner_kill_switch_owner_kill_switch_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Kill Switch Owner Kill Switch Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Engage or release emergency kill switch"
+      }
+    },
+    "/owner/leads/scan": {
+      "post": {
+        "operationId": "owner_scan_leads_owner_leads_scan_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Scan Leads Owner Leads Scan Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Scan public feed for qualified leads"
+      }
+    },
+    "/owner/paper/tick": {
+      "post": {
+        "operationId": "owner_paper_tick_owner_paper_tick_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Paper Tick Owner Paper Tick Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run one paper-trading rebalance + mark"
+      }
+    },
+    "/runtime/status": {
+      "get": {
+        "description": "Real storage / Moltbook / autonomy / paper gates for UI honesty.",
+        "operationId": "runtime_status_runtime_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Runtime Status Runtime Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Truthful runtime status (no secrets)"
+      }
+    }
+  }
+}

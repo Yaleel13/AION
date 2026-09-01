@@ -1,0 +1,315 @@
+version: 1
+generated_at: '2026-09-01T04:41:26.609709+00:00'
+repository: Yaleel13/AION
+surfaces:
+  fastapi_routes:
+  - method: POST
+    path: /agent
+    operation_id: agent_endpoint_agent_post
+    summary: Run AION
+    owner: fastapi
+  - method: POST
+    path: /chatgpt
+    operation_id: chatgpt_endpoint_chatgpt_post
+    summary: Query ChatGPT (legacy)
+    owner: fastapi
+  - method: POST
+    path: /gemini
+    operation_id: gemini_endpoint_gemini_post
+    summary: Query Gemini (legacy)
+    owner: fastapi
+  - method: GET
+    path: /health
+    operation_id: health_health_get
+    summary: Health
+    owner: fastapi
+  - method: POST
+    path: /owner/approvals/{request_id}/decide
+    operation_id: owner_decide_owner_approvals__request_id__decide_post
+    summary: Approve or reject a proposal
+    owner: fastapi
+  - method: POST
+    path: /owner/autonomy/daily-report
+    operation_id: owner_autonomy_daily_report_owner_autonomy_daily_report_post
+    summary: Build today's autonomy daily report
+    owner: fastapi
+  - method: POST
+    path: /owner/autonomy/dry-run/post
+    operation_id: owner_autonomy_dry_run_post_owner_autonomy_dry_run_post_post
+    summary: Rehearse a post under policy (requires active+dry_run; never live)
+    owner: fastapi
+  - method: GET
+    path: /owner/autonomy/status
+    operation_id: owner_autonomy_status_owner_autonomy_status_get
+    summary: Controlled autonomy status (default inactive)
+    owner: fastapi
+  - method: POST
+    path: /owner/campaign/seed
+    operation_id: owner_seed_campaign_owner_campaign_seed_post
+    summary: Seed 14-day draft campaign (no publish)
+    owner: fastapi
+  - method: GET
+    path: /owner/dashboard
+    operation_id: owner_dashboard_owner_dashboard_get
+    summary: Phase 2 owner dashboard snapshot
+    owner: fastapi
+  - method: POST
+    path: /owner/drafts/{draft_id}/queue
+    operation_id: owner_queue_draft_owner_drafts__draft_id__queue_post
+    summary: Queue one draft for approval
+    owner: fastapi
+  - method: POST
+    path: /owner/execute
+    operation_id: owner_execute_owner_execute_post
+    summary: Execute approved outbound (disabled by default)
+    owner: fastapi
+  - method: POST
+    path: /owner/kill-switch
+    operation_id: owner_kill_switch_owner_kill_switch_post
+    summary: Engage or release emergency kill switch
+    owner: fastapi
+  - method: POST
+    path: /owner/leads/scan
+    operation_id: owner_scan_leads_owner_leads_scan_post
+    summary: Scan public feed for qualified leads
+    owner: fastapi
+  - method: POST
+    path: /owner/paper/tick
+    operation_id: owner_paper_tick_owner_paper_tick_post
+    summary: Run one paper-trading rebalance + mark
+    owner: fastapi
+  - method: GET
+    path: /runtime/status
+    operation_id: runtime_status_runtime_status_get
+    summary: Truthful runtime status (no secrets)
+    owner: fastapi
+  next_api_routes:
+  - path: //api/aion/chat
+    handler: app/api/aion/chat/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: //api/aion/memory
+    handler: app/api/aion/memory/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: //api/aion/owner-session
+    handler: app/api/aion/owner-session/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: //api/owner/acceptance
+    handler: app/api/owner/acceptance/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: //api/owner/capabilities
+    handler: app/api/owner/capabilities/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: //api/owner/commercial-execution
+    handler: app/api/owner/commercial-execution/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: //api/owner/memory
+    handler: app/api/owner/memory/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: //api/owner/moltbook-rovals
+    handler: app/api/owner/moltbook-approvals/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: //api/owner/moltbook-preparation
+    handler: app/api/owner/moltbook-preparation/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: //api/owner/moltbook-research
+    handler: app/api/owner/moltbook-research/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: //api/owner/moltbook-reviews
+    handler: app/api/owner/moltbook-reviews/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: //api/owner/operator-briefing
+    handler: app/api/owner/operator-briefing/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: //api/owner/terminal/diagnose
+    handler: app/api/owner/terminal/diagnose/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: //api/storage/status
+    handler: app/api/storage/status/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  vercel_python_functions:
+  - path: /api/cron/ops
+    file: api/cron/ops.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/index
+    file: api/index.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/internal/acceptance
+    file: api/internal/acceptance.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/internal/capabilities
+    file: api/internal/capabilities.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/internal/commercial-execution
+    file: api/internal/commercial-execution.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/internal/conversation
+    file: api/internal/conversation.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/internal/federal-opportunities
+    file: api/internal/federal-opportunities.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/internal/moltbook-approvals
+    file: api/internal/moltbook-approvals.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/internal/moltbook-preparation
+    file: api/internal/moltbook-preparation.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/internal/moltbook-research
+    file: api/internal/moltbook-research.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/internal/moltbook-reviews
+    file: api/internal/moltbook-reviews.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/internal/operator-briefing
+    file: api/internal/operator-briefing.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/internal/opportunity-qualification
+    file: api/internal/opportunity-qualification.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/internal/pursuit-packets
+    file: api/internal/pursuit-packets.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/internal/revenue-scouts
+    file: api/internal/revenue-scouts.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/owner/autonomy/daily-report
+    file: api/owner/autonomy/daily-report.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/owner/autonomy/status
+    file: api/owner/autonomy/status.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/owner/campaign/seed
+    file: api/owner/campaign/seed.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/owner/dashboard
+    file: api/owner/dashboard.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/owner/kill-switch
+    file: api/owner/kill-switch.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/owner/leads/scan
+    file: api/owner/leads/scan.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/owner/paper/tick
+    file: api/owner/paper/tick.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/runtime/moltbook
+    file: api/runtime/moltbook.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/runtime/status
+    file: api/runtime/status.py
+    runtime: python
+    owner: vercel-python
+integrations:
+- name: conversation
+  configured: true
+  read: true
+  propose: true
+  approve: false
+  execute: true
+  scope: AION responses only
+  note: Reasoning and responses are not external side effects.
+- name: github_runtime
+  configured: false
+  read: false
+  propose: true
+  approve: true
+  execute: false
+  scope: No generic deployed GitHub executor
+  note: ChatGPT's connected GitHub tool is separate from the deployed AION runtime;
+    this registry does not infer access from it.
+- name: memory
+  configured: true
+  read: true
+  propose: true
+  approve: true
+  execute: true
+  scope: Explicit remember/forget/replace only
+  note: Permanent memory writes require explicit user language; no automatic profiling.
+- name: moltbook
+  configured: true
+  read: true
+  propose: true
+  approve: false
+  execute: false
+  scope: Read research; owner-controlled comments only when activated
+  note: No DMs. Approval and execution are separate; autonomous writes remain separately
+    gated.
+- name: notifications
+  configured: false
+  read: false
+  propose: true
+  approve: true
+  execute: false
+  scope: No deployed email, SMS, call, or push connector
+  note: AION may recommend a notification action, but the deployed runtime currently
+    has no external delivery connector.
+- name: paper_market
+  configured: true
+  read: true
+  propose: true
+  approve: false
+  execute: true
+  scope: Virtual BTC/ETH paper simulation only
+  note: Public price marks may be live; order execution is never live trading.
+- name: terminal
+  configured: false
+  read: false
+  propose: false
+  approve: true
+  execute: false
+  scope: Fixed inspect/lint/build/all Vercel Sandbox actions
+  note: Arbitrary shell commands, deployments, destructive commands, and production-secret
+    injection remain disabled.
+policy:
+  capability_model: capability-level-least-privilege
+  global_autonomy_switch: false
+webhooks: []
+ci_checks:
+- npm ci
+- npm run lint
+- npm run build
+- npx tsc --noEmit
+- python -m compileall -q aion api
+- pytest tests/ -q
+- python scripts/check_openapi_contract.py
+- pip-audit
+- npm audit --audit-level=high
+- secret-pattern-check
