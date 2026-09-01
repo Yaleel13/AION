@@ -571,7 +571,7 @@ typescript: {
 - [ ] Verify durable storage survives Vercel cold starts
 - [ ] Validate audit logs are persisting
 - [ ] Test kill switch functionality
-- [ ] Validate controlled autonomy dry-run mode
+- [x] Validate controlled autonomy dry-run mode (`30` controlled-autonomy and runtime-status tests pass)
 
 ---
 
