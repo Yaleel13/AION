@@ -31,3 +31,8 @@ data/owner_private/
 data/activation/
 .vercel
 .env*.local
+# Locally generated editor integration and Cloud Run deployment output.
+.vscode/
+deploy.log
+deploy_clean.log
+redeploy.log
