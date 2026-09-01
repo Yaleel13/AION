@@ -18,7 +18,7 @@ CAPABILITY_TERMS = {
     "website": ("website", "wordpress", "landing page", "web development", "site repair"),
     "hosting": ("hosting", "deployment", "deploy", "vercel", "domain"),
     "automation": ("automation", "workflow", "n8n", "zapier", "business process"),
-    "ai": ("artificial intelligence", "ai agent", "ai integration", "ai automation", "openai", "llm"),
+    "ai": ("ai", "artificial intelligence", "ai agent", "ai integration", "ai automation", "openai", "llm"),
     "diagnostics": ("diagnostic", "debug", "troubleshoot", "technical support", "incident"),
     "streaming": ("streaming", "obs", "livestream", "twitch"),
 }

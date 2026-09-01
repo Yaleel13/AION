@@ -1,0 +1,15 @@
+# Exclude everything except what we need for this Python app
+.git
+.gitignore
+docs/
+node_modules/
+.next/
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.local
+venv/
+build/
+dist/
+*.egg-info/

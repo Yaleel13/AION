@@ -56,17 +56,27 @@ ADK exposes its standard agent API endpoints from the same FastAPI application.
 
 ## Cloud Run
 
-From this directory:
+Deployment details:
+
+- **Project**: agent-aion
+- **Region**: us-central1
+- **Service**: opportunity-navigator
+- **Status**: DEPLOYED
+- **Public URL**: https://opportunity-navigator-554734366722.us-central1.run.app
+- **Build**: https://console.cloud.google.com/cloud-build/builds;region=us-central1/880a7cc5-5438-4aa4-b7a0-6df2d2aa7a59?project=554734366722
+- **Access note**: The Cloud Run service is live, but the current Google organization policy blocks public unauthenticated invocation. The service can be reached by authenticated GCP clients, and the deployment is now attached to the correct hackathon service.
+
+To deploy from this directory (if needed for future redeployment):
 
 ```bash
 gcloud run deploy opportunity-navigator \
   --source . \
   --region us-central1 \
   --allow-unauthenticated \
-  --set-env-vars GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=$GOOGLE_CLOUD_PROJECT,GOOGLE_CLOUD_LOCATION=global
+  --set-env-vars GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=agent-aion,GOOGLE_CLOUD_LOCATION=global
 ```
 
-For production-quality submission evidence, prefer Vertex AI credentials/service identity rather than baking API keys into the image.
+For production, prefer Vertex AI credentials/service identity rather than baking API keys into the image.
 
 ## Hackathon disclosure
 
