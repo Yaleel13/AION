@@ -33,7 +33,6 @@ def capability_registry() -> dict[str, Any]:
     moltbook_execute = bool(runtime["moltbook"]["execute_enabled"])
     github_credential_present = bool(
         os.getenv("AION_GITHUB_TOKEN")
-        or os.getenv("GITHUB_TOKEN")
         or os.getenv("GITHUB_APP_INSTALLATION_TOKEN")
     )
 
