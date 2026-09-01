@@ -44,9 +44,16 @@ class StripeRuntime:
         self.webhook_secret = (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
         self.checkout_enabled = _env_truthy("STRIPE_CHECKOUT_ENABLED")
 
-        # Configure Stripe client if available and secret key is set
-        if STRIPE_AVAILABLE and self.secret_key:
-            stripe.api_key = self.secret_key
+        self.client = None
+
+    def _client(self):
+        """Create the scoped Stripe client only when an API request is required."""
+        if self.client is not None:
+            return self.client
+        if not STRIPE_AVAILABLE or not self.secret_key:
+            raise RuntimeError("stripe package not installed")
+        self.client = stripe.StripeClient(self.secret_key)
+        return self.client
 
     def is_configured(self) -> bool:
         return bool(self.secret_key) and bool(self.webhook_secret)
@@ -117,6 +124,7 @@ class StripeRuntime:
             "customer_email": customer_email or "",
             "source": "aion-owner-approved-checkout",
         }
+        params["integration_identifier"] = "aion_checkout_kqzmxpvn"
         return params
 
     def create_checkout_session(
@@ -141,22 +149,19 @@ class StripeRuntime:
         if not STRIPE_AVAILABLE:
             raise RuntimeError("stripe package not installed")
 
-        params = self.safe_checkout_params(
+        params = self.create_checkout_session_payload(
             amount_cents=amount_cents,
             currency=currency,
             success_url=success_url,
+            order_id=order_id,
+            opportunity_id=opportunity_id,
+            customer_email=customer_email,
         )
-        params["metadata"] = {
-            "order_id": order_id,
-            "opportunity_id": opportunity_id,
-            "customer_email": customer_email or "",
-            "source": "aion-owner-approved-checkout",
-        }
         if customer_email:
             params["customer_email"] = customer_email
 
         try:
-            session = stripe.checkout.Session.create(**params)
+            session = self._client().v1.checkout.sessions.create(params)
             return {
                 "session_id": session.id,
                 "checkout_url": session.url,

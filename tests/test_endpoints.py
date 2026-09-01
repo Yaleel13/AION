@@ -123,13 +123,13 @@ def test_owner_prepares_checkout_when_stripe_enabled(monkeypatch):
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
     monkeypatch.setenv("STRIPE_CHECKOUT_ENABLED", "true")
 
-    # Mock Stripe session creation
-    with patch("aion.stripe_runtime.stripe.checkout.Session.create") as mock_create:
+    # Mock the scoped Stripe client session service.
+    with patch("aion.stripe_runtime.StripeRuntime._client") as mock_client:
         mock_session = type("Session", (), {
             "id": "cs_test_123",
             "url": "https://checkout.stripe.com/pay/cs_test_123"
         })()
-        mock_create.return_value = mock_session
+        mock_client.return_value.v1.checkout.sessions.create.return_value = mock_session
 
         response = client.post(
             "/owner/checkout/prepare",
