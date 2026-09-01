@@ -14,6 +14,9 @@ import {
   Sparkles,
 } from "lucide-react"
 import type { PresenceState } from "@/lib/aion/types"
+import type { RuntimeStatus } from "@/lib/aion/runtime-status"
+import { signals as demoSignals } from "@/lib/aion/boardroom"
+import { FactProvenanceBadge } from "@/components/fact-provenance-badge"
 import { ConvergenceRail } from "@/components/convergence-rail"
 import { CommandComposer } from "@/components/command-composer"
 import { OwnerCapabilityRegistry } from "@/components/owner-capability-registry"
@@ -25,17 +28,7 @@ import { OwnerOperatorBriefing } from "@/components/owner-operator-briefing"
 import { OwnerReliabilityAcceptance } from "@/components/owner-reliability-acceptance"
 import { cn } from "@/lib/utils"
 
-type RuntimeStatus = {
-  ok: boolean
-  source: string
-  fixture: boolean
-  storage: { backend: string; configured: boolean; schema: string | null; detail: string | null }
-  moltbook: { configured: boolean; mode: string | null; api_key_present: boolean; outbound_enabled: boolean; execute_enabled: boolean; phase: string }
-  autonomy: { mode: string; dry_run: boolean; live_writes_enabled: boolean; experiment_active: boolean }
-  kill_switch: { engaged: boolean; reason?: string }
-  paper_market_data: { price_mode: string; live_trading: boolean; note: string }
-  providers: { openai_configured: boolean; gemini_configured: boolean }
-}
+type RuntimeStatusView = RuntimeStatus
 
 function Chamber({ title, subtitle, children, className }: { title: string; subtitle?: string; children: React.ReactNode; className?: string }) {
   return (
@@ -68,13 +61,13 @@ function Gate({ icon: Icon, label, value, detail, healthy }: { icon: typeof Data
 }
 
 export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, listening, onExit, onOpenConnections }: { presence: PresenceState; working: PresenceState; focus: { venture: string; reasoning: string } | null; onSubmit: (text: string) => void; onVoiceToggle: () => void; listening: boolean; onExit: () => void; onOpenConnections?: () => void }) {
-  const [status, setStatus] = useState<RuntimeStatus | null>(null)
+  const [status, setStatus] = useState<RuntimeStatusView | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const refreshStatus = useCallback(async () => {
     try {
       const response = await fetch("/api/runtime/status", { cache: "no-store" })
-      const body = (await response.json()) as RuntimeStatus & { error?: string }
+      const body = (await response.json()) as RuntimeStatusView & { error?: string }
       if (!response.ok || !body.ok) throw new Error(body.error || `Runtime status failed (${response.status})`)
       setStatus(body)
       setError(null)
@@ -177,6 +170,24 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
               <div className="flex items-center justify-between gap-3 py-2.5"><dt className="text-muted-foreground">Live writes</dt><dd className="font-medium text-foreground">{status.autonomy.live_writes_enabled ? "Enabled" : "Disabled"}</dd></div>
               <div className="flex items-center justify-between gap-3 py-2.5 pb-0"><dt className="text-muted-foreground">Experiment</dt><dd className="font-medium text-foreground">{status.autonomy.experiment_active ? "Active" : "Inactive"}</dd></div>
             </dl>
+          </Chamber>
+
+          <Chamber title="Fixture Signals" subtitle="demo only · not live integrations" className="lg:col-span-12">
+            <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
+              Illustrative integration examples for design review. These are excluded from runtime metrics, alerts, and recommendations.
+            </p>
+            <ul className="divide-y divide-cyan/10">
+              {demoSignals.map((signal) => (
+                <li key={signal.source_object_id} className="flex flex-wrap items-start justify-between gap-3 py-3 first:pt-0">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">{signal.value.source}</p>
+                    <p className="mt-1 text-sm text-foreground/85">{signal.value.message}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{signal.value.when} ago · tone {signal.value.tone}</p>
+                  </div>
+                  <FactProvenanceBadge envelope={signal} compact />
+                </li>
+              ))}
+            </ul>
           </Chamber>
 
           <Chamber title="Reliability Acceptance" subtitle="Phase 8 · production evidence" className="lg:col-span-12"><OwnerReliabilityAcceptance /></Chamber>

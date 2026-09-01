@@ -43,7 +43,7 @@ export function Message({
       {message.widgets && message.widgets.length > 0 && (
         <div className="ml-[18px] grid gap-3">
           {message.widgets.map((w, i) => (
-            <WidgetRenderer key={i} widget={w} onCommand={onCommand} />
+            <WidgetRenderer key={i} widget={w} onCommand={onCommand} dataSource={message.dataSource} />
           ))}
         </div>
       )}

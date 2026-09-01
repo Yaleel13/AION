@@ -10,7 +10,7 @@ export interface AionTurn {
   /** Contextual widgets summoned into the conversation */
   widgets?: WidgetData[]
   /** Side effects the shell should perform */
-  effect?: "open-terminal" | "open-boardroom" | "close-terminal" | "set-context"
+  effect?: "open-terminal" | "open-boardroom" | "close-boardroom" | "close-terminal" | "set-context"
   /** Context label to set when effect is set-context */
   context?: string
 }
@@ -39,7 +39,7 @@ export function routeCommand(input: string): AionTurn {
   }
 
   if (has("close boardroom", "leave boardroom", "back to conversation", "exit boardroom")) {
-    return { working: "thinking", reply: "Collapsing the Boardroom. I'm here.", effect: "close-boardroom" as never }
+    return { working: "thinking", reply: "Collapsing the Boardroom. I'm here.", effect: "close-boardroom" }
   }
 
   // Terminal

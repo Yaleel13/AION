@@ -181,9 +181,24 @@ export function AionShell() {
 
       const isLocalUiControl =
         turn.effect === "open-boardroom" ||
-        String(turn.effect) === "close-boardroom" ||
+        turn.effect === "close-boardroom" ||
         turn.effect === "open-terminal" ||
         turn.effect === "close-terminal"
+
+      if (turn.widgets?.length) {
+        pushMessage({
+          id: uid(),
+          role: "aion",
+          content: turn.reply,
+          widgets: turn.widgets,
+          serif: turn.serif,
+          dataSource: "demo_fixture",
+        })
+        setWorking("complete")
+        setTimeout(() => setWorking("idle"), 500)
+        busyRef.current = false
+        return
+      }
 
       if (isLocalUiControl) {
         const q = trimmed.toLowerCase()
@@ -206,7 +221,7 @@ export function AionShell() {
             return
           }
           setMode("boardroom")
-        } else if (String(turn.effect) === "close-boardroom") {
+        } else if (turn.effect === "close-boardroom") {
           setMode("conversation")
         } else if (turn.effect === "open-terminal") {
           setTerminalOpen(true)
