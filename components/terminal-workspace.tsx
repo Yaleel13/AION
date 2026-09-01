@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { Hammer, LockKeyhole, Play, SearchCheck, ShieldCheck, Terminal, Wrench, X } from "lucide-react"
+import { defer } from "@/lib/defer"
 
 type SessionState = { configured: boolean; authenticated: boolean }
 type CheckName = "inspect" | "lint" | "build" | "all"
@@ -51,7 +52,7 @@ export function TerminalWorkspace({ onClose }: { onClose: () => void }) {
   }, [])
 
   useEffect(() => {
-    void refreshSession()
+    defer(() => { void refreshSession() })
   }, [refreshSession])
 
   const unlock = useCallback(async () => {

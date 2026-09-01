@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { FileCheck2, Loader2, RefreshCw } from "lucide-react"
+import { defer } from "@/lib/defer"
 
 type PreparedItem = {
   lead_id: string
@@ -66,7 +67,7 @@ export function OwnerMoltbookPreparation() {
     }
   }, [])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => { defer(() => { void load() }) }, [load])
 
   if (loading && !data) {
     return <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading preparation queue…</div>

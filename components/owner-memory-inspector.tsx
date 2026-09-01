@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Brain, Loader2, LockKeyhole, RefreshCw } from "lucide-react"
+import { defer } from "@/lib/defer"
 
 type MemoryFact = {
   id: number
@@ -44,7 +45,7 @@ export function OwnerMemoryInspector() {
   }
 
   useEffect(() => {
-    void refresh()
+    defer(() => { void refresh() })
   }, [])
 
   const active = facts.filter((fact) => fact.status === "active")

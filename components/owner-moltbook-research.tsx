@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { ExternalLink, Loader2, Radar, RefreshCw } from "lucide-react"
+import { defer } from "@/lib/defer"
 
 type Lead = {
   lead_id: string
@@ -73,7 +74,7 @@ export function OwnerMoltbookResearch() {
   }, [])
 
   useEffect(() => {
-    void load()
+    defer(() => { void load() })
     const refresh = (event: Event) => {
       const source = (event as CustomEvent<{ source?: string }>).detail?.source
       if (source !== "moltbook-scan") void load()

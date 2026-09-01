@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { Loader2, RefreshCw } from "lucide-react"
+import { defer } from "@/lib/defer"
 
 type Briefing = {
   ok: boolean
@@ -33,7 +34,7 @@ export function OwnerOperatorBriefing() {
   }, [])
 
   useEffect(() => {
-    void load()
+    defer(() => { void load() })
     const refresh = () => void load()
     window.addEventListener("aion:boardroom-refresh", refresh)
     return () => window.removeEventListener("aion:boardroom-refresh", refresh)

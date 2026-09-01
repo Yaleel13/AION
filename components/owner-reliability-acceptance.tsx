@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { CheckCircle2, Loader2, RefreshCw, TriangleAlert } from "lucide-react"
+import { defer } from "@/lib/defer"
 
 type Acceptance = {
   ok: boolean
@@ -46,7 +47,7 @@ export function OwnerReliabilityAcceptance() {
   }, [])
 
   useEffect(() => {
-    void load()
+    defer(() => { void load() })
     const refresh = () => void load()
     window.addEventListener("aion:boardroom-refresh", refresh)
     return () => window.removeEventListener("aion:boardroom-refresh", refresh)
