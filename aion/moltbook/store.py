@@ -30,11 +30,11 @@ DEFAULT_DB_PATH = "/tmp/aion_phase2.db"  # legacy; prefer default_phase2_db_path
 class Phase2Store:
     """Append-friendly store. Audit rows are never updated or deleted."""
 
-    def __init__(self, path: str | None = None):
+    def __init__(self, path: str | None = None, *, connection: Any | None = None):
         self.path = path or default_phase2_db_path()
         if not database_url():
             Path(self.path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = connect_phase2(self.path)
+        self._conn = connection or connect_phase2(self.path)
         self.backend = getattr(self._conn, "backend", "sqlite")
         self._init_schema()
 

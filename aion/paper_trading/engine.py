@@ -100,7 +100,7 @@ class PaperConfig:
 class PaperTradingEngine:
     """Simulated portfolio with fee/slippage models and benchmarks."""
 
-    def __init__(self, config: PaperConfig | None = None, prices: PriceProvider | None = None):
+    def __init__(self, config: PaperConfig | None = None, prices: PriceProvider | None = None, *, connection=None):
         self.config = config or PaperConfig()
         if not self.config.db_path or self.config.db_path == DEFAULT_PAPER_DB:
             # Prefer durable path when caller did not override.
@@ -112,7 +112,7 @@ class PaperTradingEngine:
 
         if not database_url():
             Path(self.config.db_path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = connect_paper(self.config.db_path)
+        self._conn = connection or connect_paper(self.config.db_path)
         self._init()
 
     @staticmethod
