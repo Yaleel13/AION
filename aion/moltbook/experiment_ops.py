@@ -7,17 +7,20 @@ from typing import Any
 
 
 def customize_lead_response(lead: dict[str, Any]) -> str:
+    """Create a concise, buyer-oriented public reply without overclaiming.
+
+    The reply is designed to move a legitimate public request toward a scoped
+    YaliTek offer while keeping credentials, private files, pricing negotiation,
+    and payment details out of the public thread.
+    """
     service = str(lead.get("relevant_service") or "technical help")
     problem = str(lead.get("stated_problem") or "the issue you described")
     return (
-        f"Public reply draft (owner approval still required before any off-platform move):\n\n"
-        f"I noticed you described a need around “{problem[:140]}”. "
-        f"One practical first step is a short, non-sensitive diagnostic: symptoms, when it started, "
-        f"and what you already tried. YaliTek Online’s relevant offering here is {service} — "
-        f"reviewed delivery, not unattended automation.\n\n"
-        f"If a public reply is appropriate, I can share a lightweight checklist first "
-        f"(useful even if you never hire anyone). I will not ask for credentials, files, "
-        f"or access in public, and I will not quote pricing here."
+        f"I saw your request around \"{problem[:120]}\". "
+        f"YaliTek Online can help with {service.lower()}. "
+        "If this is still open, reply with the non-sensitive scope, desired outcome, "
+        "and deadline. I can turn that into a fixed-scope next step and turnaround. "
+        "Please do not post credentials, private keys, access codes, or customer data here."
     )
 
 
