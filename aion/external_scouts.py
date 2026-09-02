@@ -7,6 +7,7 @@ can contact a prospect, authenticate to a third-party account, or transact.
 
 from __future__ import annotations
 
+import html
 import os
 import re
 from dataclasses import dataclass
@@ -30,14 +31,16 @@ DEFAULT_ALLOWED_HOSTS = frozenset(
 )
 
 BUYER_TERMS = re.compile(
-    r"(?i)\b(looking to hire|hiring|need help|seeking (?:a |an )?(?:developer|consultant|contractor)|"
-    r"paid (?:gig|project|contract)|budget|request for proposals?|\brfp\b|bounty|grant|"
+    r"(?i)\b(looking to hire|hiring|need help|seeking (?:a |an )?(?:developer|consultant|contractor|freelancer)|"
+    r"seeking freelancer|paid (?:gig|project|contract)|budget|request for proposals?|\brfp\b|bounty|grant|"
     r"contract opportunity|solicitation|vendor|website (?:broken|repair)|automation help|"
-    r"ai implementation|technical support)\b"
+    r"ai implementation|technical support|looking for (?:a |an )?(?:developer|consultant|contractor|freelancer)|"
+    r"need (?:a |an )?(?:developer|consultant|contractor|freelancer))\b"
 )
 COMMERCIAL_TERMS = re.compile(
-    r"(?i)\b(website|wordpress|shopify|hosting|deploy|automation|workflow|n8n|zapier|"
-    r"ai agent|ai integration|technical support|diagnostic|debug|landing page|startup site)\b"
+    r"(?i)\b(website|wordpress|shopify|hosting|deploy|deployment|vercel|automation|workflow|n8n|zapier|"
+    r"ai agent|ai integration|technical support|diagnostic|debug|landing page|startup site|next\.js|react|"
+    r"api integration|stripe|supabase|fastapi)\b"
 )
 
 
@@ -76,22 +79,40 @@ def _validate_source(source: PublicSource, *, allowed_hosts: frozenset[str]) -> 
         raise ValueError(f"Unsupported external scout: {source.scout}")
 
 
+def _plain_text(value: Any) -> str:
+    text = html.unescape(str(value or ""))
+    text = re.sub(r"<[^>]+>", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def _walk_json(payload: Any, *, source: PublicSource) -> list[ScoutCandidate]:
     """Extract compact title/text/url candidates from heterogeneous public JSON."""
     candidates: list[ScoutCandidate] = []
 
     def visit(value: Any) -> None:
         if isinstance(value, dict):
-            title = str(value.get("title") or value.get("name") or value.get("subject") or "").strip()
-            text = str(
+            title = _plain_text(
+                value.get("title")
+                or value.get("story_title")
+                or value.get("name")
+                or value.get("subject")
+                or ""
+            )
+            text = _plain_text(
                 value.get("description")
+                or value.get("comment_text")
                 or value.get("text")
                 or value.get("story_text")
                 or value.get("body")
                 or value.get("summary")
                 or ""
-            ).strip()
-            url = str(value.get("url") or value.get("link") or source.url).strip()
+            )
+            object_id = str(value.get("objectID") or value.get("id") or "").strip()
+            url = str(value.get("url") or value.get("story_url") or "").strip()
+            if not url and object_id and "hn.algolia.com" in source.url:
+                url = f"https://news.ycombinator.com/item?id={object_id}"
+            if not url:
+                url = source.url
             combined = f"{title}\n{text}".strip()
             if combined and len(combined) >= 30:
                 candidates.append(ScoutCandidate(source.name, title, combined[:6000], url))
@@ -103,7 +124,6 @@ def _walk_json(payload: Any, *, source: PublicSource) -> list[ScoutCandidate]:
                 visit(child)
 
     visit(payload)
-    # deterministic de-duplication
     seen: set[tuple[str, str]] = set()
     unique: list[ScoutCandidate] = []
     for candidate in candidates:
@@ -125,14 +145,17 @@ def candidate_to_opportunity(candidate: ScoutCandidate, *, scout: str) -> Opport
 
     amount = _explicit_amount(text)
     has_money = amount > 0
-    confidence = 0.72 if has_money else 0.52
-    probability = 0.42 if has_money else 0.24
+    confidence = 0.72 if has_money else 0.58
+    probability = 0.42 if has_money else 0.28
     if scout == "commercial" and COMMERCIAL_TERMS.search(text):
-        confidence = min(0.9, confidence + 0.08)
-        probability = min(0.75, probability + 0.08)
+        confidence = min(0.92, confidence + 0.12)
+        probability = min(0.78, probability + 0.12)
+    if re.search(r"(?i)\b(seeking freelancer|looking to hire|hiring|budget|paid project|paid contract)\b", text):
+        confidence = min(0.95, confidence + 0.08)
+        probability = min(0.82, probability + 0.08)
 
     solution = (
-        "Evaluate fit to an existing YaliTek service and prepare owner-reviewed outreach"
+        "Match to an existing YaliTek service and prepare immediate buyer-response handoff"
         if scout == "commercial"
         else "Verify eligibility, scope, economics, deadline, and authorized next action"
     )
@@ -144,10 +167,14 @@ def candidate_to_opportunity(candidate: ScoutCandidate, *, scout: str) -> Opport
         estimated_revenue=amount,
         probability=probability,
         confidence=confidence,
-        time_hours=1.0,
+        time_hours=0.5 if scout == "commercial" else 1.0,
         major_risks="Public source is untrusted; verify identity, terms, eligibility, deadline, and payment before action.",
         ethical_considerations="No deceptive outreach, credential sharing, scraping behind authentication, or transaction without owner authorization.",
-        next_action="Verify source and prepare an owner-reviewed response" if has_money else "Verify commercial value before assigning a revenue estimate",
+        next_action=(
+            "Open the source, confirm the buyer is still seeking help, and respond through the platform's permitted contact path"
+            if scout == "commercial"
+            else "Verify source and prepare an owner-reviewed response"
+        ),
         authorization_required="owner_before_transaction",
     )
 
@@ -180,7 +207,7 @@ class ExternalRevenueScout:
                             continue
                         self.store.upsert(opportunity)
                         promoted.append(opportunity.to_row())
-                except Exception as exc:  # fail one source, not the entire scan
+                except Exception as exc:
                     errors.append({"source": source.name, "error": str(exc)[:240]})
         return {
             "promoted": promoted,
@@ -192,13 +219,43 @@ class ExternalRevenueScout:
 
 
 def default_sources(environ: dict[str, str] | None = None) -> list[PublicSource]:
-    """Safe public defaults; optional configured feeds can extend this set."""
+    """Safe public defaults focused on recent, explicit buyer/employer intent."""
     env = environ if environ is not None else dict(os.environ)
     sources = [
         PublicSource(
             name="hn_hiring_and_contracts",
-            url="https://hn.algolia.com/api/v1/search_by_date?query=hiring%20contract%20developer&tags=story&hitsPerPage=30",
+            url="https://hn.algolia.com/api/v1/search_by_date?query=hiring%20contract%20developer&tags=story&hitsPerPage=50",
             scout="web",
+        ),
+        PublicSource(
+            name="hn_seeking_freelancer",
+            url="https://hn.algolia.com/api/v1/search_by_date?query=seeking%20freelancer&tags=comment&hitsPerPage=50",
+            scout="commercial",
+        ),
+        PublicSource(
+            name="hn_looking_to_hire_developer",
+            url="https://hn.algolia.com/api/v1/search_by_date?query=looking%20to%20hire%20developer&tags=comment&hitsPerPage=50",
+            scout="commercial",
+        ),
+        PublicSource(
+            name="hn_contract_developer",
+            url="https://hn.algolia.com/api/v1/search_by_date?query=contract%20developer&tags=comment&hitsPerPage=50",
+            scout="commercial",
+        ),
+        PublicSource(
+            name="hn_ai_automation_help",
+            url="https://hn.algolia.com/api/v1/search_by_date?query=automation%20help&tags=comment&hitsPerPage=50",
+            scout="commercial",
+        ),
+        PublicSource(
+            name="hn_website_help",
+            url="https://hn.algolia.com/api/v1/search_by_date?query=website%20help&tags=comment&hitsPerPage=50",
+            scout="commercial",
+        ),
+        PublicSource(
+            name="hn_stripe_supabase_vercel_help",
+            url="https://hn.algolia.com/api/v1/search_by_date?query=stripe%20supabase%20vercel&tags=comment&hitsPerPage=50",
+            scout="commercial",
         ),
     ]
     for index, raw in enumerate((env.get("AION_COMMERCIAL_SCOUT_URLS") or "").split(","), start=1):
