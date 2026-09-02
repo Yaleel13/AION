@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import time
+from types import SimpleNamespace
 
 from aion.opportunity_store import OpportunityStore
 from aion.stripe_runtime import StripeRuntime, build_stripe_signature
@@ -57,6 +58,35 @@ def test_stripe_runtime_builds_checkout_payload_when_ready(monkeypatch) -> None:
     assert payload["success_url"].endswith("/success")
     assert payload["metadata"]["order_id"] == "order_123"
     assert payload["metadata"]["opportunity_id"] == "opp_123"
+    assert payload["integration_identifier"] == "aion_checkout_kqzmxpvn"
+
+
+def test_stripe_runtime_uses_scoped_client_for_checkout(monkeypatch) -> None:
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "rk_test_123")
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
+    monkeypatch.setenv("STRIPE_CHECKOUT_ENABLED", "true")
+    calls: list[dict] = []
+
+    class FakeSessions:
+        def create(self, params):
+            calls.append(params)
+            return SimpleNamespace(id="cs_test_scoped", url="https://checkout.stripe.test/session")
+
+    runtime = StripeRuntime()
+    runtime.client = SimpleNamespace(
+        v1=SimpleNamespace(checkout=SimpleNamespace(sessions=FakeSessions()))
+    )
+
+    result = runtime.create_checkout_session(
+        amount_cents=1500,
+        currency="usd",
+        success_url="https://example.com/success",
+        order_id="order_123",
+        opportunity_id="opp_123",
+    )
+
+    assert result["session_id"] == "cs_test_scoped"
+    assert calls[0]["integration_identifier"] == "aion_checkout_kqzmxpvn"
 
 
 def test_stripe_signature_rejects_stale_signed_payload(monkeypatch) -> None:
