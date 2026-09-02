@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import json
 import os
 import time
 from typing import Any
@@ -18,6 +17,7 @@ try:
     import stripe
     STRIPE_AVAILABLE = True
 except ImportError:
+    stripe = None  # type: ignore[assignment]
     STRIPE_AVAILABLE = False
 
 
@@ -37,40 +37,55 @@ def _metadata_value(value: Any, *, limit: int = 500) -> str:
     return text[:limit]
 
 
+def _clean_product_name(value: Any) -> str:
+    """Return a bounded canonical checkout label, never arbitrary buyer text."""
+    text = str(value or "AION service").strip() or "AION service"
+    return text[:120]
+
+
 class StripeRuntime:
     """Safety-gated Stripe adapter.
 
     By default this adapter is inert and never creates or mutates financial state.
-    The owner must opt in via STRIPE_CHECKOUT_ENABLED and provide a valid secret
-    before the runtime becomes operational.
+    The owner must opt in via STRIPE_CHECKOUT_ENABLED and provide valid Stripe
+    secrets before the runtime becomes operational.
     """
 
     def __init__(self) -> None:
         self.secret_key = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
         self.webhook_secret = (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
         self.checkout_enabled = _env_truthy("STRIPE_CHECKOUT_ENABLED")
-
         self.client = None
 
     def _client(self):
         """Create the scoped Stripe client only when an API request is required."""
         if self.client is not None:
             return self.client
-        if not STRIPE_AVAILABLE or not self.secret_key:
-            raise RuntimeError("stripe package not installed")
+        if not STRIPE_AVAILABLE:
+            raise RuntimeError("stripe package is not installed")
+        if not self.secret_key:
+            raise RuntimeError("STRIPE_SECRET_KEY is not configured")
         self.client = stripe.StripeClient(self.secret_key)
         return self.client
 
     def is_configured(self) -> bool:
         return bool(self.secret_key) and bool(self.webhook_secret)
 
+    def readiness(self) -> dict[str, bool]:
+        """Return non-secret readiness signals for truthful runtime diagnostics."""
+        return {
+            "checkout_enabled": bool(self.checkout_enabled),
+            "secret_key_present": bool(self.secret_key),
+            "webhook_secret_present": bool(self.webhook_secret),
+            "stripe_package_available": bool(STRIPE_AVAILABLE),
+            "ready_for_checkout": bool(self.checkout_enabled and self.is_configured() and STRIPE_AVAILABLE),
+        }
+
     def is_ready_for_checkout(self) -> bool:
-        return self.checkout_enabled and self.is_configured()
+        return self.readiness()["ready_for_checkout"]
 
     def verify_webhook_signature(self, payload: bytes, header: str, *, tolerance_seconds: int = 300) -> bool:
-        if not self.webhook_secret:
-            return False
-        if not header:
+        if not self.webhook_secret or not header:
             return False
 
         parts = [part.strip() for part in header.split(",")]
@@ -94,16 +109,39 @@ class StripeRuntime:
         expected = build_stripe_signature(payload, timestamp, self.webhook_secret)
         return any(hmac.compare_digest(expected, signature) for signature in signatures)
 
-    def safe_checkout_params(self, *, amount_cents: int, currency: str, success_url: str) -> dict[str, Any]:
+    def safe_checkout_params(
+        self,
+        *,
+        amount_cents: int,
+        currency: str,
+        success_url: str,
+        product_name: str = "AION service",
+    ) -> dict[str, Any]:
         if not self.is_ready_for_checkout():
-            raise RuntimeError("Stripe checkout is disabled until STRIPE_CHECKOUT_ENABLED and secrets are configured")
+            state = self.readiness()
+            missing = [key for key, present in state.items() if key != "ready_for_checkout" and not present]
+            raise RuntimeError("Stripe checkout is not ready: " + ", ".join(missing or ["unknown configuration error"]))
         if amount_cents <= 0:
             raise ValueError("amount_cents must be positive")
-        if not success_url:
-            raise ValueError("success_url is required")
+        currency = str(currency or "").strip().lower()
+        if len(currency) != 3 or not currency.isalpha():
+            raise ValueError("currency must be a 3-letter ISO currency code")
+        success_url = str(success_url or "").strip()
+        if not success_url.startswith(("https://", "http://localhost", "http://127.0.0.1")):
+            raise ValueError("success_url must be an approved http(s) URL")
+
         return {
             "mode": "payment",
-            "line_items": [{"price_data": {"currency": currency.lower(), "unit_amount": amount_cents, "product_data": {"name": "AION service"}}, "quantity": 1}],
+            "line_items": [
+                {
+                    "price_data": {
+                        "currency": currency,
+                        "unit_amount": int(amount_cents),
+                        "product_data": {"name": _clean_product_name(product_name)},
+                    },
+                    "quantity": 1,
+                }
+            ],
             "success_url": success_url,
             "cancel_url": success_url,
             "automatic_tax": {"enabled": False},
@@ -124,16 +162,17 @@ class StripeRuntime:
         source_post_id: str = "",
         source_url: str = "",
         venture: str = "",
+        product_name: str = "AION service",
     ) -> dict[str, Any]:
         params = self.safe_checkout_params(
             amount_cents=amount_cents,
             currency=currency,
             success_url=success_url,
+            product_name=product_name,
         )
         params["metadata"] = {
             "order_id": _metadata_value(order_id),
             "opportunity_id": _metadata_value(opportunity_id),
-            "customer_email": _metadata_value(customer_email),
             "commercial_execution_id": _metadata_value(commercial_execution_id),
             "lead_id": _metadata_value(lead_id),
             "product_key": _metadata_value(product_key),
@@ -143,6 +182,8 @@ class StripeRuntime:
             "source": "aion-attributed-checkout",
         }
         params["integration_identifier"] = "aion_checkout_kqzmxpvn"
+        if customer_email:
+            params["customer_email"] = str(customer_email).strip()
         return params
 
     def create_checkout_session(
@@ -160,13 +201,13 @@ class StripeRuntime:
         source_post_id: str = "",
         source_url: str = "",
         venture: str = "",
+        product_name: str = "AION service",
     ) -> dict[str, Any]:
         """Create a live Stripe checkout session with end-to-end attribution metadata."""
         if not self.is_ready_for_checkout():
-            raise RuntimeError("Stripe checkout is disabled until STRIPE_CHECKOUT_ENABLED and secrets are configured")
-
-        if not STRIPE_AVAILABLE:
-            raise RuntimeError("stripe package not installed")
+            state = self.readiness()
+            missing = [key for key, present in state.items() if key != "ready_for_checkout" and not present]
+            raise RuntimeError("Stripe checkout is not ready: " + ", ".join(missing or ["unknown configuration error"]))
 
         params = self.create_checkout_session_payload(
             amount_cents=amount_cents,
@@ -181,15 +222,20 @@ class StripeRuntime:
             source_post_id=source_post_id,
             source_url=source_url,
             venture=venture,
+            product_name=product_name,
         )
-        if customer_email:
-            params["customer_email"] = customer_email
 
         try:
             session = self._client().v1.checkout.sessions.create(params)
-            return {
-                "session_id": session.id,
-                "checkout_url": session.url,
-            }
-        except stripe.error.StripeError as e:
-            raise RuntimeError(f"Stripe API error: {e.user_message or str(e)}")
+            session_id = str(getattr(session, "id", "") or "").strip()
+            checkout_url = str(getattr(session, "url", "") or "").strip()
+            if not session_id or not checkout_url:
+                raise RuntimeError("Stripe returned a Checkout Session without id/url")
+            return {"session_id": session_id, "checkout_url": checkout_url}
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            if STRIPE_AVAILABLE and hasattr(stripe, "error") and isinstance(exc, stripe.error.StripeError):
+                user_message = getattr(exc, "user_message", None)
+                raise RuntimeError(f"Stripe API error: {user_message or str(exc)}") from exc
+            raise RuntimeError(f"Stripe checkout session creation failed: {str(exc)}") from exc
