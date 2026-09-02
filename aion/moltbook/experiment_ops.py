@@ -5,41 +5,55 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-
-YALITEK_QUICK_DIAGNOSTIC_URL = "https://buy.stripe.com/bJe00i66d4a17BTbFa1sQ00"
+from aion.revenue.product_catalog import match_product_for_lead
 
 
 def customize_lead_response(lead: dict[str, Any]) -> str:
     """Create a concise, buyer-oriented public reply without overclaiming.
 
-    The reply is designed to move a legitimate public request toward a scoped
-    YaliTek offer while keeping credentials, private files, custom pricing
-    negotiation, and sensitive payment details out of the public thread.
+    The reply is designed to move a legitimate public request toward the most
+    relevant creator-authorized product while keeping credentials, private files,
+    custom pricing negotiation, and sensitive payment details out of the public
+    thread.
 
-    A direct checkout CTA is only added for high-confidence leads. Lower-confidence
-    candidates remain a scope-first conversation so AION does not spray payment
-    links into ambiguous discussions.
+    A direct checkout CTA is only added when both buyer confidence is high and the
+    matched product has a verified checkout URL. Otherwise AION uses a truthful
+    product/site/proposal route instead of inventing a payment path.
     """
     service = str(lead.get("relevant_service") or "technical help")
     problem = str(lead.get("stated_problem") or "the issue you described")
     confidence = float(lead.get("confidence_score") or 0.0)
+    product = match_product_for_lead(lead)
 
     base = (
         f"I saw your request around \"{problem[:120]}\". "
-        f"YaliTek Online can help with {service.lower()}. "
+        f"AION matched this to {product.venture}'s {product.name}, which fits {service.lower()}. "
     )
-    if confidence >= 0.70:
+
+    if confidence >= 0.70 and product.checkout_url:
+        price = f" ({product.price_display})" if product.price_display else ""
         return (
             base
-            + "If you want a fixed-scope first step, the $49 Quick Tech Diagnostic is live here: "
-            + YALITEK_QUICK_DIAGNOSTIC_URL
-            + ". It covers a technical diagnostic and prioritized next-step plan. "
+            + f"If you want to move forward, the verified checkout is here{price}: "
+            + product.checkout_url
+            + f". The current fulfillment is {product.fulfillment}. "
             "Please do not post credentials, private keys, access codes, or customer data here."
         )
+
+    if confidence >= 0.70 and product.public_url:
+        price = f" Current listed plan: {product.price_display}." if product.price_display else ""
+        return (
+            base
+            + f"You can review the current offer here: {product.public_url}."
+            + price
+            + " If you share the non-sensitive scope, desired outcome, and deadline, I can route you to the correct existing offer or proposal path. "
+            "Please do not post credentials, private keys, access codes, or customer data here."
+        )
+
     return (
         base
         + "If this is still open, reply with the non-sensitive scope, desired outcome, "
-        "and deadline. I can turn that into a fixed-scope next step and turnaround. "
+        "and deadline. I can match that to the correct existing product and next step. "
         "Please do not post credentials, private keys, access codes, or customer data here."
     )
 
