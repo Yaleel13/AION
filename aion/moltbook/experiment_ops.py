@@ -8,6 +8,26 @@ from typing import Any
 from aion.revenue.product_catalog import match_product_for_lead
 
 
+def _conversion_path(product: Any) -> str:
+    """Return the strongest truthful conversion path currently available."""
+    if getattr(product, "checkout_url", None):
+        return "verified_direct_checkout"
+    if getattr(product, "public_url", None) and str(getattr(product, "sale_status", "")).startswith("live"):
+        return "live_site_checkout"
+    if getattr(product, "public_url", None):
+        return "public_offer_or_proposal"
+    return "none"
+
+
+def _conversion_path_rank(path: str) -> int:
+    return {
+        "verified_direct_checkout": 3,
+        "live_site_checkout": 2,
+        "public_offer_or_proposal": 1,
+        "none": 0,
+    }.get(path, 0)
+
+
 def customize_lead_response(lead: dict[str, Any]) -> str:
     """Create a concise, buyer-oriented public reply without overclaiming.
 
@@ -30,12 +50,13 @@ def customize_lead_response(lead: dict[str, Any]) -> str:
         f"AION matched this to {product.venture}'s {product.name}, which fits {service.lower()}. "
     )
 
-    if confidence >= 0.70 and product.checkout_url:
+    checkout_url = str(lead.get("checkout_override_url") or product.checkout_url or "").strip()
+    if confidence >= 0.70 and checkout_url:
         price = f" ({product.price_display})" if product.price_display else ""
         return (
             base
             + f"If you want to move forward, the verified checkout is here{price}: "
-            + product.checkout_url
+            + checkout_url
             + f". The current fulfillment is {product.fulfillment}. "
             "Please do not post credentials, private keys, access codes, or customer data here."
         )
@@ -68,11 +89,15 @@ def _source_post_id(lead: dict[str, Any]) -> str:
 
 
 def select_conversion_candidate(leads: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """Pick one explicit, high-confidence public buyer-intent lead for controlled reply.
+    """Pick one explicit, high-confidence buyer with a real conversion path.
 
     Selection is intentionally strict: public Moltbook post, explicit buyer signal,
-    confidence >= 0.70, non-hostile content, and a prepared response. The execution
-    engine still applies all policy, pacing, quota, secret/PII, and idempotency gates.
+    confidence >= 0.70, non-hostile content, prepared response, and a truthful
+    checkout/site/proposal path. The execution engine still applies all policy,
+    pacing, quota, secret/PII, and idempotency gates.
+
+    When multiple leads qualify, AION prioritizes stronger conversion paths first
+    (verified checkout > live site checkout > proposal), then confidence and fit.
     """
     eligible: list[dict[str, Any]] = []
     for lead in leads:
@@ -86,8 +111,18 @@ def select_conversion_candidate(leads: list[dict[str, Any]]) -> dict[str, Any] |
             continue
         if "prompt-injection heuristics matched" in risks:
             continue
+
+        product = match_product_for_lead(lead)
+        path = _conversion_path(product)
+        if path == "none":
+            continue
+
         item = dict(lead)
         item["source_post_id"] = post_id
+        item["matched_product_key"] = product.product_key
+        item["matched_venture"] = product.venture
+        item["conversion_path"] = path
+        item["conversion_path_rank"] = _conversion_path_rank(path)
         eligible.append(item)
 
     if not eligible:
@@ -95,6 +130,7 @@ def select_conversion_candidate(leads: list[dict[str, Any]]) -> dict[str, Any] |
     return sorted(
         eligible,
         key=lambda item: (
+            int(item.get("conversion_path_rank") or 0),
             float(item.get("confidence_score") or 0.0),
             float(item.get("fit_score") or 0.0),
         ),
