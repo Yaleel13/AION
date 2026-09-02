@@ -25,6 +25,7 @@ import { OwnerMemoryInspector } from "@/components/owner-memory-inspector"
 import { OwnerMoltbookResearch } from "@/components/owner-moltbook-research"
 import { OwnerOpportunityReview } from "@/components/owner-opportunity-review"
 import { OwnerOperatorBriefing } from "@/components/owner-operator-briefing"
+import { OwnerPaymentRail } from "@/components/owner-payment-rail"
 import { OwnerReliabilityAcceptance } from "@/components/owner-reliability-acceptance"
 import { defer } from "@/lib/defer"
 import { cn } from "@/lib/utils"
@@ -198,6 +199,7 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
           <Chamber title="Moltbook Research" subtitle="Stage 2 · read-only" className="lg:col-span-12"><OwnerMoltbookResearch /></Chamber>
           <Chamber title="Opportunity Review" subtitle="Phases 5–7 · owner controlled" className="lg:col-span-12"><OwnerOpportunityReview /></Chamber>
           <Chamber title="Commercial Pursuit Execution" subtitle="owner gated · exact-content controls" className="lg:col-span-12"><OwnerCommercialExecution /></Chamber>
+          <Chamber title="Payment Rail" subtitle="owner only · live verification" className="lg:col-span-12"><OwnerPaymentRail /></Chamber>
           <Chamber title="Long-term Memory" subtitle="owner only · read-only" className="lg:col-span-12"><OwnerMemoryInspector /></Chamber>
 
           <Chamber title="Paper Market" subtitle="simulation only" className="lg:col-span-7">
