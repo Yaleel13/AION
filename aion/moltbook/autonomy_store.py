@@ -257,7 +257,7 @@ class AutonomyStore:
         row = self._conn.execute(
             """
             SELECT COUNT(*) AS c FROM autonomy_account_interactions
-            WHERE account=? AND solicited=0 AND created_at >= ?
+            WHERE account=? AND solicited=FALSE AND created_at >= ?
             """,
             (account.lower(), since),
         ).fetchone()
@@ -271,7 +271,7 @@ class AutonomyStore:
             INSERT INTO autonomy_account_interactions(account, action, solicited, created_at)
             VALUES (?, ?, ?, ?)
             """,
-            (account.lower(), action, 1 if solicited else 0, utc_now_iso()),
+            (account.lower(), action, solicited, utc_now_iso()),
         )
         self._conn.commit()
 
@@ -297,7 +297,7 @@ class AutonomyStore:
             rows = self._conn.execute(
                 """
                 SELECT text_norm FROM autonomy_actions
-                WHERE timestamp >= ? AND success=1 AND text_norm IS NOT NULL AND action=?
+                WHERE timestamp >= ? AND success=TRUE AND text_norm IS NOT NULL AND action=?
                 ORDER BY id DESC LIMIT 40
                 """,
                 (since, action),
@@ -306,7 +306,7 @@ class AutonomyStore:
             rows = self._conn.execute(
                 """
                 SELECT text_norm FROM autonomy_actions
-                WHERE timestamp >= ? AND success=1 AND text_norm IS NOT NULL
+                WHERE timestamp >= ? AND success=TRUE AND text_norm IS NOT NULL
                 ORDER BY id DESC LIMIT 40
                 """,
                 (since,),
@@ -372,7 +372,7 @@ class AutonomyStore:
                 content_hash,
                 idempotency_key,
                 url,
-                1 if success else 0,
+                success,
                 json.dumps(detail or {}, default=str),
                 text_norm,
                 account.lower() if account else None,
@@ -429,7 +429,7 @@ class AutonomyStore:
         rows = self._conn.execute(
             """
             SELECT content_hash FROM autonomy_actions
-            WHERE timestamp >= ? AND success=1
+            WHERE timestamp >= ? AND success=TRUE
             """,
             (since,),
         ).fetchall()
