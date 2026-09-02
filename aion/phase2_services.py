@@ -101,6 +101,16 @@ def reset_services_cache() -> None:
 
 def dashboard_snapshot() -> dict[str, Any]:
     svc = get_services()
+    # A handled Postgres statement failure elsewhere in the shared serverless
+    # session can leave the transaction in an aborted state.  The dashboard is
+    # diagnostic/read-only, so recover the session before issuing snapshot
+    # queries rather than allowing one failed optional operation to break the
+    # entire ops cycle.
+    if svc.store.backend == "postgres":
+        try:
+            svc.store._conn.rollback()
+        except Exception:  # noqa: BLE001
+            pass
     pending = [r.redacted() for r in svc.gate.list_pending()]
     all_approvals = [r.redacted() for r in svc.gate.list_all()]
     rejected = [r for r in all_approvals if r["decision"] == "rejected"]
