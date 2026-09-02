@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from aion.moltbook.experiment_ops import (
+    YALITEK_QUICK_DIAGNOSTIC_URL,
     customize_lead_response,
     mark_backlog_status,
     refresh_queue_timing,
@@ -13,17 +14,32 @@ from aion.moltbook.experiment_ops import (
 )
 
 
-def test_customize_lead_response_includes_yalitek_and_no_pricing() -> None:
+def test_customize_lead_response_high_confidence_adds_checkout() -> None:
     text = customize_lead_response(
         {
             "relevant_service": "systems debugging",
             "stated_problem": "agent queue keeps double-posting",
+            "confidence_score": 0.85,
         }
     )
     assert "systems debugging" in text
     assert "YaliTek" in text
-    assert "will not quote pricing" in text
+    assert "$49 Quick Tech Diagnostic" in text
+    assert YALITEK_QUICK_DIAGNOSTIC_URL in text
     assert "credentials" in text
+
+
+def test_customize_lead_response_lower_confidence_stays_scope_first() -> None:
+    text = customize_lead_response(
+        {
+            "relevant_service": "website repair",
+            "stated_problem": "site seems flaky",
+            "confidence_score": 0.55,
+        }
+    )
+    assert "website repair" in text
+    assert YALITEK_QUICK_DIAGNOSTIC_URL not in text
+    assert "non-sensitive scope" in text
 
 
 def test_select_next_campaign_draft_skips_linked() -> None:
