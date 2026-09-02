@@ -15,7 +15,7 @@ from aion.moltbook.controlled_autonomy import ControlledAutonomyEngine
 from aion.moltbook.drafts import CampaignDraftService
 from aion.moltbook.leads import LeadDiscoveryService, SEARCH_CATEGORIES
 from aion.moltbook.security import KillSwitch
-from aion.durable.db import storage_status
+from aion.durable.db import connect_phase2, storage_status
 from aion.durable.paths import resolve_durable_paths
 from aion.durable.scheduler_store import SchedulerStore
 from aion.external_scouts import ExternalRevenueScout, default_sources
@@ -63,8 +63,13 @@ class Phase2Services:
 def get_services() -> Phase2Services:
     paths = resolve_durable_paths()
     db = os.getenv("AION_PHASE2_DB") or str(paths.phase2_db)
-    store = Phase2Store(db)
-    opportunity_store = OpportunityStore(db)
+    # A warm serverless function must hold at most one database session.  The
+    # previous construction opened three independent sessions (phase-2,
+    # opportunities, and paper trading) per function instance, which could
+    # exhaust a small Supabase transaction pool under modest fan-out.
+    shared_connection = connect_phase2(db)
+    store = Phase2Store(db, connection=shared_connection)
+    opportunity_store = OpportunityStore(db, connection=shared_connection)
     kill = KillSwitch.from_env()
     store.set_risk("kill_switch", kill.snapshot())
     gate = Phase2ApprovalGate(store, kill_switch=kill)
@@ -74,6 +79,7 @@ def get_services() -> Phase2Services:
     paper = PaperTradingEngine(
         PaperConfig(db_path=paper_db),
         prices=CachedPriceProvider(mode=price_mode, ttl_seconds=60.0),
+        connection=shared_connection,
     )
     autonomy = ControlledAutonomyEngine.create(store, kill_switch=kill)
     scheduler = SchedulerStore(store)
