@@ -16,9 +16,9 @@ from aion.revenue_engine import Opportunity
 
 
 class OpportunityStore:
-    def __init__(self, path: str | None = None):
+    def __init__(self, path: str | None = None, *, connection: Any | None = None):
         self.path = path or default_phase2_db_path()
-        self._conn = connect_phase2(self.path)
+        self._conn = connection or connect_phase2(self.path)
         self.backend = getattr(self._conn, "backend", "sqlite")
         if not database_url():
             self._init_sqlite_schema()
