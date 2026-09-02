@@ -4,7 +4,7 @@
   "crons": [
     {
       "path": "/api/cron/ops",
-      "schedule": "17 * * * *"
+      "schedule": "2,17,32,47 * * * *"
     },
     {
       "path": "/api/cron/fulfillment",
