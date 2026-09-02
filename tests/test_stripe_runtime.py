@@ -51,6 +51,12 @@ def test_stripe_runtime_builds_checkout_payload_when_ready(monkeypatch) -> None:
         success_url="https://example.com/success",
         order_id="order_123",
         opportunity_id="opp_123",
+        commercial_execution_id="exec_123",
+        lead_id="lead_123",
+        product_key="quick-tech-diagnostic",
+        source_post_id="post_123",
+        source_url="https://www.moltbook.com/post/post_123",
+        venture="YaliTek Online",
     )
 
     assert runtime.is_ready_for_checkout() is True
@@ -58,6 +64,13 @@ def test_stripe_runtime_builds_checkout_payload_when_ready(monkeypatch) -> None:
     assert payload["success_url"].endswith("/success")
     assert payload["metadata"]["order_id"] == "order_123"
     assert payload["metadata"]["opportunity_id"] == "opp_123"
+    assert payload["metadata"]["commercial_execution_id"] == "exec_123"
+    assert payload["metadata"]["lead_id"] == "lead_123"
+    assert payload["metadata"]["product_key"] == "quick-tech-diagnostic"
+    assert payload["metadata"]["source_post_id"] == "post_123"
+    assert payload["metadata"]["source_url"] == "https://www.moltbook.com/post/post_123"
+    assert payload["metadata"]["venture"] == "YaliTek Online"
+    assert payload["metadata"]["source"] == "aion-attributed-checkout"
     assert payload["integration_identifier"] == "aion_checkout_kqzmxpvn"
 
 
@@ -83,10 +96,36 @@ def test_stripe_runtime_uses_scoped_client_for_checkout(monkeypatch) -> None:
         success_url="https://example.com/success",
         order_id="order_123",
         opportunity_id="opp_123",
+        commercial_execution_id="exec_123",
+        lead_id="lead_123",
+        product_key="quick-tech-diagnostic",
+        source_post_id="post_123",
+        source_url="https://www.moltbook.com/post/post_123",
+        venture="YaliTek Online",
     )
 
     assert result["session_id"] == "cs_test_scoped"
     assert calls[0]["integration_identifier"] == "aion_checkout_kqzmxpvn"
+    assert calls[0]["metadata"]["commercial_execution_id"] == "exec_123"
+    assert calls[0]["metadata"]["lead_id"] == "lead_123"
+    assert calls[0]["metadata"]["product_key"] == "quick-tech-diagnostic"
+    assert calls[0]["metadata"]["source_post_id"] == "post_123"
+
+
+def test_stripe_metadata_values_are_bounded(monkeypatch) -> None:
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_123")
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
+    monkeypatch.setenv("STRIPE_CHECKOUT_ENABLED", "true")
+
+    payload = StripeRuntime().create_checkout_session_payload(
+        amount_cents=1500,
+        currency="usd",
+        success_url="https://example.com/success",
+        order_id="order_123",
+        opportunity_id="opp_123",
+        source_url="x" * 1000,
+    )
+    assert len(payload["metadata"]["source_url"]) == 500
 
 
 def test_stripe_signature_rejects_stale_signed_payload(monkeypatch) -> None:
