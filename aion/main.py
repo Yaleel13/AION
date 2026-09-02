@@ -318,6 +318,13 @@ async def owner_checkout_prepare(
     amount_cents = int(body.get("amount_cents") or 0)
     currency = str(body.get("currency") or "usd")
     success_url = str(body.get("success_url") or "").strip()
+    customer_email = str(body.get("customer_email") or "").strip()
+    commercial_execution_id = str(body.get("commercial_execution_id") or "").strip()
+    lead_id = str(body.get("lead_id") or "").strip()
+    product_key = str(body.get("product_key") or "").strip()
+    source_post_id = str(body.get("source_post_id") or "").strip()
+    source_url = str(body.get("source_url") or "").strip()
+    venture = str(body.get("venture") or "").strip()
     if not order_id or not opportunity_id or amount_cents <= 0 or not success_url:
         raise HTTPException(status_code=400, detail="order_id, opportunity_id, amount_cents, and success_url are required")
 
@@ -327,11 +334,10 @@ async def owner_checkout_prepare(
         opportunity_id=opportunity_id,
         amount_cents=amount_cents,
         currency=currency,
-        customer_email=str(body.get("customer_email") or ""),
-        commercial_execution_id=str(body.get("commercial_execution_id") or ""),
+        customer_email=customer_email,
+        commercial_execution_id=commercial_execution_id,
     )
 
-    # Try to create a live Stripe session
     checkout_info = {}
     try:
         session = runtime.create_checkout_session(
@@ -340,14 +346,27 @@ async def owner_checkout_prepare(
             success_url=success_url,
             order_id=order_id,
             opportunity_id=opportunity_id,
-            customer_email=str(body.get("customer_email") or ""),
+            customer_email=customer_email,
+            commercial_execution_id=commercial_execution_id,
+            lead_id=lead_id,
+            product_key=product_key,
+            source_post_id=source_post_id,
+            source_url=source_url,
+            venture=venture,
         )
         checkout_info = {
             "session_id": session["session_id"],
             "checkout_url": session["checkout_url"],
             "live": True,
+            "attribution": {
+                "commercial_execution_id": commercial_execution_id,
+                "lead_id": lead_id,
+                "product_key": product_key,
+                "source_post_id": source_post_id,
+                "source_url": source_url,
+                "venture": venture,
+            },
         }
-        # Update order with session info
         store._conn.execute(
             "UPDATE payment_orders SET stripe_session_id = ?, stripe_checkout_url = ? WHERE order_id = ?",
             (session["session_id"], session["checkout_url"], order_id),
@@ -378,15 +397,21 @@ async def owner_checkout_webhook(
     if event_type not in {"checkout.session.completed", "checkout.session.async_payment_succeeded"}:
         return {"status": "ignored", "event_type": event_type, "event_id": event_id}
     session = (event.get("data") or {}).get("object") or {}
-    order_id = str((session.get("metadata") or {}).get("order_id") or "").strip()
-    opportunity_id = str((session.get("metadata") or {}).get("opportunity_id") or "")
+    metadata = dict(session.get("metadata") or {})
+    order_id = str(metadata.get("order_id") or "").strip()
+    opportunity_id = str(metadata.get("opportunity_id") or "").strip()
+    commercial_execution_id = str(metadata.get("commercial_execution_id") or "").strip()
+    lead_id = str(metadata.get("lead_id") or "").strip()
+    product_key = str(metadata.get("product_key") or "").strip()
+    source_post_id = str(metadata.get("source_post_id") or "").strip()
+    source_url = str(metadata.get("source_url") or "").strip()
+    venture = str(metadata.get("venture") or "").strip()
     amount = int(session.get("amount_total") or 0)
     currency = str(session.get("currency") or "usd")
     customer_email = str((session.get("customer_details") or {}).get("email") or "")
 
     store = OpportunityStore()
 
-    # Replay protection: check if this event ID has already been processed
     if event_id and store.idempotency_key_exists(event_id):
         return {
             "status": "duplicate",
@@ -404,9 +429,13 @@ async def owner_checkout_webhook(
             customer_email=customer_email,
             status="paid",
             idempotency_key=event_id,
-            commercial_execution_id=str((session.get("metadata") or {}).get("commercial_execution_id") or ""),
+            commercial_execution_id=commercial_execution_id,
         )
-        store.record_result(opportunity_id or order_id, result="stripe_checkout_completed", realized_value=max(0.0, amount / 100.0))
+        store.record_result(
+            opportunity_id or order_id,
+            result="stripe_checkout_completed",
+            realized_value=max(0.0, amount / 100.0),
+        )
 
     return {
         "status": "processed",
@@ -414,6 +443,15 @@ async def owner_checkout_webhook(
         "order_id": order_id,
         "amount_total": amount,
         "currency": currency,
+        "attribution": {
+            "opportunity_id": opportunity_id,
+            "commercial_execution_id": commercial_execution_id,
+            "lead_id": lead_id,
+            "product_key": product_key,
+            "source_post_id": source_post_id,
+            "source_url": source_url,
+            "venture": venture,
+        },
     }
 
 
