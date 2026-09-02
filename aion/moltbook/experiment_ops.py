@@ -6,19 +6,39 @@ from datetime import datetime, timezone
 from typing import Any
 
 
+YALITEK_QUICK_DIAGNOSTIC_URL = "https://buy.stripe.com/bJe00i66d4a17BTbFa1sQ00"
+
+
 def customize_lead_response(lead: dict[str, Any]) -> str:
     """Create a concise, buyer-oriented public reply without overclaiming.
 
     The reply is designed to move a legitimate public request toward a scoped
-    YaliTek offer while keeping credentials, private files, pricing negotiation,
-    and payment details out of the public thread.
+    YaliTek offer while keeping credentials, private files, custom pricing
+    negotiation, and sensitive payment details out of the public thread.
+
+    A direct checkout CTA is only added for high-confidence leads. Lower-confidence
+    candidates remain a scope-first conversation so AION does not spray payment
+    links into ambiguous discussions.
     """
     service = str(lead.get("relevant_service") or "technical help")
     problem = str(lead.get("stated_problem") or "the issue you described")
-    return (
+    confidence = float(lead.get("confidence_score") or 0.0)
+
+    base = (
         f"I saw your request around \"{problem[:120]}\". "
         f"YaliTek Online can help with {service.lower()}. "
-        "If this is still open, reply with the non-sensitive scope, desired outcome, "
+    )
+    if confidence >= 0.70:
+        return (
+            base
+            + "If you want a fixed-scope first step, the $49 Quick Tech Diagnostic is live here: "
+            + YALITEK_QUICK_DIAGNOSTIC_URL
+            + ". It covers a technical diagnostic and prioritized next-step plan. "
+            "Please do not post credentials, private keys, access codes, or customer data here."
+        )
+    return (
+        base
+        + "If this is still open, reply with the non-sensitive scope, desired outcome, "
         "and deadline. I can turn that into a fixed-scope next step and turnaround. "
         "Please do not post credentials, private keys, access codes, or customer data here."
     )
