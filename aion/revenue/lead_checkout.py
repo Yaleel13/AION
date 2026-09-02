@@ -45,7 +45,7 @@ def prepare_lead_checkout(
 
     runtime = StripeRuntime()
     if not runtime.is_ready_for_checkout():
-        return {"created": False, "reason": "stripe_not_ready"}
+        return {"created": False, "reason": "stripe_not_ready", "readiness": runtime.readiness()}
 
     post_id = str(lead.get("source_post_id") or "").strip()
     lead_id = str(lead.get("lead_id") or "").strip()
@@ -99,6 +99,7 @@ def prepare_lead_checkout(
             source_post_id=post_id,
             source_url=source_url,
             venture=str(product.venture),
+            product_name=str(fixed["product_name"]),
         )
     except Exception as exc:  # fail soft; static verified checkout remains available
         return {"created": False, "reason": "stripe_session_error", "error": str(exc)[:200]}
