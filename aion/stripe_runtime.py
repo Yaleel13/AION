@@ -31,6 +31,12 @@ def build_stripe_signature(payload: bytes, timestamp: str, secret: str) -> str:
     return hmac.new(secret.encode("utf-8"), signed_payload.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
+def _metadata_value(value: Any, *, limit: int = 500) -> str:
+    """Normalize one Stripe metadata value without leaking arbitrary objects."""
+    text = str(value or "").strip()
+    return text[:limit]
+
+
 class StripeRuntime:
     """Safety-gated Stripe adapter.
 
@@ -112,6 +118,12 @@ class StripeRuntime:
         order_id: str,
         opportunity_id: str,
         customer_email: str | None = None,
+        commercial_execution_id: str = "",
+        lead_id: str = "",
+        product_key: str = "",
+        source_post_id: str = "",
+        source_url: str = "",
+        venture: str = "",
     ) -> dict[str, Any]:
         params = self.safe_checkout_params(
             amount_cents=amount_cents,
@@ -119,10 +131,16 @@ class StripeRuntime:
             success_url=success_url,
         )
         params["metadata"] = {
-            "order_id": order_id,
-            "opportunity_id": opportunity_id,
-            "customer_email": customer_email or "",
-            "source": "aion-owner-approved-checkout",
+            "order_id": _metadata_value(order_id),
+            "opportunity_id": _metadata_value(opportunity_id),
+            "customer_email": _metadata_value(customer_email),
+            "commercial_execution_id": _metadata_value(commercial_execution_id),
+            "lead_id": _metadata_value(lead_id),
+            "product_key": _metadata_value(product_key),
+            "source_post_id": _metadata_value(source_post_id),
+            "source_url": _metadata_value(source_url),
+            "venture": _metadata_value(venture),
+            "source": "aion-attributed-checkout",
         }
         params["integration_identifier"] = "aion_checkout_kqzmxpvn"
         return params
@@ -136,13 +154,14 @@ class StripeRuntime:
         order_id: str,
         opportunity_id: str,
         customer_email: str | None = None,
+        commercial_execution_id: str = "",
+        lead_id: str = "",
+        product_key: str = "",
+        source_post_id: str = "",
+        source_url: str = "",
+        venture: str = "",
     ) -> dict[str, Any]:
-        """Create a live Stripe checkout session.
-
-        Returns dict with:
-        - session_id: Stripe session ID
-        - checkout_url: URL customer should visit to complete payment
-        """
+        """Create a live Stripe checkout session with end-to-end attribution metadata."""
         if not self.is_ready_for_checkout():
             raise RuntimeError("Stripe checkout is disabled until STRIPE_CHECKOUT_ENABLED and secrets are configured")
 
@@ -156,6 +175,12 @@ class StripeRuntime:
             order_id=order_id,
             opportunity_id=opportunity_id,
             customer_email=customer_email,
+            commercial_execution_id=commercial_execution_id,
+            lead_id=lead_id,
+            product_key=product_key,
+            source_post_id=source_post_id,
+            source_url=source_url,
+            venture=venture,
         )
         if customer_email:
             params["customer_email"] = customer_email
