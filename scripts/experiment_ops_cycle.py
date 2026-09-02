@@ -5,12 +5,13 @@ Runs non-spammy Phase 2 + controlled-autonomy ops that are allowed now:
 
 1. Seed draft campaign if empty (no publish)
 2. Paper-trading tick (virtual funds only)
-3. Lead discovery + customized response drafts
-4. Daily owner report
-5. Flush queued outbound only when quotas allow
-6. Publish next campaign draft only when post quota allows
+3. Lead discovery + product matching + customized response drafts
+4. Convert at most one explicit high-confidence public buyer lead when policy/quota allow
+5. Daily owner report
+6. Flush queued outbound only when quotas allow
+7. Publish next campaign draft only when post quota allows
 
-Never raises quotas, sends DMs, prices work, or places live trades.
+Never raises quotas, sends unsolicited DMs, invents pricing, or places live trades.
 """
 
 from __future__ import annotations
@@ -29,9 +30,11 @@ from aion.moltbook.experiment_ops import (
     customize_lead_response,
     mark_backlog_status,
     refresh_queue_timing,
+    select_conversion_candidate,
     select_next_backlog_comment,
     select_next_campaign_draft,
 )
+from aion.revenue.product_catalog import commercial_inventory_snapshot, match_product_for_lead
 
 load_dotenv(ROOT / ".env", override=True)
 
@@ -52,6 +55,10 @@ async def run_cycle(
         "phase": "experiment-ops",
         "kill_switch": svc.kill_switch.snapshot(),
         "published": False,
+        "commercial_inventory": {
+            "total_inventory_count": commercial_inventory_snapshot()["total_inventory_count"],
+            "sale_ready_count": commercial_inventory_snapshot()["sale_ready_count"],
+        },
     }
 
     if svc.kill_switch.engaged:
@@ -81,7 +88,6 @@ async def run_cycle(
             "disclaimer": "Paper only — no wallets/exchanges/live orders",
         }
     except Exception as exc:  # noqa: BLE001
-        # Public price APIs can 429; keep cycle alive without live trading.
         latest = (svc.paper.performance_report().get("latest") or {})
         result["paper"] = {
             "equity": latest.get("equity"),
@@ -92,18 +98,23 @@ async def run_cycle(
             "disclaimer": "Paper only — tick skipped due to price feed error",
         }
 
-    # 3) Lead discovery + customized drafts
+    # 3) Lead discovery + product matching + customized drafts
     leads = await svc.leads().scan_feed(limit=40)
     prepared = []
     for lead in leads:
         custom = customize_lead_response(lead)
         lead["suggested_response"] = custom
         svc.store.upsert_lead(lead)
+        product = match_product_for_lead(lead)
         item = {
             "lead_id": lead["lead_id"],
             "service": lead["relevant_service"],
             "confidence": lead["confidence_score"],
             "source_url": lead["source_url"],
+            "matched_venture": product.venture,
+            "matched_product": product.name,
+            "matched_product_key": product.product_key,
+            "sale_status": product.sale_status,
             "suggested_response": custom,
             "approval_status": lead["approval_status"],
         }
@@ -122,15 +133,92 @@ async def run_cycle(
         "recommended_owner_decisions": report.get("recommended_owner_decisions"),
     }
 
-    # 5) Optional queue flush (only if quota allows)
-    queued = refresh_queue_timing(svc.store.get_risk("queued_outbound") or {})
-    if queued.get("type") == "queued_comment":
-        svc.store.set_risk("queued_outbound", queued)
-    result["queued_outbound"] = queued
+    # Establish current comment capacity once, then let buyer-intent conversion have
+    # first access to a slot before lower-priority generic queue/backlog activity.
     result["counters"] = svc.autonomy.status()["counters"]
     comment_count = int(result["counters"]["comment"]["count"])
     comment_limit = int(svc.autonomy.policy.effective_limits().max_comments_per_24h)
     comment_slots = max(0, comment_limit - comment_count)
+
+    # 5) Tight buyer-intent -> controlled public conversion handoff.
+    # At most one public reply per cycle. It must be explicit buyer intent, >=0.70
+    # confidence, a real Moltbook post, policy-allowed, quota/pacing-allowed, and
+    # idempotent by stable source post ID. No DM is sent.
+    conversion = select_conversion_candidate(leads)
+    if conversion:
+        product = match_product_for_lead(conversion)
+        result["conversion_candidate"] = {
+            "lead_id": conversion.get("lead_id"),
+            "post_id": conversion.get("source_post_id"),
+            "confidence": conversion.get("confidence_score"),
+            "venture": product.venture,
+            "product": product.name,
+            "product_key": product.product_key,
+            "sale_status": product.sale_status,
+            "checkout_verified": bool(product.checkout_url),
+        }
+        if flush_queue and comment_slots > 0 and not svc.autonomy.dry_run:
+            post_id = str(conversion.get("source_post_id") or "")
+            content = str(conversion.get("suggested_response") or "")
+            verdict = qualify_outbound_content(
+                action="comment",
+                text=content,
+                destination=f"post:{post_id}",
+                inbound_context=str(conversion.get("raw_excerpt") or conversion.get("stated_problem") or ""),
+            )
+            if verdict.allowed and post_id and content:
+                try:
+                    published = await svc.autonomy.execute_comment(
+                        post_id=post_id,
+                        content=content,
+                        idempotency_key=f"qualified-buyer-{post_id}",
+                        target_account=str(conversion.get("requester_identity") or "") or None,
+                        solicited=False,
+                    )
+                except AutonomyBlockedError as exc:
+                    result["conversion_handoff"] = {
+                        "skipped": "policy_pacing_quota_or_duplicate",
+                        "reason": str(exc),
+                        "post_id": post_id,
+                    }
+                except Exception as exc:  # noqa: BLE001
+                    result["conversion_handoff"] = {
+                        "skipped": "execution_error",
+                        "reason": str(exc)[:300],
+                        "post_id": post_id,
+                    }
+                else:
+                    result["conversion_handoff"] = {
+                        "result": published,
+                        "post_id": post_id,
+                        "product_key": product.product_key,
+                    }
+                    result["published"] = result["published"] or bool(published.get("published"))
+                    if published.get("published"):
+                        comment_slots = max(0, comment_slots - 1)
+                        result["counters"] = svc.autonomy.status()["counters"]
+            else:
+                result["conversion_handoff"] = {
+                    "skipped": "content_policy_blocked",
+                    "reasons": verdict.reasons,
+                    "post_id": post_id,
+                }
+        else:
+            result["conversion_handoff"] = {
+                "skipped": "not_executable_now",
+                "flush_queue": flush_queue,
+                "comment_slots": comment_slots,
+                "dry_run": svc.autonomy.dry_run,
+            }
+    else:
+        result["conversion_candidate"] = None
+        result["conversion_handoff"] = {"skipped": "no_explicit_high_confidence_buyer"}
+
+    # 6) Optional legacy queue flush (only if quota allows)
+    queued = refresh_queue_timing(svc.store.get_risk("queued_outbound") or {})
+    if queued.get("type") == "queued_comment":
+        svc.store.set_risk("queued_outbound", queued)
+    result["queued_outbound"] = queued
 
     if flush_queue and queued.get("type") == "queued_comment":
         if comment_slots > 0 and not svc.autonomy.dry_run:
@@ -158,7 +246,7 @@ async def run_cycle(
                     }
                 else:
                     result["queue_flush"] = published
-                    result["published"] = bool(published.get("published"))
+                    result["published"] = result["published"] or bool(published.get("published"))
                     if published.get("published"):
                         svc.store.set_risk(
                             "queued_outbound",
@@ -174,7 +262,7 @@ async def run_cycle(
         else:
             result["queue_flush"] = {
                 "skipped": "comment_quota_or_dry_run",
-                "comment_count": comment_count,
+                "comment_count": int(result["counters"]["comment"]["count"]),
                 "limit": comment_limit,
                 "dry_run": svc.autonomy.dry_run,
                 "first_slot_frees_at": (queued.get("publish_when") or {}).get(
@@ -182,7 +270,7 @@ async def run_cycle(
                 ),
             }
 
-    # 5b) Flush prioritized comment backlog when slots remain
+    # 6b) Flush prioritized comment backlog when slots remain
     backlog_state = svc.store.get_risk("comment_backlog") or {}
     backlog = list(backlog_state.get("backlog") or [])
     result["comment_backlog_ready"] = sum(
@@ -260,7 +348,7 @@ async def run_cycle(
             "ready": result["comment_backlog_ready"],
         }
 
-    # 6) Optional next-draft publish (only if post quota allows)
+    # 7) Optional next-draft publish (only if post quota allows)
     nxt = select_next_campaign_draft(drafts)
     if nxt:
         result["next_post_draft"] = {
@@ -337,7 +425,6 @@ async def run_cycle(
         "phase": dashboard_snapshot().get("phase"),
         "live_writes_enabled": svc.autonomy.status().get("live_writes_enabled"),
     }
-    # silence unused import warning path for create_client in dry environments
     _ = create_client
     return result
 
@@ -347,7 +434,7 @@ def main() -> int:
     parser.add_argument(
         "--flush-queue",
         action="store_true",
-        help="Attempt to publish queued outbound if quotas allow",
+        help="Attempt qualified buyer conversion then queued outbound if quotas allow",
     )
     parser.add_argument(
         "--publish-next-draft",
