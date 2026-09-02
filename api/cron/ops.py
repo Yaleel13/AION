@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hmac
 import os
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, Header, HTTPException
 
@@ -12,6 +13,34 @@ from aion.phase2_services import get_services, reset_services_cache
 from scripts.experiment_ops_cycle import run_cycle
 
 app = FastAPI()
+
+REVENUE_WINDOW_START = datetime.fromisoformat("2026-09-02T14:06:14+00:00")
+REVENUE_WINDOW_END = datetime.fromisoformat("2026-09-02T20:06:14+00:00")
+
+
+def _six_hour_window_active() -> bool:
+    now = datetime.now(timezone.utc)
+    return REVENUE_WINDOW_START <= now < REVENUE_WINDOW_END
+
+
+def _apply_revenue_window_runtime_flags(active: bool) -> None:
+    """Apply the owner's time-bounded activation only inside this cron process.
+
+    This never changes the kill switch, credentials, Stripe payout settings, or
+    any persistent secret. Outside the six-hour window all live Moltbook gates
+    are explicitly returned to their fail-closed values.
+    """
+    if active:
+        os.environ["MOLTBOOK_OUTBOUND_ENABLED"] = "true"
+        os.environ["MOLTBOOK_EXECUTE_ENABLED"] = "true"
+        os.environ["MOLTBOOK_CONTROLLED_AUTONOMY"] = "true"
+        os.environ["MOLTBOOK_AUTONOMY_DRY_RUN"] = "false"
+        os.environ["MOLTBOOK_EXPERIMENT_STARTED_AT"] = REVENUE_WINDOW_START.isoformat()
+    else:
+        os.environ["MOLTBOOK_OUTBOUND_ENABLED"] = "false"
+        os.environ["MOLTBOOK_EXECUTE_ENABLED"] = "false"
+        os.environ["MOLTBOOK_CONTROLLED_AUTONOMY"] = "false"
+        os.environ["MOLTBOOK_AUTONOMY_DRY_RUN"] = "true"
 
 
 @app.get("/api/cron/ops")
@@ -31,9 +60,17 @@ async def scheduled_ops(authorization: str | None = Header(default=None)) -> dic
             detail="Durable Postgres storage is required before scheduled ops can run",
         )
 
-    # Safe scheduled cycle: research, drafts, paper-only tick, leads, daily report.
-    # No queued comments, campaign posts, applications, bids, or transactions are executed.
-    result = await run_cycle(flush_queue=False, publish_next_draft=False)
+    six_hour_active = _six_hour_window_active()
+    _apply_revenue_window_runtime_flags(six_hour_active)
+
+    # During the owner-authorized six-hour revenue window, controlled autonomy
+    # may flush qualified queued comments and publish the next qualified draft.
+    # All existing policy, pacing, secret/PII scanning, kill-switch, and
+    # automatic read-only fallback protections remain in force.
+    result = await run_cycle(
+        flush_queue=six_hour_active,
+        publish_next_draft=six_hour_active,
+    )
 
     reset_services_cache()
     svc = get_services()
@@ -50,9 +87,14 @@ async def scheduled_ops(authorization: str | None = Header(default=None)) -> dic
     return {
         "ok": True,
         "scheduled": True,
+        "six_hour_revenue_window": {
+            "active": six_hour_active,
+            "started_at": REVENUE_WINDOW_START.isoformat(),
+            "expires_at": REVENUE_WINDOW_END.isoformat(),
+        },
         "result": result,
         "revenue_scans": revenue_scans,
-        "outbound_enabled": False,
+        "outbound_enabled": bool(six_hour_active and not svc.kill_switch.engaged),
         "application_or_bid_authority": False,
         "transaction_authority": False,
     }
