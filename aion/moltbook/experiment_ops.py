@@ -58,6 +58,50 @@ def customize_lead_response(lead: dict[str, Any]) -> str:
     )
 
 
+def _source_post_id(lead: dict[str, Any]) -> str:
+    url = str(lead.get("source_url") or "")
+    marker = "/post/"
+    if marker not in url:
+        return ""
+    tail = url.split(marker, 1)[1].split("?", 1)[0].split("#", 1)[0].strip("/")
+    return tail if tail and "/" not in tail else ""
+
+
+def select_conversion_candidate(leads: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Pick one explicit, high-confidence public buyer-intent lead for controlled reply.
+
+    Selection is intentionally strict: public Moltbook post, explicit buyer signal,
+    confidence >= 0.70, non-hostile content, and a prepared response. The execution
+    engine still applies all policy, pacing, quota, secret/PII, and idempotency gates.
+    """
+    eligible: list[dict[str, Any]] = []
+    for lead in leads:
+        confidence = float(lead.get("confidence_score") or 0.0)
+        risks = str(lead.get("risks") or "")
+        content = str(lead.get("suggested_response") or "")
+        post_id = _source_post_id(lead)
+        if confidence < 0.70 or not post_id or not content:
+            continue
+        if "intent_signal=explicit" not in risks:
+            continue
+        if "prompt-injection heuristics matched" in risks:
+            continue
+        item = dict(lead)
+        item["source_post_id"] = post_id
+        eligible.append(item)
+
+    if not eligible:
+        return None
+    return sorted(
+        eligible,
+        key=lambda item: (
+            float(item.get("confidence_score") or 0.0),
+            float(item.get("fit_score") or 0.0),
+        ),
+        reverse=True,
+    )[0]
+
+
 def refresh_queue_timing(
     queued: dict[str, Any], *, now: datetime | None = None
 ) -> dict[str, Any]:
