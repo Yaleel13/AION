@@ -3,7 +3,7 @@
   "framework": "nextjs",
   "crons": [
     {
-      "path": "/api/cron/ops",
+      "path": "/api/cron/revenue-ops",
       "schedule": "2,17,32,47 * * * *"
     },
     {
