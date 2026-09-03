@@ -1,7 +1,16 @@
 # Public-Safe AION Case Study + Upwork Proposal Pack
 
-Status: OWNER-REVIEW DRAFT
+Status: SUBMISSION-READY DRAFT — OWNER ACCOUNT SUBMISSION REQUIRED
 Purpose: Revenue applications only. Do not publish private implementation details, credentials, covenant text, owner-only logs, or sensitive security configuration.
+
+## Verified owner facts for this sprint
+
+- Applicant/operator business: YaliTek LLC.
+- Strongest custom-agent example authorized for use: AION.
+- Public portfolio sites authorized for use: https://yalitekonline.com and https://elaria.app.
+- Full-stack experience: 5 years.
+- Weekly availability: 40+ hours.
+- Do not claim production n8n, AWS Bedrock, or client RAG experience unless separately verified.
 
 ## Sanitized Case Study — AION Controlled Agent Operations
 
@@ -35,80 +44,79 @@ Most agent demos optimize for the happy path. AION has instead been developed ar
 Next.js / TypeScript / React / Tailwind / Python / FastAPI / Supabase / PostgreSQL / Vercel / OpenAI-compatible agent integrations.
 
 ### What this demonstrates
-- Production-oriented agent orchestration.
+- Production-oriented custom-agent orchestration.
 - Human-in-the-loop authorization design.
 - API and SaaS integration patterns.
 - Durable state and structured operational memory.
 - Safety and failure-boundary engineering for autonomous workflows.
 - Full-stack implementation across frontend, API, agent runtime, and database layers.
 
+### Public portfolio references
+- YaliTek Online — https://yalitekonline.com
+- Elaria — https://elaria.app
+- AION — use the public repository/deployment only where doing so does not expose private implementation details.
+
 ### Claims that MUST NOT be made without additional owner evidence
-Do not claim n8n mastery, specific LangChain/LlamaIndex/AutoGen production history, a deployed client RAG system, AWS Bedrock production experience, revenue metrics, client counts, uptime/SLA numbers, years of experience, or work authored solely by Yaleél unless independently verified.
+Do not claim n8n mastery, specific LangChain/LlamaIndex/AutoGen production history, a deployed external-client RAG system, AWS Bedrock production experience, revenue metrics, client counts, or uptime/SLA numbers unless independently verified.
 
 ---
 
 # Proposal A — $7,500 AI Automation & LLM Engineer / n8n Specialist
 
-## Recommended cover letter
+## Submission-ready cover letter
 
-I build AI systems around the point where LLM capability meets reliable business execution. My most relevant current project is AION, a full-stack agent system with a Next.js owner interface, Python/FastAPI runtime, durable application state, controlled tool execution, approval-gated consequential actions, provenance-aware knowledge handling, and production deployment infrastructure.
+I have 5 years of full-stack experience, and I build AI systems around the point where LLM capability meets reliable business execution. My strongest relevant custom-agent project is AION, a full-stack agent system with a Next.js owner interface, Python/FastAPI runtime, Supabase/Postgres-backed durable state, controlled tool execution, approval-gated consequential actions, provenance-aware knowledge handling, and production deployment infrastructure.
 
-The part of your project that stands out is that you are not asking for a chatbot demo. You need production agents, workflow automation, grounded retrieval, integrations, error handling, documentation, and ongoing optimization. That is the right way to approach this class of system.
+AION is the example I would use for the custom-agent portion of your requirements. The system is designed around a production problem that matters in real automation: allowing an agent to discover, reason, prepare and execute workflows while preserving human control, auditable state, failure boundaries and verification around consequential actions.
 
-For your engagement I would structure delivery around:
+The part of your project that stands out is that you are not asking for a chatbot demo. You need production agents, workflow automation, grounded retrieval, integrations, error handling, documentation and ongoing optimization. I would structure delivery around:
 
 1. workflow and data-flow mapping before implementation;
 2. agent/tool boundaries and failure paths;
-3. RAG ingestion, chunking, retrieval, evaluation, and citation/grounding behavior;
+3. RAG ingestion, chunking, retrieval, evaluation and grounding behavior;
 4. API/SaaS integration with secrets isolated from workflow content;
 5. retries, idempotency, alerting and human-review gates for high-impact operations;
-6. latency/token/quality measurement rather than prompt tuning by intuition;
+6. latency/token/quality measurement rather than prompt tuning by intuition; and
 7. handoff documentation and maintainable operational runbooks.
 
-AION can serve as a technical case study for the agent-orchestration and controlled-execution portions of this work. I can provide a sanitized architecture walkthrough without exposing private prompts, credentials, or proprietary owner data.
+I can provide a sanitized architecture walkthrough of AION without exposing private prompts, credentials, proprietary owner data or sensitive security configuration. I can also provide two live full-stack portfolio references: https://yalitekonline.com and https://elaria.app.
 
-I would be glad to start by reviewing your current systems and turning the scope into a concrete architecture and milestone plan.
+I am available 40+ hours per week and can start with a technical review of your current systems, then turn the scope into a concrete architecture and milestone plan.
 
-## Required owner insert before submission
-
-Add one truthful paragraph containing the strongest actual n8n, RAG, vector-database, or custom-agent example Yaleél can personally substantiate. The listing explicitly says proposals without relevant project examples/links will not be considered.
-
-Suggested format:
-
-> Relevant example: [PROJECT]. I personally implemented [EXACT WORK] using [TOOLS]. The workflow handled [USE CASE]. Public evidence: [URL].
-
-Do not submit Proposal A until this paragraph is populated truthfully.
+### Truth-in-advertising note for submission
+AION satisfies the listing's request for a relevant custom-agent example. Do not imply that AION is an n8n project or that it proves production RAG/vector-database experience unless that evidence is separately established.
 
 ---
 
 # Proposal B — $8K–$10K Next.js / Supabase / Bedrock Contract
 
-## Recommended cover letter
+## Submission-ready cover letter
 
 BLUEPRINT
 
-Your stack is unusually close to the systems I am actively building: Next.js App Router, Supabase/Postgres/Auth, Tailwind, Vercel, API-backed AI features, and retrieval-oriented agent workflows.
+I have 5 years of full-stack experience and can commit 40+ hours per week. Your stack is unusually close to systems I am actively building: Next.js App Router, Supabase/Postgres/Auth, Tailwind, Vercel, API-backed AI features and retrieval-oriented agent workflows.
 
-My strongest relevant project is AION, a full-stack agent application with a Next.js owner-facing interface, Python/FastAPI runtime, Supabase/Postgres-backed infrastructure, durable state, approval-gated actions, structured operational data, and production deployment workflows. The architecture is intentionally designed for auditable AI execution rather than a thin chat wrapper.
+Two live portfolio references I can provide are:
+- https://yalitekonline.com
+- https://elaria.app
 
-For your dashboard I would begin with the data model and authorization boundaries, then build the App Router application around server/client responsibilities, Supabase RLS/Auth, typed domain models, retrieval interfaces, observability, and deployment verification. For the AI/document-Q&A layer I would separate ingestion, indexing, retrieval, generation and evaluation so the system can be tested and improved independently.
+My strongest current agent project is AION, a full-stack AI agent application with a Next.js owner-facing interface, Python/FastAPI runtime, Supabase/Postgres-backed infrastructure, durable state, approval-gated actions, structured operational data and production deployment workflows. The architecture is intentionally designed for auditable AI execution rather than a thin chat wrapper.
+
+For your dashboard I would begin with the data model and authorization boundaries, then build the App Router application around server/client responsibilities, Supabase RLS/Auth, typed domain models, retrieval interfaces, observability and deployment verification. For the AI/document-Q&A layer I would separate ingestion, indexing, retrieval, generation and evaluation so the system can be tested and improved independently.
 
 I am comfortable with a paid trial because it gives both sides a concrete way to evaluate code quality, communication and delivery before expanding the engagement.
 
-Before committing, I would want to align on the exact Bedrock model/runtime requirements, retrieval architecture, tenancy/security model, milestone acceptance criteria, and how the revenue-share clause is defined contractually.
+I would also be explicit about one point: I will not represent unverified AWS Bedrock production experience as something I have already done. I am comfortable working in the surrounding full-stack/LLM architecture and would align with you on the exact Bedrock model/runtime requirements at the start of the trial.
 
-## Required owner inserts before submission
+Before the main milestone I would want to align on the retrieval architecture, tenancy/security model, milestone acceptance criteria and how the revenue-share clause is defined contractually.
 
-The listing requires facts that cannot be inferred from the repository. Populate these truthfully:
-
-- Live application #1: [URL] — Yaleél's exact contribution: [DETAILS]
-- Live application #2: [URL] — Yaleél's exact contribution: [DETAILS]
-- Retrieval-based document Q&A example: [PROJECT/URL + exact contribution]
-- AWS Bedrock experience: [TRUTHFUL EXPERIENCE; if none, state adjacent AWS/LLM experience rather than implying Bedrock production history]
-- Years of full-stack experience: [NUMBER THAT CAN BE SUPPORTED]
-- Weekly availability: [HOURS]
-
-Do not submit Proposal B until these required facts are populated.
+### Verified facts to use in the application
+- Full-stack experience: 5 years.
+- Availability: 40+ hours/week.
+- Live portfolio: https://yalitekonline.com and https://elaria.app.
+- Custom-agent example: AION.
+- AWS Bedrock production experience: do not claim unless separately verified.
+- Retrieval-based document Q&A experience: do not claim a production client implementation unless separately verified.
 
 ---
 
@@ -117,7 +125,8 @@ Do not submit Proposal B until these required facts are populated.
 Before either proposal is sent:
 
 - All portfolio URLs must be public and functional.
-- Every first-person claim must be attributable to Yaleél's actual work.
-- Remove implementation details that would expose credentials, private prompts, private covenant content, or exploit-relevant security configuration.
+- Every first-person claim must be attributable to Yaleél's actual work or to facts explicitly confirmed by the owner.
+- Remove implementation details that would expose credentials, private prompts, private covenant content or exploit-relevant security configuration.
 - Never represent AION as a paying external client.
 - Never claim an unverified production metric.
+- Do not add n8n, Bedrock, RAG-client or vector-database experience merely to match a listing.
