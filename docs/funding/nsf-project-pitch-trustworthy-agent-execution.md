@@ -1,10 +1,10 @@
 # NSF Project Pitch Draft — Trustworthy Autonomous Agent Execution Infrastructure
 
-Status: OWNER-READY DRAFT — ENTITY/PI FACTS CONFIRMED; FINAL ELIGIBILITY ATTESTATION STILL REQUIRED
+Status: SUBMISSION-READY DRAFT — OWNER ACCOUNT SUBMISSION REQUIRED
 Program: America's Seed Fund powered by NSF (SBIR/STTR)
 Project type: High-risk R&D on trustworthy autonomous agent execution
 
-> NSF's current Project Pitch structure asks for four sections: Technology Innovation (up to 3,500 characters), Technical Objectives and Challenges (up to 3,500 characters), Market Opportunity (up to 1,750 characters), and Company and Team (up to 1,750 characters). This draft is intentionally conservative and avoids inventing team credentials or market metrics.
+> NSF's current Project Pitch structure asks for four sections: Technology Innovation (up to 3,500 characters), Technical Objectives and Challenges (up to 3,500 characters), Market Opportunity (up to 1,750 characters), and Company and Team (up to 1,750 characters). This draft remains conservative and avoids inventing team credentials, customer traction, or market metrics.
 
 ## 1. Technology Innovation
 
@@ -51,29 +51,31 @@ YaliTek LLC is developing AION, an owner-facing AI agent platform that has alrea
 The proposed NSF project would separate that infrastructure problem from the AION product experience and investigate it as a reusable technical platform.
 
 Key personnel:
-- Principal Investigator / technical lead: Yaleél, owner of YaliTek LLC. Verified experience for this draft: 5 years of full-stack development experience and direct development of AION plus live full-stack products including YaliTekOnline.com and Elaria.app.
-- Commercial lead: Yaleél / YaliTek LLC.
+- Principal Investigator / technical lead: Yaleel Benson, owner of YaliTek LLC. He has 5 years of full-stack development experience and direct development experience across AION and live full-stack products including YaliTekOnline.com and Elaria.app.
+- Commercial lead: Yaleel Benson / YaliTek LLC.
 - Additional technical expertise that may be needed for Phase I: formal security/adversarial evaluation, distributed-state/reliability engineering, and statistical experimental design. YaliTek LLC would fill any gaps through qualified U.S.-based employees, consultants, or collaborators consistent with program requirements.
 
 The team has access to an existing full-stack agent testbed, deployment infrastructure, live SaaS/web properties, and real workflow patterns that can be converted into controlled experiments.
 
 ---
 
-## Confirmed owner facts
+## Confirmed owner attestations
 
 - Applicant legal entity: YaliTek LLC.
-- Proposed Principal Investigator: Yaleél.
+- YaliTek LLC is confirmed by the owner to qualify as a U.S. small business concern under the applicable ownership/control requirements.
+- Principal Investigator: Yaleel Benson.
+- The owner confirms that Yaleel Benson can satisfy the applicable 51%+ primary-employment requirement with YaliTek LLC at award time.
 - Full-stack experience: 5 years.
 - Existing technical testbed: AION.
 - Live product references: https://yalitekonline.com and https://elaria.app.
+- Prior NSF SBIR/STTR Project Pitches or proposals by YaliTek LLC: none.
 
-## Final owner attestations required before NSF submission
+## Remaining submission checks
 
-- Confirm YaliTek LLC qualifies as a U.S. small business concern under the applicable NSF/SBA ownership and control rules.
-- Confirm the PI can satisfy NSF's primary-employment requirement at award time (51% or more primary employment with the awardee, as applicable to the solicitation).
-- Provide the PI's exact legal name and a concise technical biography suitable for submission.
-- Confirm whether YaliTek LLC has submitted any prior NSF SBIR/STTR Project Pitches or proposals.
-- Add any truthful customer discovery, letters of interest, deployment evidence, or market interviews relevant to trustworthy agent infrastructure.
+These are not factual blockers but final owner-account checks:
+- Review the generated text against the live NSF Project Pitch form before submitting.
+- Add any truthful customer discovery, letters of interest, deployment evidence, or market interviews if available; do not invent them.
+- Confirm all certifications/representations presented in the NSF portal at submission time.
 
 ## Phase I experiment skeleton
 
