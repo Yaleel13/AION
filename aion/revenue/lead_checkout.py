@@ -96,7 +96,7 @@ def prepare_lead_checkout(
         opportunity_id=opportunity_id,
         amount_cents=int(fixed["amount_cents"]),
         currency=str(fixed["currency"]),
-        status="pending",
+        status="pending_owner_approval",
         commercial_execution_id=commercial_execution_id,
     )
 
