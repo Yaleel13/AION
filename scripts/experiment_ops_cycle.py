@@ -27,13 +27,16 @@ sys.path.insert(0, str(ROOT))
 from dotenv import load_dotenv
 
 from aion.moltbook.experiment_ops import (
+    conversion_channel,
     customize_lead_response,
     mark_backlog_status,
+    persistable_lead,
     refresh_queue_timing,
     select_conversion_candidate,
     select_next_backlog_comment,
     select_next_campaign_draft,
 )
+from aion.revenue.external_leads import promote_external_opportunities_to_leads
 from aion.revenue.lead_checkout import prepare_lead_checkout
 from aion.revenue.product_catalog import commercial_inventory_snapshot, match_product_for_lead
 
@@ -96,11 +99,25 @@ async def run_cycle(
         }
 
     leads = await svc.leads().scan_feed(limit=40)
+    external_promoted = promote_external_opportunities_to_leads(
+        svc.opportunity_store.top(limit=40),
+        svc.store,
+    )
+    result["external_leads_promoted"] = len(external_promoted)
+
+    working: list[dict] = list(leads)
+    seen_ids = {str(item.get("lead_id") or "") for item in working}
+    for row in external_promoted:
+        lead_id = str(row.get("lead_id") or "")
+        if lead_id and lead_id not in seen_ids:
+            working.append(row)
+            seen_ids.add(lead_id)
+
     prepared = []
-    for lead in leads:
+    for lead in working:
         custom = customize_lead_response(lead)
         lead["suggested_response"] = custom
-        svc.store.upsert_lead(lead)
+        svc.store.upsert_lead(persistable_lead(lead))
         product = match_product_for_lead(lead)
         prepared.append(
             {
@@ -114,6 +131,7 @@ async def run_cycle(
                 "sale_status": product.sale_status,
                 "suggested_response": custom,
                 "approval_status": lead["approval_status"],
+                "conversion_channel": conversion_channel(lead),
             }
         )
         if float(lead.get("confidence_score") or 0) >= 0.7:
@@ -134,32 +152,49 @@ async def run_cycle(
     comment_limit = int(svc.autonomy.policy.effective_limits().max_comments_per_24h)
     comment_slots = max(0, comment_limit - comment_count)
 
-    conversion = select_conversion_candidate(leads)
+    conversion = select_conversion_candidate(svc.store.list_leads())
     if conversion:
         product = match_product_for_lead(conversion)
+        channel = str(conversion.get("conversion_channel") or conversion_channel(conversion))
         result["conversion_candidate"] = {
             "lead_id": conversion.get("lead_id"),
             "post_id": conversion.get("source_post_id"),
+            "channel": channel,
             "confidence": conversion.get("confidence_score"),
             "venture": product.venture,
             "product": product.name,
             "product_key": product.product_key,
             "sale_status": product.sale_status,
             "checkout_verified": bool(product.checkout_url),
+            "source_url": conversion.get("source_url"),
         }
-        if flush_queue and comment_slots > 0 and not svc.autonomy.dry_run:
-            post_id = str(conversion.get("source_post_id") or "")
+        checkout = prepare_lead_checkout(
+            lead=conversion,
+            product=product,
+            store=svc.opportunity_store,
+        )
+        result["lead_checkout"] = checkout
+        checkout_url = str(checkout.get("checkout_url") or product.checkout_url or "").strip()
+        if checkout_url:
+            conversion["checkout_override_url"] = checkout_url
+            conversion["suggested_response"] = customize_lead_response(conversion)
+            svc.store.upsert_lead(persistable_lead(conversion))
 
-            checkout = prepare_lead_checkout(
-                lead=conversion,
-                product=product,
-                store=svc.opportunity_store,
-            )
-            result["lead_checkout"] = checkout
-            checkout_url = str(checkout.get("checkout_url") or "").strip()
-            if checkout_url:
-                conversion["checkout_override_url"] = checkout_url
-                conversion["suggested_response"] = customize_lead_response(conversion)
+        if channel == "owner_direct_alert":
+            svc.autonomy.alert_owner_lead(conversion)
+            svc.store.update_lead_conversion(str(conversion.get("lead_id") or ""), "owner_sales_alert")
+            result["conversion_handoff"] = {
+                "result": "owner_sales_alert",
+                "channel": channel,
+                "lead_id": conversion.get("lead_id"),
+                "source_url": conversion.get("source_url"),
+                "product_key": product.product_key,
+                "attributed_checkout": bool(checkout_url),
+                "checkout_url": checkout_url or None,
+                "note": "No public comment posted. Owner must reply on the source platform using the prepared checkout link.",
+            }
+        elif flush_queue and comment_slots > 0 and not svc.autonomy.dry_run:
+            post_id = str(conversion.get("source_post_id") or "")
 
             content = str(conversion.get("suggested_response") or "")
             verdict = qualify_outbound_content(
@@ -193,11 +228,16 @@ async def run_cycle(
                     result["conversion_handoff"] = {
                         "result": published,
                         "post_id": post_id,
+                        "channel": channel,
                         "product_key": product.product_key,
                         "attributed_checkout": bool(checkout_url),
                     }
                     result["published"] = result["published"] or bool(published.get("published"))
                     if published.get("published"):
+                        svc.store.update_lead_conversion(
+                            str(conversion.get("lead_id") or ""),
+                            "moltbook_comment_published",
+                        )
                         comment_slots = max(0, comment_slots - 1)
                         result["counters"] = svc.autonomy.status()["counters"]
             else:
@@ -209,6 +249,7 @@ async def run_cycle(
         else:
             result["conversion_handoff"] = {
                 "skipped": "not_executable_now",
+                "channel": channel,
                 "flush_queue": flush_queue,
                 "comment_slots": comment_slots,
                 "dry_run": svc.autonomy.dry_run,

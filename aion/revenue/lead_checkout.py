@@ -21,6 +21,18 @@ _FIXED_PRICE_PRODUCTS: dict[str, dict[str, Any]] = {
         "product_name": "YaliTek Quick Tech Diagnostic",
         "success_url": "https://yalitekonline.com",
     },
+    "emergency-diagnostic": {
+        "amount_cents": 4900,
+        "currency": "usd",
+        "product_name": "YaliTek Emergency Diagnostic",
+        "success_url": "https://yalitekonline.com",
+    },
+    "ai-blueprint": {
+        "amount_cents": 4900,
+        "currency": "usd",
+        "product_name": "YaliTek AI Blueprint",
+        "success_url": "https://yalitekonline.com",
+    },
 }
 
 
@@ -50,13 +62,15 @@ def prepare_lead_checkout(
     post_id = str(lead.get("source_post_id") or "").strip()
     lead_id = str(lead.get("lead_id") or "").strip()
     source_url = str(lead.get("source_url") or "").strip()
-    if not post_id or not lead_id:
+    if not lead_id or not (post_id or source_url):
         return {"created": False, "reason": "missing_attribution_ids"}
 
-    fingerprint = _stable_token(f"moltbook:{post_id}:{lead_id}:{product.product_key}")
-    opportunity_id = f"moltbook-{fingerprint}"
+    channel = "moltbook" if post_id else "direct"
+    attribution_key = post_id or source_url
+    fingerprint = _stable_token(f"{channel}:{attribution_key}:{lead_id}:{product.product_key}")
+    opportunity_id = f"{channel}-{fingerprint}"
     order_id = f"order-{fingerprint}"
-    commercial_execution_id = f"moltbook-convert-{post_id}"
+    commercial_execution_id = f"{channel}-convert-{_stable_token(attribution_key, length=12)}"
 
     existing = next(
         (

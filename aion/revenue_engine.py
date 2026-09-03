@@ -14,7 +14,7 @@ from typing import Any
 from aion.moltbook.security import utc_now_iso
 
 
-SCOUTS = frozenset({"web", "commercial", "agent_network", "owned_property"})
+SCOUTS = frozenset({"web", "commercial", "agent_network", "owned_property", "reddit", "github"})
 
 
 @dataclass(slots=True)

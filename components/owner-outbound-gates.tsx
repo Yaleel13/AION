@@ -5,6 +5,13 @@ import { Activity, AlertTriangle, CheckCircle2, Loader2, Lock, RefreshCw, Unlock
 import { defer } from "@/lib/defer"
 import { AION_REQUEST_HEADER } from "@/lib/aion/owner-session"
 
+type GoLiveItem = {
+  id: string
+  ok: boolean
+  label: string
+  action: string
+}
+
 type GateStatus = {
   ok: boolean
   current_mode: string
@@ -14,6 +21,8 @@ type GateStatus = {
   moltbook_outbound_enabled: boolean
   moltbook_execute_enabled: boolean
   stripe_checkout_ready: boolean
+  ready_for_revenue: boolean
+  go_live_checklist: GoLiveItem[]
   blockers: string[]
   owner_actions: string[]
   ready_for_live_outbound: boolean
@@ -130,6 +139,39 @@ export function OwnerOutboundGates() {
               </div>
             ))}
           </div>
+
+          {/* Go-live checklist */}
+          {data.go_live_checklist?.length ? (
+            <div className="rounded-xl border border-border/70 bg-background/35 p-4">
+              <p className="mb-2 text-[0.65rem] uppercase tracking-wider text-muted-foreground">
+                Revenue go-live checklist
+              </p>
+              <p className="mb-3 text-[0.65rem] text-muted-foreground">
+                Checkout can run once kill switch, Postgres, owner token, cron secret, and Stripe are green.
+                Moltbook outbound is separate and stays fail-closed until you set those env vars in Vercel.
+              </p>
+              <ul className="space-y-2">
+                {data.go_live_checklist.map((item) => (
+                  <li key={item.id} className="flex items-start gap-2">
+                    {item.ok ? (
+                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-positive" />
+                    ) : (
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+                    )}
+                    <div>
+                      <p className="text-xs font-medium text-foreground">{item.label}</p>
+                      {item.ok ? null : (
+                        <p className="text-[0.65rem] leading-relaxed text-muted-foreground">{item.action}</p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Revenue rails: {data.ready_for_revenue ? "ready" : "blocked"}. Durable activation is Vercel env, not the test toggle below.
+              </p>
+            </div>
+          ) : null}
 
           {/* Blockers */}
           {data.blockers.length > 0 ? (

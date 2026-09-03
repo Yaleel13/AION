@@ -14,6 +14,7 @@ from typing import Any
 from fastapi import FastAPI, Header, HTTPException, Request
 
 from aion.phase2_services import get_services, reset_services_cache
+from aion.moltbook.experiment_ops import conversion_channel
 from aion.revenue.lead_checkout import prepare_lead_checkout
 from aion.revenue.product_catalog import match_product_for_lead
 
@@ -52,6 +53,8 @@ def _sales_queue(svc: Any) -> list[dict[str, Any]]:
                 "requester": lead.get("requester_identity"),
                 "source_url": lead.get("source_url"),
                 "source_post_id": lead.get("source_post_id"),
+                "conversion_channel": conversion_channel(lead),
+                "conversion_outcome": lead.get("conversion_outcome"),
                 "suggested_response": lead.get("suggested_response"),
                 "approval_status": lead.get("approval_status"),
                 "matched_venture": product.venture,

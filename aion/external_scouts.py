@@ -29,6 +29,7 @@ DEFAULT_ALLOWED_HOSTS = frozenset(
         "api.sam.gov",
         # Reddit public JSON (no auth required for public posts)
         "www.reddit.com",
+        "old.reddit.com",
         # GitHub repository search / Discussions via public API (unauthenticated, 60 req/h)
         "api.github.com",
     }
@@ -89,12 +90,52 @@ def _plain_text(value: Any) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _scout_headers(source: PublicSource) -> dict[str, str]:
+    """Return host-appropriate headers. Reddit and GitHub reject generic/empty UAs."""
+    headers = {
+        "User-Agent": "AION-Revenue-Scout/1.0 (Yaleel; read-only public JSON; +https://aion.yalitek.ai)",
+        "Accept": "application/json",
+    }
+    host = (urlparse(source.url).hostname or "").lower()
+    if host in {"www.reddit.com", "old.reddit.com", "reddit.com"}:
+        headers["User-Agent"] = (
+            "AION-Revenue-Scout/1.0 by Yaleel (read-only public JSON; +https://aion.yalitek.ai)"
+        )
+    elif host == "api.github.com":
+        headers["Accept"] = "application/vnd.github+json"
+        headers["X-GitHub-Api-Version"] = "2022-11-28"
+        headers["User-Agent"] = "AION-Revenue-Scout/1.0 (+https://aion.yalitek.ai)"
+    return headers
+
+
+def _candidate_url(value: dict[str, Any], *, source: PublicSource) -> str:
+    permalink = str(value.get("permalink") or "").strip()
+    html_url = str(value.get("html_url") or "").strip()
+    url = str(value.get("url") or value.get("story_url") or "").strip()
+    object_id = str(value.get("objectID") or value.get("id") or "").strip()
+    if permalink.startswith("/"):
+        return f"https://www.reddit.com{permalink.split('?', 1)[0]}"
+    if html_url.startswith("https://"):
+        return html_url
+    if url.startswith("https://"):
+        return url
+    if object_id and "hn.algolia.com" in source.url:
+        return f"https://news.ycombinator.com/item?id={object_id}"
+    return ""
+
+
 def _walk_json(payload: Any, *, source: PublicSource) -> list[ScoutCandidate]:
     """Extract compact title/text/url candidates from heterogeneous public JSON."""
     candidates: list[ScoutCandidate] = []
 
     def visit(value: Any) -> None:
         if isinstance(value, dict):
+            # Reddit listings wrap posts as {kind, data:{...}}. Descend into data
+            # first so title/selftext/permalink are read from the inner object.
+            inner = value.get("data")
+            if isinstance(inner, dict) and value.get("kind"):
+                visit(inner)
+                return
             title = _plain_text(
                 value.get("title")
                 or value.get("story_title")
@@ -103,7 +144,8 @@ def _walk_json(payload: Any, *, source: PublicSource) -> list[ScoutCandidate]:
                 or ""
             )
             text = _plain_text(
-                value.get("description")
+                value.get("selftext")
+                or value.get("description")
                 or value.get("comment_text")
                 or value.get("text")
                 or value.get("story_text")
@@ -111,15 +153,14 @@ def _walk_json(payload: Any, *, source: PublicSource) -> list[ScoutCandidate]:
                 or value.get("summary")
                 or ""
             )
-            object_id = str(value.get("objectID") or value.get("id") or "").strip()
-            url = str(value.get("url") or value.get("story_url") or "").strip()
-            if not url and object_id and "hn.algolia.com" in source.url:
-                url = f"https://news.ycombinator.com/item?id={object_id}"
-            if not url:
-                url = source.url
+            url = _candidate_url(value, source=source)
             combined = f"{title}\n{text}".strip()
-            if combined and len(combined) >= 30:
-                candidates.append(ScoutCandidate(source.name, title, combined[:6000], url))
+            if combined and len(combined) >= 30 and url:
+                github_issue = "/issues/" in url or "/pull/" in url
+                if source.scout == "github" and not github_issue:
+                    pass
+                else:
+                    candidates.append(ScoutCandidate(source.name, title, combined[:6000], url))
             for child in value.values():
                 if isinstance(child, (dict, list)):
                     visit(child)
@@ -131,7 +172,7 @@ def _walk_json(payload: Any, *, source: PublicSource) -> list[ScoutCandidate]:
     seen: set[tuple[str, str]] = set()
     unique: list[ScoutCandidate] = []
     for candidate in candidates:
-        key = (candidate.title[:200], candidate.text[:500])
+        key = (candidate.title[:200], candidate.text[:500], candidate.url)
         if key not in seen:
             seen.add(key)
             unique.append(candidate)
@@ -199,7 +240,7 @@ class ExternalRevenueScout:
                     _validate_source(source, allowed_hosts=allowed)
                     response = await client.get(
                         source.url,
-                        headers={"User-Agent": "AION-Revenue-Scout/1.0"},
+                        headers=_scout_headers(source),
                     )
                     response.raise_for_status()
                     content_type = response.headers.get("content-type", "")
@@ -291,15 +332,15 @@ def default_sources(environ: dict[str, str] | None = None) -> list[PublicSource]
             scout="reddit",
         ),
         # ── GitHub (unauthenticated public search, 60 req/h) ──────────────────
-        # Repos with "help wanted" issues and web/automation topics.
+        # Paid-intent issue text, not generic OSS "help wanted" chore lists.
         PublicSource(
-            name="github_help_wanted_automation",
-            url="https://api.github.com/search/issues?q=label%3A%22help+wanted%22+topic%3Aautomation&sort=created&order=desc&per_page=30",
+            name="github_paid_hire_web",
+            url="https://api.github.com/search/issues?q=%22looking+to+hire%22+OR+%22paid+gig%22+OR+%22paid+contract%22+wordpress+OR+nextjs+OR+website&sort=created&order=desc&per_page=30",
             scout="github",
         ),
         PublicSource(
-            name="github_help_wanted_nextjs",
-            url="https://api.github.com/search/issues?q=label%3A%22help+wanted%22+topic%3Anextjs&sort=created&order=desc&per_page=30",
+            name="github_paid_automation",
+            url="https://api.github.com/search/issues?q=budget+OR+%22paid+project%22+automation+OR+n8n+OR+zapier&sort=created&order=desc&per_page=30",
             scout="github",
         ),
     ]

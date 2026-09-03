@@ -46,22 +46,24 @@ async def scheduled_ops(
     # the Vercel project; no in-process override is applied here.
     outbound_enabled = (os.getenv("MOLTBOOK_OUTBOUND_ENABLED") or "false").lower() in {"1", "true", "yes"}
 
-    result = await run_cycle(
-        flush_queue=outbound_enabled,
-        publish_next_draft=outbound_enabled,
-    )
-
     reset_services_cache()
     svc = get_services()
     revenue_scans: dict = {}
     if svc.kill_switch.engaged:
         revenue_scans = {"skipped": "kill_switch_engaged"}
     else:
+        # Scan public sources before the ops cycle so Reddit/GitHub/HN hits can
+        # be promoted to leads and selected as conversion candidates this run.
         revenue_scans["external"] = await svc.scan_external_opportunities()
         revenue_scans["federal"] = await svc.scan_federal_opportunities()
         ranked = svc.opportunity_store.top(limit=25)
         revenue_scans["ranked_count"] = len(ranked)
         revenue_scans["highest_probability_legitimate_action"] = ranked[0] if ranked else None
+
+    result = await run_cycle(
+        flush_queue=outbound_enabled,
+        publish_next_draft=outbound_enabled,
+    )
 
     return {
         "ok": True,

@@ -101,6 +101,98 @@ def test_hn_comment_text_is_extracted_and_html_is_stripped() -> None:
     assert opportunity.estimated_revenue == 1200
 
 
+def test_reddit_listing_extracts_selftext_and_permalink() -> None:
+    source = PublicSource(
+        "reddit_forhire_hiring",
+        "https://www.reddit.com/r/forhire/search.json?q=%5BHIRING%5D&sort=new&limit=50&t=week",
+        "reddit",
+    )
+    payload = {
+        "kind": "Listing",
+        "data": {
+            "children": [
+                {
+                    "kind": "t3",
+                    "data": {
+                        "title": "[HIRING] Need a Next.js developer for a paid website repair",
+                        "selftext": "Looking to hire a freelancer this week. Budget $900. WordPress site is down after a plugin update.",
+                        "permalink": "/r/forhire/comments/abc123/hiring_need_a_nextjs_developer/",
+                        "url": "https://example.com/unrelated-outbound",
+                    },
+                }
+            ]
+        },
+    }
+    candidates = _walk_json(payload, source=source)
+    assert len(candidates) == 1
+    assert "WordPress site is down" in candidates[0].text
+    assert candidates[0].url == "https://www.reddit.com/r/forhire/comments/abc123/hiring_need_a_nextjs_developer/"
+    opportunity = candidate_to_opportunity(candidates[0], scout="reddit")
+    assert opportunity is not None
+    assert opportunity.scout == "reddit"
+    assert opportunity.estimated_revenue == 900
+
+
+def test_github_issue_prefers_html_url_over_api_url() -> None:
+    source = PublicSource(
+        "github_help_wanted_nextjs",
+        "https://api.github.com/search/issues?q=label%3A%22help+wanted%22+topic%3Anextjs",
+        "github",
+    )
+    payload = {
+        "total_count": 1,
+        "items": [
+            {
+                "title": "Help wanted: Next.js deploy is broken after Vercel migration",
+                "body": "Looking to hire a contractor. Need help fixing our Next.js hosting deploy. Budget $500.",
+                "url": "https://api.github.com/repos/acme/app/issues/12",
+                "html_url": "https://github.com/acme/app/issues/12",
+            }
+        ],
+    }
+    candidates = _walk_json(payload, source=source)
+    assert len(candidates) == 1
+    assert candidates[0].url == "https://github.com/acme/app/issues/12"
+    opportunity = candidate_to_opportunity(candidates[0], scout="github")
+    assert opportunity is not None
+    assert opportunity.scout == "github"
+
+
+def test_github_walk_skips_nested_non_issue_html_urls() -> None:
+    source = PublicSource(
+        "github_paid_hire_web",
+        "https://api.github.com/search/issues?q=looking+to+hire",
+        "github",
+    )
+    payload = {
+        "items": [
+            {
+                "title": "Looking to hire a Next.js developer for a paid website repair. Budget $800.",
+                "body": "Need help repairing a production Next.js site this week.",
+                "html_url": "https://github.com/acme/app/issues/12",
+                "user": {
+                    "login": "acme",
+                    "html_url": "https://github.com/acme",
+                    "url": "https://api.github.com/users/acme",
+                },
+            }
+        ]
+    }
+    urls = {candidate.url for candidate in _walk_json(payload, source=source)}
+    assert "https://github.com/acme/app/issues/12" in urls
+    assert "https://github.com/acme" not in urls
+
+
+def test_walk_json_does_not_fallback_to_search_url_without_permalink() -> None:
+    source = PublicSource(
+        "reddit_freelance_new",
+        "https://www.reddit.com/r/freelance/new.json?limit=50",
+        "reddit",
+    )
+    payload = {"kind": "Listing", "data": {"dist": 0, "children": []}}
+    assert _walk_json(payload, source=source) == []
+
+
 def test_default_sources_include_multiple_recent_buyer_intent_feeds() -> None:
     sources = default_sources({})
     names = {source.name for source in sources}
@@ -108,7 +200,7 @@ def test_default_sources_include_multiple_recent_buyer_intent_feeds() -> None:
     assert "hn_looking_to_hire_developer" in names
     # Reddit and GitHub sources added in C2 distribution expansion
     assert any("reddit" in n for n in names), "Reddit sources must be present"
-    assert any("github" in n for n in names), "GitHub sources must be present"
+    assert "github_paid_hire_web" in names
     assert sum(source.scout in {"commercial", "reddit", "github"} for source in sources) >= 7
 
 

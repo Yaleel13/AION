@@ -273,6 +273,19 @@ class Phase2Store:
         cur = self._conn.execute("SELECT * FROM leads ORDER BY created_at DESC")
         return [dict(r) for r in cur.fetchall()]
 
+    def update_lead_conversion(self, lead_id: str, conversion_outcome: str) -> None:
+        """Record a conversion outcome without rewriting the rest of the lead."""
+        self._conn.execute(
+            """
+            UPDATE leads
+            SET conversion_outcome = ?
+            WHERE lead_id = ?
+              AND conversion_outcome IN ('uncontacted', '', 'none')
+            """,
+            (conversion_outcome, lead_id),
+        )
+        self._conn.commit()
+
     def upsert_draft(self, row: dict[str, Any]) -> None:
         self._conn.execute(
             """
