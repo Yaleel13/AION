@@ -143,6 +143,7 @@ def test_github_issue_prefers_html_url_over_api_url() -> None:
         "total_count": 1,
         "items": [
             {
+                "state": "open",
                 "title": "Help wanted: Next.js deploy is broken after Vercel migration",
                 "body": "Looking to hire a contractor. Need help fixing our Next.js hosting deploy. Budget $500.",
                 "url": "https://api.github.com/repos/acme/app/issues/12",
@@ -167,6 +168,7 @@ def test_github_walk_skips_nested_non_issue_html_urls() -> None:
     payload = {
         "items": [
             {
+                "state": "open",
                 "title": "Looking to hire a Next.js developer for a paid website repair. Budget $800.",
                 "body": "Need help repairing a production Next.js site this week.",
                 "html_url": "https://github.com/acme/app/issues/12",
@@ -181,6 +183,35 @@ def test_github_walk_skips_nested_non_issue_html_urls() -> None:
     urls = {candidate.url for candidate in _walk_json(payload, source=source)}
     assert "https://github.com/acme/app/issues/12" in urls
     assert "https://github.com/acme" not in urls
+
+
+def test_github_closed_issue_is_skipped() -> None:
+    source = PublicSource(
+        "github_paid_hire_web",
+        "https://api.github.com/search/issues?q=looking+to+hire",
+        "github",
+    )
+    payload = {
+        "items": [
+            {
+                "state": "closed",
+                "title": "Looking to hire a Next.js developer",
+                "body": "Paid project. Budget $1200 for a website repair.",
+                "html_url": "https://github.com/acme/app/issues/99",
+            }
+        ]
+    }
+    assert _walk_json(payload, source=source) == []
+
+
+def test_github_budget_only_technical_issue_is_not_a_buyer() -> None:
+    candidate = ScoutCandidate(
+        source="github_paid_automation",
+        title="Automation performance budget regression",
+        text="Our workflow automation latency budget is 500 ms after this deployment. Need help debugging the benchmark.",
+        url="https://github.com/acme/app/issues/77",
+    )
+    assert candidate_to_opportunity(candidate, scout="github") is None
 
 
 def test_walk_json_does_not_fallback_to_search_url_without_permalink() -> None:
@@ -198,9 +229,11 @@ def test_default_sources_include_multiple_recent_buyer_intent_feeds() -> None:
     names = {source.name for source in sources}
     assert "hn_seeking_freelancer" in names
     assert "hn_looking_to_hire_developer" in names
-    # Reddit and GitHub sources added in C2 distribution expansion
     assert any("reddit" in n for n in names), "Reddit sources must be present"
     assert "github_paid_hire_web" in names
+    github_urls = [source.url for source in sources if source.scout == "github"]
+    assert github_urls
+    assert all("is%3Aopen" in url for url in github_urls)
     assert sum(source.scout in {"commercial", "reddit", "github"} for source in sources) >= 7
 
 
