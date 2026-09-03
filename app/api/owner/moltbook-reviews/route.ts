@@ -1,8 +1,12 @@
-import { hasValidOwnerSession } from "@/lib/aion/owner-session"
+import { hasValidOwnerSession, requireCsrfHeader } from "@/lib/aion/owner-session"
 
 async function proxy(req: Request, method: "GET" | "POST") {
   if (!hasValidOwnerSession(req.headers.get("cookie"))) {
     return Response.json({ error: "Owner authentication required." }, { status: 401 })
+  }
+  if (method === "POST") {
+    const csrfError = requireCsrfHeader(req)
+    if (csrfError) return csrfError
   }
   if (!process.env.AION_OWNER_TOKEN) {
     return Response.json({ error: "AION owner authentication is not configured." }, { status: 503 })

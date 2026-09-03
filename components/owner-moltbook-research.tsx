@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { ExternalLink, Loader2, Radar, RefreshCw } from "lucide-react"
 import { defer } from "@/lib/defer"
+import { AION_REQUEST_HEADER } from "@/lib/aion/owner-session"
 
 type Lead = {
   lead_id: string
@@ -59,7 +60,7 @@ export function OwnerMoltbookResearch() {
     setScanning(true)
     setNotice(null)
     try {
-      const response = await fetch("/api/owner/moltbook-research", { method: "POST", cache: "no-store" })
+      const response = await fetch("/api/owner/moltbook-research", { method: "POST", headers: AION_REQUEST_HEADER, cache: "no-store" })
       const body = (await response.json()) as ResearchResponse
       if (!response.ok || !body.ok) throw new Error(body.error || `Research scan failed (${response.status})`)
       setData(body)

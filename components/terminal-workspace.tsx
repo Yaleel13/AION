@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Hammer, LockKeyhole, Play, SearchCheck, ShieldCheck, Terminal, Wrench, X } from "lucide-react"
 import { defer } from "@/lib/defer"
+import { AION_REQUEST_HEADER } from "@/lib/aion/owner-session"
 
 type SessionState = { configured: boolean; authenticated: boolean }
 type CheckName = "inspect" | "lint" | "build" | "all"
@@ -91,7 +92,7 @@ export function TerminalWorkspace({ onClose }: { onClose: () => void }) {
     try {
       const res = await fetch("/api/owner/terminal/diagnose", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...AION_REQUEST_HEADER },
         body: JSON.stringify({ check }),
       })
       const data = (await res.json()) as DiagnosticResult

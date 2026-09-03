@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { CreditCard, Loader2 } from "lucide-react"
+import { AION_REQUEST_HEADER } from "@/lib/aion/owner-session"
 
 type VerificationResult = {
   verified?: boolean
@@ -21,7 +22,7 @@ export function OwnerPaymentRail() {
     setBusy(true)
     setResult(null)
     try {
-      const response = await fetch("/api/owner/payment-rail", { method: "POST" })
+      const response = await fetch("/api/owner/payment-rail", { method: "POST", headers: AION_REQUEST_HEADER })
       const body = (await response.json()) as VerificationResult
       if (!response.ok) throw new Error(body.error || `Payment verification failed (${response.status})`)
       setResult(body)

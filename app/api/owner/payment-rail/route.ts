@@ -1,4 +1,4 @@
-import { hasValidOwnerSession } from "@/lib/aion/owner-session"
+import { hasValidOwnerSession, requireCsrfHeader } from "@/lib/aion/owner-session"
 
 type CheckoutResponse = {
   checkout?: {
@@ -12,6 +12,8 @@ export async function POST(req: Request) {
   if (!hasValidOwnerSession(req.headers.get("cookie"))) {
     return Response.json({ error: "Owner authentication required." }, { status: 401 })
   }
+  const csrfError = requireCsrfHeader(req)
+  if (csrfError) return csrfError
   if (!process.env.AION_OWNER_TOKEN) {
     return Response.json({ error: "AION owner authentication is not configured." }, { status: 503 })
   }
