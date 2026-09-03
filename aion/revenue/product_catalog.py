@@ -116,15 +116,15 @@ PRODUCTS: tuple[CommercialProduct, ...] = (
 
 
 COMMERCIAL_RESOURCES: tuple[dict[str, Any], ...] = (
-    {"resource": "GitHub", "status": "connected", "use": "product source-of-truth, code changes, deployment-triggering commits, fulfillment assets"},
-    {"resource": "Vercel", "status": "connected", "use": "production hosting, cron execution, deployment verification, runtime logs"},
-    {"resource": "Stripe / Agent Aion", "status": "live", "use": "approved checkout, payment collection, revenue attribution"},
-    {"resource": "Moltbook", "status": "live controlled outbound", "use": "public buyer-intent discovery and policy-bounded public conversion activity"},
-    {"resource": "Gmail", "status": "connected", "use": "owner communications, customer follow-up when a legitimate recipient and context exist"},
-    {"resource": "Supabase/Postgres", "status": "connected durable data", "use": "opportunity, lead, audit, conversion and operational state"},
-    {"resource": "PostHog", "status": "connected (another product's events — no AION-specific taxonomy yet)", "use": "product analytics once an AION event taxonomy is instrumented"},
-    {"resource": "Google Drive", "status": "connected", "use": "creator-authorized source documents, product knowledge and delivery artifacts"},
-    {"resource": "OpenAI", "status": "connected", "use": "reasoning, generation, classification, drafting and agent runtime capabilities"},
+    {"resource": "GitHub", "status": "external connector available; deployed-runtime credential must be verified separately", "use": "product source-of-truth, code changes, deployment-triggering commits, fulfillment assets"},
+    {"resource": "Vercel", "status": "production runtime", "use": "production hosting, cron execution, deployment verification, runtime logs"},
+    {"resource": "Stripe / Agent Aion", "status": "owner-configured payment rail", "use": "approved checkout, payment collection, revenue attribution"},
+    {"resource": "Moltbook", "status": "owner-gated; approval and execute gates are separately locked unless activated", "use": "public buyer-intent discovery and policy-bounded public conversion activity"},
+    {"resource": "Gmail", "status": "external connector available; deployed-runtime credential must be verified separately", "use": "owner communications, customer follow-up when a legitimate recipient and context exist"},
+    {"resource": "Supabase/Postgres", "status": "connected durable data when AION_DATABASE_URL resolves to Postgres", "use": "opportunity, lead, audit, conversion and operational state"},
+    {"resource": "PostHog", "status": "runtime configuration must be detected; AION-specific taxonomy still required", "use": "product analytics once an AION event taxonomy is instrumented"},
+    {"resource": "Google Drive", "status": "external connector available; deployed-runtime credential must be verified separately", "use": "creator-authorized source documents, product knowledge and delivery artifacts"},
+    {"resource": "OpenAI", "status": "runtime configured when OPENAI_API_KEY is present", "use": "reasoning, generation, classification, drafting and agent runtime capabilities"},
     {"resource": "Creator domains", "status": "active portfolio", "use": "yalitekonline.com, elaria.app, cerebral-synergy.com and other authorized properties as verified"},
 )
 
@@ -183,11 +183,14 @@ def commercial_inventory_snapshot() -> dict[str, Any]:
                 "price_display": p.price_display,
                 "revenue_model": p.revenue_model,
                 "fulfillment": p.fulfillment,
+                "buyer_signals": list(p.buyer_signals),
                 "source_of_truth": p.source_of_truth,
+                "notes": p.notes,
+                "social_proof": p.social_proof,
             }
             for p in PRODUCTS
         ],
-        "resources": list(COMMERCIAL_RESOURCES),
-        "sale_ready_count": len(sale_ready_products()),
+        "commercial_resources": [dict(item) for item in COMMERCIAL_RESOURCES],
         "total_inventory_count": len(PRODUCTS),
+        "sale_ready_count": len(sale_ready_products()),
     }
