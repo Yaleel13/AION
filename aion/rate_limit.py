@@ -1,4 +1,17 @@
-"""Local request rate limiting for public AION endpoints."""
+"""Local request rate limiting for public AION endpoints.
+
+IMPORTANT — process-local caveat
+---------------------------------
+This implementation stores timestamps in an in-process dict.  On Vercel Python
+functions each cold start is a fresh process, so the budget is per-isolate, not
+per-client fleet.  A burst of concurrent requests can fan out across multiple
+isolates and each will allow its full quota.
+
+For a production fleet-wide limiter, replace the in-process dict with Vercel KV
+(``@vercel/kv``) or Upstash Redis and use atomic increment + TTL.  The
+``ClientSlidingWindowRateLimiter`` interface should remain the same so call sites
+need no changes.
+"""
 
 from __future__ import annotations
 
