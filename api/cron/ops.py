@@ -3,7 +3,7 @@
 Live outbound / execute gates are controlled exclusively by environment
 variables (MOLTBOOK_OUTBOUND_ENABLED, MOLTBOOK_EXECUTE_ENABLED,
 MOLTBOOK_CONTROLLED_AUTONOMY) set in the Vercel project dashboard after
-explicit owner review.  A time-bounded in-process activation window was
+explicit owner review. A time-bounded in-process activation window was
 present here previously and has been removed; all such activations now
 require an owner to set the relevant env vars directly.
 """
@@ -15,6 +15,7 @@ import os
 
 from fastapi import FastAPI, Header, HTTPException
 
+from aion.buyer_inventory import BuyerInventoryEngine
 from aion.durable.db import storage_status
 from aion.phase2_services import get_services, reset_services_cache
 from scripts.experiment_ops_cycle import run_cycle
@@ -42,8 +43,6 @@ async def scheduled_ops(
             detail="Durable Postgres storage is required before scheduled ops can run",
         )
 
-    # Outbound / execute gates are read from env vars set by the owner in
-    # the Vercel project; no in-process override is applied here.
     outbound_enabled = (os.getenv("MOLTBOOK_OUTBOUND_ENABLED") or "false").lower() in {"1", "true", "yes"}
 
     reset_services_cache()
@@ -52,11 +51,11 @@ async def scheduled_ops(
     if svc.kill_switch.engaged:
         revenue_scans = {"skipped": "kill_switch_engaged"}
     else:
-        # Scan public sources before the ops cycle so Reddit/GitHub/HN hits can
-        # be promoted to leads and selected as conversion candidates this run.
-        revenue_scans["external"] = await svc.scan_external_opportunities()
+        inventory_scan = await BuyerInventoryEngine(svc.opportunity_store).scan()
+        revenue_scans["external"] = inventory_scan
+        revenue_scans["buyer_inventory"] = inventory_scan.get("buyer_inventory", {})
         revenue_scans["federal"] = await svc.scan_federal_opportunities()
-        ranked = svc.opportunity_store.top(limit=25)
+        ranked = svc.opportunity_store.top(limit=50)
         revenue_scans["ranked_count"] = len(ranked)
         revenue_scans["highest_probability_legitimate_action"] = ranked[0] if ranked else None
 
