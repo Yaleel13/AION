@@ -35,6 +35,30 @@ export function createOwnerSessionValue(maxAgeSeconds: number) {
   return signature ? `${expiresAt}.${signature}` : null
 }
 
+/** Header that must be present on all owner state-changing requests.  Set this
+ *  on every owner POST/DELETE fetch in Boardroom components. */
+export const AION_REQUEST_HEADER = { "X-AION-Request": "1" } as const
+
+/**
+ * Verify the CSRF double-submit header for owner state-changing requests.
+ *
+ * All owner POST/DELETE routes must call this in addition to
+ * hasValidOwnerSession.  Browsers enforce the Same-Origin Policy for custom
+ * request headers via CORS preflight, so a cross-origin attacker cannot set
+ * this header — even if they somehow obtain a session cookie.
+ *
+ * The Next.js app sets `X-AION-Request: 1` on every fetch to an owner route.
+ */
+export function requireCsrfHeader(req: Request): Response | null {
+  if (!req.headers.get("x-aion-request")) {
+    return Response.json(
+      { error: "Missing required request header. Ensure the request originates from the AION interface." },
+      { status: 403 }
+    )
+  }
+  return null
+}
+
 export function hasValidOwnerSession(cookieHeader: string | null) {
   if (!ownerSessionConfigured() || !cookieHeader) return false
   const raw = cookieHeader

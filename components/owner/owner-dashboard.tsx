@@ -2,6 +2,7 @@
 
 import { useCallback, useState, startTransition } from "react"
 import { OwnerPaymentOrders } from "@/components/owner-payment-orders"
+import { AION_REQUEST_HEADER } from "@/lib/aion/owner-session"
 
 type Dashboard = {
   phase?: string
@@ -66,7 +67,7 @@ export function OwnerDashboard() {
     setBusy(true)
     setMessage("")
     try {
-      const res = await fetch(path, { method: "POST" })
+      const res = await fetch(path, { method: "POST", headers: AION_REQUEST_HEADER })
       const json = await res.json()
       if (!res.ok) setMessage(json.error || json.detail || "Action failed")
       else setMessage(json.message || "OK")

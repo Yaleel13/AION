@@ -118,7 +118,7 @@ COMMERCIAL_RESOURCES: tuple[dict[str, Any], ...] = (
     {"resource": "Moltbook", "status": "live controlled outbound", "use": "public buyer-intent discovery and policy-bounded public conversion activity"},
     {"resource": "Gmail", "status": "connected", "use": "owner communications, customer follow-up when a legitimate recipient and context exist"},
     {"resource": "Supabase/Postgres", "status": "connected durable data", "use": "opportunity, lead, audit, conversion and operational state"},
-    {"resource": "PostHog", "status": "connected", "use": "conversion and product analytics where instrumented"},
+    {"resource": "PostHog", "status": "connected (another product's events — no AION-specific taxonomy yet)", "use": "product analytics once an AION event taxonomy is instrumented"},
     {"resource": "Google Drive", "status": "connected", "use": "creator-authorized source documents, product knowledge and delivery artifacts"},
     {"resource": "OpenAI", "status": "connected", "use": "reasoning, generation, classification, drafting and agent runtime capabilities"},
     {"resource": "Creator domains", "status": "active portfolio", "use": "yalitekonline.com, elaria.app, cerebral-synergy.com and other authorized properties as verified"},

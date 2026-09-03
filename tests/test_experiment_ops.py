@@ -5,13 +5,16 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from aion.moltbook.experiment_ops import (
-    YALITEK_QUICK_DIAGNOSTIC_URL,
     customize_lead_response,
     mark_backlog_status,
     refresh_queue_timing,
     select_next_backlog_comment,
     select_next_campaign_draft,
 )
+from aion.revenue.product_catalog import PRODUCTS
+
+_QUICK_DIAG = next(p for p in PRODUCTS if p.product_key == "quick-tech-diagnostic")
+YALITEK_QUICK_DIAGNOSTIC_URL: str = _QUICK_DIAG.checkout_url or _QUICK_DIAG.public_url
 
 
 def test_customize_lead_response_high_confidence_adds_checkout() -> None:
@@ -24,7 +27,9 @@ def test_customize_lead_response_high_confidence_adds_checkout() -> None:
     )
     assert "systems debugging" in text
     assert "YaliTek" in text
-    assert "$49 Quick Tech Diagnostic" in text
+    # Product renders as its canonical name + price in parentheses.
+    assert _QUICK_DIAG.name in text
+    assert (_QUICK_DIAG.price_display or "") in text
     assert YALITEK_QUICK_DIAGNOSTIC_URL in text
     assert "credentials" in text
 

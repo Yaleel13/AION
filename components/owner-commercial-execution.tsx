@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { CheckCircle2, Loader2, Play, RefreshCw, Send, ShieldCheck, XCircle } from "lucide-react"
 import { defer } from "@/lib/defer"
+import { AION_REQUEST_HEADER } from "@/lib/aion/owner-session"
 
 type ExecutionPlan = {
   opportunity_id: string
@@ -77,7 +78,7 @@ export function OwnerCommercialExecution() {
     try {
       const response = await fetch("/api/owner/commercial-execution", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...AION_REQUEST_HEADER },
         body: JSON.stringify(payload),
         cache: "no-store",
       })

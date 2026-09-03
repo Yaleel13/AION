@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { ExternalLink, FileCheck2, Loader2, RefreshCw, Send, ShieldCheck, XCircle } from "lucide-react"
 import { defer } from "@/lib/defer"
 import { cn } from "@/lib/utils"
+import { AION_REQUEST_HEADER } from "@/lib/aion/owner-session"
 
 type PreparedItem = {
   lead_id: string
@@ -142,7 +143,7 @@ export function OwnerOpportunityReview() {
     try {
       const response = await fetch("/api/owner/moltbook-approvals", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...AION_REQUEST_HEADER },
         body: JSON.stringify(payload),
         cache: "no-store",
       })
@@ -176,7 +177,7 @@ export function OwnerOpportunityReview() {
     setWorking("prepare")
     setNotice(null)
     try {
-      const response = await fetch("/api/owner/moltbook-preparation", { method: "POST", cache: "no-store" })
+      const response = await fetch("/api/owner/moltbook-preparation", { method: "POST", headers: AION_REQUEST_HEADER, cache: "no-store" })
       const body = (await response.json()) as PreparationResponse
       if (!response.ok) throw new Error(body.error || `Preparation failed (${response.status})`)
       setPreparation(body)
@@ -196,7 +197,7 @@ export function OwnerOpportunityReview() {
     try {
       const response = await fetch("/api/owner/moltbook-reviews", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...AION_REQUEST_HEADER },
         body: JSON.stringify({ lead_id: leadId, disposition }),
         cache: "no-store",
       })

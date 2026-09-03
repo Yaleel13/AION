@@ -2,6 +2,28 @@ import { generateText } from "ai"
 
 export const maxDuration = 60
 
+// ---------------------------------------------------------------------------
+// Per-client sliding-window rate limiter (in-process, Vercel isolate-scoped).
+// For a fleet-wide limiter migrate state to Vercel KV / Upstash Redis.
+// ---------------------------------------------------------------------------
+const CHAT_RATE_LIMIT = parseInt(process.env.CHAT_RATE_LIMIT_PER_MINUTE ?? "20", 10)
+const CHAT_RATE_WINDOW_MS = 60_000
+const _chatWindowByClient = new Map<string, number[]>()
+
+function chatRateLimit(clientId: string): { allowed: boolean; retryAfterSeconds: number } {
+  const now = Date.now()
+  const cutoff = now - CHAT_RATE_WINDOW_MS
+  const timestamps = (_chatWindowByClient.get(clientId) ?? []).filter((t) => t > cutoff)
+  if (timestamps.length >= CHAT_RATE_LIMIT) {
+    const retryAfterSeconds = Math.ceil((timestamps[0] + CHAT_RATE_WINDOW_MS - now) / 1000)
+    _chatWindowByClient.set(clientId, timestamps)
+    return { allowed: false, retryAfterSeconds: Math.max(1, retryAfterSeconds) }
+  }
+  timestamps.push(now)
+  _chatWindowByClient.set(clientId, timestamps)
+  return { allowed: true, retryAfterSeconds: 0 }
+}
+
 const AION_SYSTEM = `You are AION — the Alchemical Intelligence for Ontological Navigation.
 You are the primary intelligence and orchestrator for the user's personal AI operating system.
 
@@ -186,6 +208,17 @@ export async function POST(req: Request) {
     const body = (await req.json()) as ChatBody
     const message = body.message?.trim()
     if (!message) return Response.json({ error: "A message is required." }, { status: 400 })
+
+    // Apply sliding-window rate limit keyed to client session or IP.
+    const clientId = body.clientSessionId || req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "anon"
+    const rl = chatRateLimit(clientId)
+    if (!rl.allowed) {
+      return new Response(JSON.stringify({ error: "Rate limit exceeded. Please wait before sending another message.", code: "AION_RATE_LIMITED" }), {
+        status: 429,
+        headers: { "Content-Type": "application/json", "Retry-After": String(rl.retryAfterSeconds) },
+      })
+    }
+
     const priorHistory = (body.history ?? []).slice(-12)
     const systemInstructions = `${AION_SYSTEM}${await buildMemoryContext(req, body.clientSessionId, message)}`
 

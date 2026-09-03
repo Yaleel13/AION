@@ -1,5 +1,5 @@
 import { Sandbox } from "@vercel/sandbox"
-import { hasValidOwnerSession } from "@/lib/aion/owner-session"
+import { hasValidOwnerSession, requireCsrfHeader } from "@/lib/aion/owner-session"
 
 export const maxDuration = 180
 
@@ -33,6 +33,8 @@ export async function POST(req: Request) {
   if (!hasValidOwnerSession(req.headers.get("cookie"))) {
     return Response.json({ error: "Owner authentication required." }, { status: 401 })
   }
+  const csrfError = requireCsrfHeader(req)
+  if (csrfError) return csrfError
 
   let check: CheckName = "inspect"
   try {

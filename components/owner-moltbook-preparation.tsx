@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { FileCheck2, Loader2, RefreshCw } from "lucide-react"
 import { defer } from "@/lib/defer"
+import { AION_REQUEST_HEADER } from "@/lib/aion/owner-session"
 
 type PreparedItem = {
   lead_id: string
@@ -55,7 +56,7 @@ export function OwnerMoltbookPreparation() {
   const prepare = useCallback(async () => {
     setPreparing(true)
     try {
-      const response = await fetch("/api/owner/moltbook-preparation", { method: "POST", cache: "no-store" })
+      const response = await fetch("/api/owner/moltbook-preparation", { method: "POST", headers: AION_REQUEST_HEADER, cache: "no-store" })
       const body = (await response.json()) as Preparation
       if (!response.ok) throw new Error(body.error || `Preparation failed (${response.status})`)
       setData(body)

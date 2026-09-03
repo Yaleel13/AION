@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Loader2, RefreshCw, ShieldCheck, XCircle } from "lucide-react"
 import { defer } from "@/lib/defer"
+import { AION_REQUEST_HEADER } from "@/lib/aion/owner-session"
 
 type Approval = {
   request_id: string
@@ -55,7 +56,7 @@ export function OwnerMoltbookApprovals() {
     try {
       const response = await fetch("/api/owner/moltbook-approvals", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...AION_REQUEST_HEADER },
         body: JSON.stringify(payload),
         cache: "no-store",
       })

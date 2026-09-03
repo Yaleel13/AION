@@ -2,7 +2,7 @@
 
 **Date:** August 31, 2026  
 **Revisions Completed:** Full production-aware audit correction  
-**Status:** Ready for Phase A evidence collection
+**Status:** Phase A complete (2026-09-01); dated update at [AION_AUDIT_UPDATE_2026-09-03.md](AION_AUDIT_UPDATE_2026-09-03.md)
 
 ---
 
@@ -485,7 +485,7 @@ Wait for Phase A & B completion before starting:
 
 **Status:** Ready to begin Phase A evidence collection
 
-**Next Step:** Collect Phase A evidence (Supabase drift, Moltbook mode, PostHog baseline, environment verification)
+**Next Step (as of 2026-09-03):** Fix `tests/test_experiment_ops.py` collection error (FINDING U1); add `payment_orders` to committed schema (FINDING U4); distribute chat-route rate limiter (FINDING U2). See [AION_AUDIT_UPDATE_2026-09-03.md](AION_AUDIT_UPDATE_2026-09-03.md).
 
 **Blockers:** 3 critical (TypeScript, Supabase parity, capability taxonomy) + 1 medium (rate limiting) + 4 low/enhanced
 
