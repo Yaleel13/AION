@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from strands import Agent, tool
 
+from .bedrock import build_bedrock_model
 from .models import Opportunity
 from .scoring import evaluate_opportunity
 
@@ -38,12 +39,13 @@ Operating rules:
 
 
 agent = Agent(
+    model=build_bedrock_model(),
     system_prompt=SYSTEM_PROMPT,
     tools=[evaluate_candidate],
 )
 
 
 def run_operator(message: str) -> str:
-    """Run a single Opportunity Operator turn."""
+    """Run a single Opportunity Operator turn using Strands + Amazon Bedrock."""
     result = agent(message)
     return str(result)
