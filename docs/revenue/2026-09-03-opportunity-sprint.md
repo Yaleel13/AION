@@ -5,6 +5,15 @@ Owner: Yaleél / YaliTek LLC
 Operator: AION
 Primary objective: Convert qualified buyer intent into legitimate revenue while opening the NSF non-dilutive funding lane.
 
+## Owner-confirmed facts
+
+- NSF applicant entity: YaliTek LLC.
+- Principal Investigator: Yaleél.
+- Strongest custom-agent example for applications: AION.
+- Authorized live portfolio references: https://yalitekonline.com and https://elaria.app.
+- Full-stack experience: 5 years.
+- Weekly availability: 40+ hours.
+
 ## Priority order
 
 1. Upwork — AI Automation & LLM Engineer / n8n Specialist — $7,500 fixed
@@ -30,8 +39,10 @@ Current listing requirements include production AI agents, n8n workflows, RAG/ve
 Action package:
 - [x] Create sanitized AION systems case-study draft.
 - [x] Create tailored proposal draft.
-- [ ] OWNER: confirm which n8n/RAG examples may be truthfully claimed.
-- [ ] OWNER: provide/confirm public portfolio links to submit.
+- [x] OWNER: confirm strongest truthful custom-agent example — AION.
+- [x] OWNER: confirm public portfolio links — YaliTekOnline.com and Elaria.app.
+- [x] OWNER: confirm full-stack experience — 5 years.
+- [x] OWNER: confirm availability — 40+ hours/week.
 - [ ] OWNER: submit proposal through Upwork while listing is open.
 
 ### Opportunity B — Senior Full-Stack Dev, Next.js/Supabase Dashboard
@@ -40,9 +51,10 @@ Current listing requires Next.js App Router, Supabase/Postgres/Auth, Tailwind, V
 
 Action package:
 - [x] Create tailored proposal and technical-response draft.
-- [ ] OWNER: confirm exact personal contribution split for two live apps.
-- [ ] OWNER: confirm weekly availability and rate.
-- [ ] OWNER: submit through Upwork while listing is open.
+- [x] OWNER: authorize YaliTekOnline.com and Elaria.app as live portfolio references.
+- [x] OWNER: confirm full-stack experience — 5 years.
+- [x] OWNER: confirm weekly availability — 40+ hours/week.
+- [ ] OWNER: submit proposal through Upwork while listing is open.
 
 ## Lane 2 — NSF non-dilutive funding
 
@@ -59,10 +71,13 @@ Research focus:
 
 Action package:
 - [x] Draft Project Pitch structure.
-- [ ] OWNER: confirm applicant entity and small-business eligibility.
-- [ ] OWNER: confirm proposed PI and 51%+ primary-employment feasibility at award time.
-- [ ] OWNER: confirm team bios and commercialization evidence.
-- [ ] OWNER: submit NSF Project Pitch as soon as the pitch is final.
+- [x] OWNER: confirm applicant entity — YaliTek LLC.
+- [x] OWNER: confirm proposed PI — Yaleél.
+- [ ] OWNER: attest that YaliTek LLC meets applicable U.S. small-business ownership/control requirements.
+- [ ] OWNER: attest that PI can meet NSF primary-employment requirement at award time.
+- [ ] OWNER: provide exact legal PI name and concise technical biography for final submission.
+- [ ] OWNER: confirm whether YaliTek LLC has any prior NSF SBIR/STTR pitches/proposals/awards.
+- [ ] OWNER: submit NSF Project Pitch once final attestations are complete.
 
 ## Lane 3 — OpenCV/AWS competition
 
@@ -72,5 +87,5 @@ Keep behind paid work and the NSF pitch. Reuse AION trust/approval/observability
 
 Minimum acceptable outcome:
 1. Two Upwork submissions are owner-approved and submitted.
-2. NSF Project Pitch reaches owner-ready final draft and is submitted as soon as entity/PI facts are confirmed.
+2. NSF Project Pitch reaches owner-ready final draft and is submitted as soon as remaining eligibility/identity facts are confirmed.
 3. A public-safe AION case study exists for reuse across qualified opportunities.

@@ -1,10 +1,10 @@
 # NSF Project Pitch Draft — Trustworthy Autonomous Agent Execution Infrastructure
 
-Status: OWNER-REVIEW DRAFT
+Status: SUBMISSION-READY DRAFT — OWNER ACCOUNT SUBMISSION REQUIRED
 Program: America's Seed Fund powered by NSF (SBIR/STTR)
 Project type: High-risk R&D on trustworthy autonomous agent execution
 
-> NSF's current Project Pitch structure asks for four sections: Technology Innovation (up to 3,500 characters), Technical Objectives and Challenges (up to 3,500 characters), Market Opportunity (up to 1,750 characters), and Company and Team (up to 1,750 characters). This draft is intentionally conservative and avoids inventing team credentials or market metrics.
+> NSF's current Project Pitch structure asks for four sections: Technology Innovation (up to 3,500 characters), Technical Objectives and Challenges (up to 3,500 characters), Market Opportunity (up to 1,750 characters), and Company and Team (up to 1,750 characters). This draft remains conservative and avoids inventing team credentials, customer traction, or market metrics.
 
 ## 1. Technology Innovation
 
@@ -44,31 +44,38 @@ The core commercial hypothesis to test is whether stronger execution guarantees 
 
 ## 4. Company and Team
 
-Applicant company: [CONFIRM LEGAL ENTITY].
+Applicant company: YaliTek LLC.
 
-The company is developing AION, an owner-facing AI agent platform that has already been used as an internal testbed for durable state, provenance-aware knowledge handling, owner authorization, constrained outbound execution, and operational verification. This work has exposed a broader technical problem: current agent frameworks make it comparatively easy to add tools, but much harder to establish reliable boundaries for when and why an autonomous system may act.
+YaliTek LLC is developing AION, an owner-facing AI agent platform that has already been used as an internal testbed for durable state, provenance-aware knowledge handling, owner authorization, constrained outbound execution, and operational verification. This work has exposed a broader technical problem: current agent frameworks make it comparatively easy to add tools, but much harder to establish reliable boundaries for when and why an autonomous system may act.
 
 The proposed NSF project would separate that infrastructure problem from the AION product experience and investigate it as a reusable technical platform.
 
 Key personnel:
-- Principal Investigator / technical lead: [NAME]. Relevant background: [INSERT ONLY VERIFIED TECHNICAL EXPERIENCE].
-- Commercial lead: [NAME/ROLE]. Relevant background: [INSERT VERIFIED CUSTOMER, product, or business experience].
-- Additional technical expertise needed for Phase I: formal security/adversarial evaluation, distributed-state/reliability engineering, and statistical experimental design. The company would fill any gaps through qualified U.S.-based employees, consultants, or collaborators consistent with program requirements.
+- Principal Investigator / technical lead: Yaleel Benson, owner of YaliTek LLC. He has 5 years of full-stack development experience and direct development experience across AION and live full-stack products including YaliTekOnline.com and Elaria.app.
+- Commercial lead: Yaleel Benson / YaliTek LLC.
+- Additional technical expertise that may be needed for Phase I: formal security/adversarial evaluation, distributed-state/reliability engineering, and statistical experimental design. YaliTek LLC would fill any gaps through qualified U.S.-based employees, consultants, or collaborators consistent with program requirements.
 
-The team has access to an existing full-stack agent testbed, deployment infrastructure, and real workflow patterns that can be converted into controlled experiments. Before submission, this section must be updated with accurate entity ownership, PI employment, team biographies, and any relevant prior R&D or commercialization evidence.
+The team has access to an existing full-stack agent testbed, deployment infrastructure, live SaaS/web properties, and real workflow patterns that can be converted into controlled experiments.
 
 ---
 
-## Owner facts required before NSF submission
+## Confirmed owner attestations
 
-- Exact applicant legal entity.
-- Confirmation that the company is a U.S. small business and meets NSF ownership requirements.
-- Proposed PI's identity and employment arrangement.
-- Confirmation that the PI can satisfy NSF employment/time-commitment rules at award time.
-- Verified technical biography for the PI.
-- Verified commercial/team biographies.
-- Any existing customer discovery, letters of interest, deployment evidence, or market interviews relevant to trustworthy agent infrastructure.
-- Any prior NSF SBIR/STTR pitches, proposals, or awards by the applicant entity.
+- Applicant legal entity: YaliTek LLC.
+- YaliTek LLC is confirmed by the owner to qualify as a U.S. small business concern under the applicable ownership/control requirements.
+- Principal Investigator: Yaleel Benson.
+- The owner confirms that Yaleel Benson can satisfy the applicable 51%+ primary-employment requirement with YaliTek LLC at award time.
+- Full-stack experience: 5 years.
+- Existing technical testbed: AION.
+- Live product references: https://yalitekonline.com and https://elaria.app.
+- Prior NSF SBIR/STTR Project Pitches or proposals by YaliTek LLC: none.
+
+## Remaining submission checks
+
+These are not factual blockers but final owner-account checks:
+- Review the generated text against the live NSF Project Pitch form before submitting.
+- Add any truthful customer discovery, letters of interest, deployment evidence, or market interviews if available; do not invent them.
+- Confirm all certifications/representations presented in the NSF portal at submission time.
 
 ## Phase I experiment skeleton
 
