@@ -53,6 +53,7 @@ def _apply_revenue_window_runtime_flags(active: bool) -> None:
         os.environ["MOLTBOOK_AUTONOMY_DRY_RUN"] = "true"
 
 
+@app.get("/api/cron/revenue-ops")
 @app.get("/api/cron/ops")
 async def scheduled_ops(
     authorization: str | None = Header(default=None),
@@ -77,10 +78,6 @@ async def scheduled_ops(
     six_hour_active = _six_hour_window_active()
     _apply_revenue_window_runtime_flags(six_hour_active)
 
-    # During the owner-authorized six-hour revenue window, controlled autonomy
-    # may flush qualified queued comments and publish the next qualified draft.
-    # All existing policy, pacing, secret/PII scanning, kill-switch, and
-    # automatic read-only fallback protections remain in force.
     result = await run_cycle(
         flush_queue=six_hour_active,
         publish_next_draft=six_hour_active,
