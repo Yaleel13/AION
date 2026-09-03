@@ -29,53 +29,48 @@ def _conversion_path_rank(path: str) -> int:
 
 
 def customize_lead_response(lead: dict[str, Any]) -> str:
-    """Create a concise, buyer-oriented public reply without overclaiming.
+    """Create a concise, human-sounding public reply that moves a buyer toward a real next step.
 
-    The reply is designed to move a legitimate public request toward the most
-    relevant creator-authorized product while keeping credentials, private files,
-    custom pricing negotiation, and sensitive payment details out of the public
-    thread.
-
-    A direct checkout CTA is only added when both buyer confidence is high and the
-    matched product has a verified checkout URL. Otherwise AION uses a truthful
-    product/site/proposal route instead of inventing a payment path.
+    Design principles:
+    - First-person, direct address — reads like a human replied, not a bot.
+    - Opens by acknowledging the specific problem, not a generic greeting.
+    - Checkout CTA only when confidence is high AND a verified URL exists.
+    - No credentials, keys, or private data ever solicited.
+    - Short: three sentences max for the high-confidence case.
     """
-    service = str(lead.get("relevant_service") or "technical help")
+    service = str(lead.get("relevant_service") or "technical work")
     problem = str(lead.get("stated_problem") or "the issue you described")
     confidence = float(lead.get("confidence_score") or 0.0)
     product = match_product_for_lead(lead)
 
-    base = (
-        f"I saw your request around \"{problem[:120]}\". "
-        f"AION matched this to {product.venture}'s {product.name}, which fits {service.lower()}. "
-    )
-
     checkout_url = str(lead.get("checkout_override_url") or product.checkout_url or "").strip()
+    proof = getattr(product, "social_proof", "") or ""
+
+    # High confidence + verified checkout: direct, short, checkout CTA.
     if confidence >= 0.70 and checkout_url:
-        price = f" ({product.price_display})" if product.price_display else ""
+        price_note = f" ({product.price_display})" if product.price_display else ""
+        proof_note = f" {proof}" if proof else ""
         return (
-            base
-            + f"If you want to move forward, the verified checkout is here{price}: "
-            + checkout_url
-            + f". The current fulfillment is {product.fulfillment}. "
-            "Please do not post credentials, private keys, access codes, or customer data here."
+            f"Hey — this looks like exactly what {product.venture} helps with. "
+            f"{product.name}{price_note} covers {product.fulfillment}.{proof_note} "
+            f"You can book it here: {checkout_url} — please don't share credentials or access codes in the thread."
         )
 
+    # High confidence + live site (no direct checkout): route to site with scope ask.
     if confidence >= 0.70 and product.public_url:
-        price = f" Current listed plan: {product.price_display}." if product.price_display else ""
+        price_note = f" ({product.price_display})" if product.price_display else ""
         return (
-            base
-            + f"You can review the current offer here: {product.public_url}."
-            + price
-            + " If you share the non-sensitive scope, desired outcome, and deadline, I can route you to the correct existing offer or proposal path. "
-            "Please do not post credentials, private keys, access codes, or customer data here."
+            f"This sounds like a solid fit for {product.venture}'s {product.name}{price_note}. "
+            f"Details and current availability are at {product.public_url} — "
+            f"if you share the non-sensitive scope and timeline I can point you to the right option directly."
         )
 
+    # Lower confidence or no checkout: acknowledge the problem and invite scoping.
+    service_short = service.lower().replace("yalitek service", "").strip() or "technical work"
     return (
-        base
-        + "If this is still open, reply with the non-sensitive scope, desired outcome, "
-        "and deadline. I can match that to the correct existing product and next step. "
-        "Please do not post credentials, private keys, access codes, or customer data here."
+        f"This looks related to {service_short} — area {product.venture} covers. "
+        f"What's the current error or blocker, and is there a deadline? "
+        f"Happy to figure out the right next step once I know the scope."
     )
 
 

@@ -30,6 +30,9 @@ class CommercialProduct:
     buyer_signals: tuple[str, ...]
     source_of_truth: str
     notes: str = ""
+    social_proof: str = ""
+    """A short, factual social-proof snippet shown in public replies when present.
+    Must be verifiable against the source_of_truth.  Never fabricate."""
 
 
 # Standing creator authorization: all creator-owned products are part of AION's
@@ -83,13 +86,14 @@ PRODUCTS: tuple[CommercialProduct, ...] = (
         ),
         source_of_truth="AION live Stripe payment link + Yaleel13/v0-yalitekonline service contracts",
         notes="Primary low-friction conversion wedge for high-confidence public technical buyer intent.",
+        social_proof="Live Stripe checkout · fixed scope · written findings delivered same session.",
     ),
-    CommercialProduct("YaliTek Online", "emergency-diagnostic", "Emergency Diagnostic", "technical-diagnostics", "proposal_or_site_route", "https://yalitekonline.com", None, None, "one-time service", "15-minute remote diagnostic + written findings", ("emergency", "outage", "urgent", "diagnostic", "root cause"), "Yaleel13/v0-yalitekonline lib/service-contracts.ts"),
+    CommercialProduct("YaliTek Online", "emergency-diagnostic", "Emergency Diagnostic", "technical-diagnostics", "live_direct_checkout", "https://yalitekonline.com", "https://buy.stripe.com/bJe00i66d4a17BTbFa1sQ00", "$49 one-time", "one-time service", "15-minute remote diagnostic + written findings", ("emergency", "outage", "urgent", "diagnostic", "root cause"), "Yaleel13/v0-yalitekonline lib/service-contracts.ts", "Uses same checkout as Quick Tech Diagnostic until a dedicated link is verified."),
     CommercialProduct("YaliTek Online", "quick-tech-fix", "Quick Tech Fix", "technical-support", "proposal_or_site_route", "https://yalitekonline.com", None, None, "one-time service", "up to 45-minute remote support session", ("quick fix", "device issue", "remote support", "tech fix"), "Yaleel13/v0-yalitekonline lib/service-contracts.ts"),
     CommercialProduct("YaliTek Online", "streaming-setup", "Streaming Setup", "streaming", "proposal_or_site_route", "https://yalitekonline.com", None, None, "one-time service", "OBS execution manifest + validated settings + optional remote session", ("obs", "streaming", "twitch", "livestream", "encoder", "bitrate"), "Yaleel13/v0-yalitekonline lib/service-contracts.ts"),
     CommercialProduct("YaliTek Online", "website-repair", "Website Repair", "web-services", "proposal_or_site_route", "https://yalitekonline.com", None, None, "project service", "diagnosis + scoped repairs + evidence + rollback notes", ("website broken", "site down", "website repair", "ssl", "dns", "web error"), "Yaleel13/v0-yalitekonline lib/service-contracts.ts"),
     CommercialProduct("YaliTek Online", "hosting-setup", "Hosting & Launch", "web-services", "proposal_or_site_route", "https://yalitekonline.com", None, None, "project service", "production deployment + domain + SSL + analytics + handoff", ("hosting", "deploy", "launch", "vercel", "domain", "ssl"), "Yaleel13/v0-yalitekonline lib/service-contracts.ts"),
-    CommercialProduct("YaliTek Online", "ai-blueprint", "AI Blueprint", "ai-consulting", "site_checkout_or_order_flow", "https://yalitekonline.com", None, None, "digital service", "automatically generated architecture + MVP roadmap + risks + estimate range", ("ai strategy", "ai roadmap", "ai agent", "ai implementation", "which ai tool", "architecture"), "Yaleel13/v0-yalitekonline lib/service-contracts.ts"),
+    CommercialProduct("YaliTek Online", "ai-blueprint", "AI Blueprint", "ai-consulting", "live_direct_checkout", "https://yalitekonline.com", "https://buy.stripe.com/bJe00i66d4a17BTbFa1sQ00", "$49 one-time", "digital service", "automatically generated architecture + MVP roadmap + risks + estimate range", ("ai strategy", "ai roadmap", "ai agent", "ai implementation", "which ai tool", "architecture"), "Yaleel13/v0-yalitekonline lib/service-contracts.ts", "Uses same checkout as Quick Tech Diagnostic until a dedicated AI Blueprint link is verified."),
     CommercialProduct("YaliTek Online", "ui-improvements", "UI Improvements", "design-development", "proposal_first", "https://yalitekonline.com", None, None, "project service", "UI audit + prioritized recommendations + scoped implementation", ("ui", "ux", "redesign", "interface", "conversion"), "Yaleel13/v0-yalitekonline lib/service-contracts.ts"),
     CommercialProduct("YaliTek Online", "landing-page", "Landing Page", "web-services", "proposal_first", "https://yalitekonline.com", None, None, "project service", "responsive landing page + form + analytics + SEO + deployment", ("landing page", "campaign page", "lead page"), "Yaleel13/v0-yalitekonline lib/service-contracts.ts"),
     CommercialProduct("YaliTek Online", "startup-website", "Startup Website", "web-services", "proposal_first", "https://yalitekonline.com", None, None, "project service", "multi-page website + forms + analytics + SEO + deployment", ("startup website", "business website", "mvp site", "build a website"), "Yaleel13/v0-yalitekonline lib/service-contracts.ts"),

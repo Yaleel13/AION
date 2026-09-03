@@ -25,6 +25,7 @@ import { OwnerMemoryInspector } from "@/components/owner-memory-inspector"
 import { OwnerMoltbookResearch } from "@/components/owner-moltbook-research"
 import { OwnerOpportunityReview } from "@/components/owner-opportunity-review"
 import { OwnerOperatorBriefing } from "@/components/owner-operator-briefing"
+import { OwnerOutboundGates } from "@/components/owner-outbound-gates"
 import { OwnerPaymentRail } from "@/components/owner-payment-rail"
 import { OwnerReliabilityAcceptance } from "@/components/owner-reliability-acceptance"
 import { defer } from "@/lib/defer"
@@ -196,6 +197,7 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
           <Chamber title="Reliability Acceptance" subtitle="Phase 8 · production evidence" className="lg:col-span-12"><OwnerReliabilityAcceptance /></Chamber>
           <Chamber title="Capability Permissions" subtitle="Phase 9 · least privilege" className="lg:col-span-12"><OwnerCapabilityRegistry /></Chamber>
           <Chamber title="Operator Briefing" subtitle="Phase 9 · owner priorities" className="lg:col-span-12"><OwnerOperatorBriefing /></Chamber>
+          <Chamber title="Outbound Gates" subtitle="activation controls" className="lg:col-span-12"><OwnerOutboundGates /></Chamber>
           <Chamber title="Moltbook Research" subtitle="Stage 2 · read-only" className="lg:col-span-12"><OwnerMoltbookResearch /></Chamber>
           <Chamber title="Opportunity Review" subtitle="Phases 5–7 · owner controlled" className="lg:col-span-12"><OwnerOpportunityReview /></Chamber>
           <Chamber title="Commercial Pursuit Execution" subtitle="owner gated · exact-content controls" className="lg:col-span-12"><OwnerCommercialExecution /></Chamber>

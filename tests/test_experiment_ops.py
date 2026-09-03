@@ -25,13 +25,13 @@ def test_customize_lead_response_high_confidence_adds_checkout() -> None:
             "confidence_score": 0.85,
         }
     )
-    assert "systems debugging" in text
+    # New human-sounding reply: opens with "Hey", names the venture, includes checkout.
     assert "YaliTek" in text
-    # Product renders as its canonical name + price in parentheses.
     assert _QUICK_DIAG.name in text
     assert (_QUICK_DIAG.price_display or "") in text
     assert YALITEK_QUICK_DIAGNOSTIC_URL in text
-    assert "credentials" in text
+    # Must remind buyer not to share credentials.
+    assert "credential" in text.lower() or "access code" in text.lower()
 
 
 def test_customize_lead_response_lower_confidence_stays_scope_first() -> None:
@@ -42,9 +42,9 @@ def test_customize_lead_response_lower_confidence_stays_scope_first() -> None:
             "confidence_score": 0.55,
         }
     )
-    assert "website repair" in text
+    # Lower confidence: no checkout URL, asks for scope/deadline.
     assert YALITEK_QUICK_DIAGNOSTIC_URL not in text
-    assert "non-sensitive scope" in text
+    assert "scope" in text.lower() or "deadline" in text.lower() or "blocker" in text.lower()
 
 
 def test_select_next_campaign_draft_skips_linked() -> None:

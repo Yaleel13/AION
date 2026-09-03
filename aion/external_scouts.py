@@ -27,6 +27,10 @@ DEFAULT_ALLOWED_HOSTS = frozenset(
         "api.grants.gov",
         "www.grants.gov",
         "api.sam.gov",
+        # Reddit public JSON (no auth required for public posts)
+        "www.reddit.com",
+        # GitHub repository search / Discussions via public API (unauthenticated, 60 req/h)
+        "api.github.com",
     }
 )
 
@@ -75,7 +79,7 @@ def _validate_source(source: PublicSource, *, allowed_hosts: frozenset[str]) -> 
         raise ValueError("Scout sources must use HTTPS")
     if (parsed.hostname or "").lower() not in allowed_hosts:
         raise ValueError(f"Scout source host is not allowlisted: {parsed.hostname}")
-    if source.scout not in {"web", "commercial"}:
+    if source.scout not in {"web", "commercial", "reddit", "github"}:
         raise ValueError(f"Unsupported external scout: {source.scout}")
 
 
@@ -140,23 +144,24 @@ def candidate_to_opportunity(candidate: ScoutCandidate, *, scout: str) -> Opport
         return None
     if not BUYER_TERMS.search(text):
         return None
-    if scout == "commercial" and not COMMERCIAL_TERMS.search(text):
+    if scout in {"commercial", "reddit", "github"} and not COMMERCIAL_TERMS.search(text):
         return None
 
     amount = _explicit_amount(text)
     has_money = amount > 0
     confidence = 0.72 if has_money else 0.58
     probability = 0.42 if has_money else 0.28
-    if scout == "commercial" and COMMERCIAL_TERMS.search(text):
+    if scout in {"commercial", "reddit", "github"} and COMMERCIAL_TERMS.search(text):
         confidence = min(0.92, confidence + 0.12)
         probability = min(0.78, probability + 0.12)
     if re.search(r"(?i)\b(seeking freelancer|looking to hire|hiring|budget|paid project|paid contract)\b", text):
         confidence = min(0.95, confidence + 0.08)
         probability = min(0.82, probability + 0.08)
 
+    is_commercial = scout in {"commercial", "reddit", "github"}
     solution = (
         "Match to an existing YaliTek service and prepare immediate buyer-response handoff"
-        if scout == "commercial"
+        if is_commercial
         else "Verify eligibility, scope, economics, deadline, and authorized next action"
     )
     return build_opportunity(
@@ -167,12 +172,12 @@ def candidate_to_opportunity(candidate: ScoutCandidate, *, scout: str) -> Opport
         estimated_revenue=amount,
         probability=probability,
         confidence=confidence,
-        time_hours=0.5 if scout == "commercial" else 1.0,
+        time_hours=0.5 if is_commercial else 1.0,
         major_risks="Public source is untrusted; verify identity, terms, eligibility, deadline, and payment before action.",
         ethical_considerations="No deceptive outreach, credential sharing, scraping behind authentication, or transaction without owner authorization.",
         next_action=(
             "Open the source, confirm the buyer is still seeking help, and respond through the platform's permitted contact path"
-            if scout == "commercial"
+            if is_commercial
             else "Verify source and prepare an owner-reviewed response"
         ),
         authorization_required="owner_before_transaction",
@@ -219,9 +224,18 @@ class ExternalRevenueScout:
 
 
 def default_sources(environ: dict[str, str] | None = None) -> list[PublicSource]:
-    """Safe public defaults focused on recent, explicit buyer/employer intent."""
+    """Safe public defaults focused on recent, explicit buyer/employer intent.
+
+    Covers three independent channels:
+    1. Hacker News Algolia — technical buyers, freelancer requests, automation help.
+    2. Reddit JSON API (unauthenticated, public posts only) — r/forhire and r/freelance.
+    3. GitHub repository search — active repos posting help-wanted issues.
+
+    All sources are read-only. No authentication is sent.
+    """
     env = environ if environ is not None else dict(os.environ)
     sources = [
+        # ── Hacker News ────────────────────────────────────────────────────────
         PublicSource(
             name="hn_hiring_and_contracts",
             url="https://hn.algolia.com/api/v1/search_by_date?query=hiring%20contract%20developer&tags=story&hitsPerPage=50",
@@ -238,11 +252,6 @@ def default_sources(environ: dict[str, str] | None = None) -> list[PublicSource]
             scout="commercial",
         ),
         PublicSource(
-            name="hn_contract_developer",
-            url="https://hn.algolia.com/api/v1/search_by_date?query=contract%20developer&tags=comment&hitsPerPage=50",
-            scout="commercial",
-        ),
-        PublicSource(
             name="hn_ai_automation_help",
             url="https://hn.algolia.com/api/v1/search_by_date?query=automation%20help&tags=comment&hitsPerPage=50",
             scout="commercial",
@@ -253,9 +262,45 @@ def default_sources(environ: dict[str, str] | None = None) -> list[PublicSource]
             scout="commercial",
         ),
         PublicSource(
-            name="hn_stripe_supabase_vercel_help",
-            url="https://hn.algolia.com/api/v1/search_by_date?query=stripe%20supabase%20vercel&tags=comment&hitsPerPage=50",
+            name="hn_ask_hn_freelance",
+            url="https://hn.algolia.com/api/v1/search_by_date?query=freelance&tags=ask_hn&hitsPerPage=50",
             scout="commercial",
+        ),
+        PublicSource(
+            name="hn_show_hn_saas",
+            url="https://hn.algolia.com/api/v1/search_by_date?query=saas&tags=show_hn&hitsPerPage=50",
+            scout="web",
+        ),
+        # ── Reddit (public JSON, no auth) ──────────────────────────────────────
+        # r/forhire: hiring posts use [HIRING] tag; buyer intent is explicit.
+        PublicSource(
+            name="reddit_forhire_hiring",
+            url="https://www.reddit.com/r/forhire/search.json?q=%5BHIRING%5D&sort=new&limit=50&t=week",
+            scout="reddit",
+        ),
+        # r/freelance: explicit paid work requests.
+        PublicSource(
+            name="reddit_freelance_new",
+            url="https://www.reddit.com/r/freelance/new.json?limit=50",
+            scout="reddit",
+        ),
+        # r/webdev hiring thread.
+        PublicSource(
+            name="reddit_webdev_forhire",
+            url="https://www.reddit.com/r/webdev/search.json?q=hiring+developer&sort=new&limit=50&t=week",
+            scout="reddit",
+        ),
+        # ── GitHub (unauthenticated public search, 60 req/h) ──────────────────
+        # Repos with "help wanted" issues and web/automation topics.
+        PublicSource(
+            name="github_help_wanted_automation",
+            url="https://api.github.com/search/issues?q=label%3A%22help+wanted%22+topic%3Aautomation&sort=created&order=desc&per_page=30",
+            scout="github",
+        ),
+        PublicSource(
+            name="github_help_wanted_nextjs",
+            url="https://api.github.com/search/issues?q=label%3A%22help+wanted%22+topic%3Anextjs&sort=created&order=desc&per_page=30",
+            scout="github",
         ),
     ]
     for index, raw in enumerate((env.get("AION_COMMERCIAL_SCOUT_URLS") or "").split(","), start=1):
