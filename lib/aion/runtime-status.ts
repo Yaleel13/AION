@@ -10,12 +10,13 @@ export type RuntimeStatus = {
     schema: string | null
     detail: string | null
   }
-  moltbook: {
+    moltbook: {
     configured: boolean
     mode: string | null
     api_key_present: boolean
     outbound_enabled: boolean
     execute_enabled: boolean
+    controlled_outbound_ready?: boolean
     phase: string
     error?: string
   }

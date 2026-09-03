@@ -74,6 +74,42 @@ def _parse_bool(value: str | None, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+@dataclass(frozen=True, slots=True)
+class MoltbookEnvObservation:
+    """Non-raising snapshot of Moltbook env flags for status UIs."""
+
+    mode: MoltbookMode | None
+    api_key_present: bool
+    outbound_enabled: bool
+    execute_enabled: bool
+
+
+def observe_moltbook_env(
+    *,
+    environ: dict[str, str] | None = None,
+) -> MoltbookEnvObservation:
+    """Report Moltbook env flags without validating pairing or live-host rules.
+
+    ``load_moltbook_settings`` still fail-closes on invalid combinations. Status
+    UIs use this so a pairing error cannot pretend the API key and mode are unset.
+    """
+    env = environ if environ is not None else dict(os.environ)
+    raw_mode = (env.get("MOLTBOOK_MODE") or "").strip().lower()
+    mode: MoltbookMode | None
+    if raw_mode in {"mock", "live"}:
+        mode = raw_mode  # type: ignore[assignment]
+    elif raw_mode == "":
+        mode = "mock"
+    else:
+        mode = None
+    return MoltbookEnvObservation(
+        mode=mode,
+        api_key_present=bool((env.get("MOLTBOOK_API_KEY") or "").strip()),
+        outbound_enabled=_parse_bool(env.get("MOLTBOOK_OUTBOUND_ENABLED"), False),
+        execute_enabled=_parse_bool(env.get("MOLTBOOK_EXECUTE_ENABLED"), False),
+    )
+
+
 def _parse_mode(value: str | None) -> MoltbookMode:
     raw = (value or "mock").strip().lower()
     if raw not in {"mock", "live"}:

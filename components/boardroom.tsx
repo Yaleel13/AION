@@ -48,6 +48,42 @@ function Chamber({ title, subtitle, children, className }: { title: string; subt
   )
 }
 
+function moltbookGateCopy(status: RuntimeStatusView): { value: string; detail: string; healthy: boolean } {
+  const moltbook = status.moltbook
+  const flags = `API key ${moltbook.api_key_present ? "present" : "absent"}; outbound ${moltbook.outbound_enabled ? "enabled" : "disabled"}; execution ${moltbook.execute_enabled ? "enabled" : "disabled"}.`
+  if (moltbook.error) {
+    return {
+      value: moltbook.mode ? `${moltbook.mode} · misconfigured` : "Misconfigured",
+      detail: `${moltbook.error} ${flags}`,
+      healthy: false,
+    }
+  }
+  return {
+    value: moltbook.mode || "Unconfigured",
+    detail: flags,
+    healthy: moltbook.api_key_present && moltbook.mode === "live",
+  }
+}
+
+function nextOperationalGate(status: RuntimeStatusView): string {
+  if (!status.storage.configured) {
+    return "Connect the dedicated AION Postgres database to unlock durable scheduled operations."
+  }
+  if (status.moltbook.error) {
+    return `Moltbook failed to load: ${status.moltbook.error}. Set MOLTBOOK_OUTBOUND_ENABLED=true in Vercel Production if execute is already on. Keep MOLTBOOK_MODE=live and MOLTBOOK_API_KEY set.`
+  }
+  if (!status.moltbook.api_key_present) {
+    return "Connect the approved Moltbook credential before enabling live Moltbook research."
+  }
+  if (!status.moltbook.outbound_enabled) {
+    return "Research, review, pursuit packets, and preparation are active. Controlled commercial approval remains locked until the outbound gate is enabled."
+  }
+  if (!status.moltbook.execute_enabled) {
+    return "Exact commercial content can be owner-approved, but publishing remains separately locked until the execute gate is enabled."
+  }
+  return "Eligible commercial comments can proceed only through Prepare → Approve exact content → Execute with a single-use token, quotas, and the kill switch."
+}
+
 function Gate({ icon: Icon, label, value, detail, healthy }: { icon: typeof Database; label: string; value: string; detail: string; healthy: boolean }) {
   return (
     <div className="relative border-l border-cyan/20 bg-background/25 px-3 py-3.5">
@@ -99,6 +135,8 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
     if (status.autonomy.live_writes_enabled) return "AION has durable storage and live autonomy writes are enabled under the current policy gates."
     return "AION's runtime is online with durable storage. Permissions are capability-specific; unrestricted global autonomy is not available."
   }, [status])
+
+  const moltbookGate = useMemo(() => (status ? moltbookGateCopy(status) : null), [status])
 
   return (
     <div className="relative flex min-h-dvh flex-col animate-fade overflow-hidden bg-background">
@@ -162,7 +200,7 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
           <Chamber title="Runtime Gates" subtitle="verified systems" className="lg:col-span-8">
             <div className="grid gap-2 sm:grid-cols-2">
               <Gate icon={Database} label="Storage" value={status.storage.configured ? status.storage.backend : "Not durable"} detail={status.storage.detail || "No storage detail reported."} healthy={status.storage.configured && status.storage.backend === "postgres"} />
-              <Gate icon={Network} label="Moltbook" value={status.moltbook.mode || "Unconfigured"} detail={`API key ${status.moltbook.api_key_present ? "present" : "absent"}; outbound ${status.moltbook.outbound_enabled ? "enabled" : "disabled"}; execution ${status.moltbook.execute_enabled ? "enabled" : "disabled"}.`} healthy={status.moltbook.api_key_present && status.moltbook.mode === "live"} />
+              <Gate icon={Network} label="Moltbook" value={moltbookGate?.value ?? "Unconfigured"} detail={moltbookGate?.detail ?? "Moltbook status unavailable."} healthy={moltbookGate?.healthy ?? false} />
               <Gate icon={status.kill_switch.engaged ? ShieldOff : ShieldCheck} label="Kill switch" value={status.kill_switch.engaged ? "Engaged" : "Clear"} detail={status.kill_switch.engaged ? status.kill_switch.reason || "Execution is blocked." : "No emergency stop is engaged."} healthy={!status.kill_switch.engaged} />
               <Gate icon={Brain} label="Direct providers" value={status.providers.openai_configured || status.providers.gemini_configured ? "Configured" : "No direct key"} detail={`OpenAI ${status.providers.openai_configured ? "configured" : "not configured"}; Gemini ${status.providers.gemini_configured ? "configured" : "not configured"}.`} healthy={status.providers.openai_configured || status.providers.gemini_configured} />
             </div>
@@ -214,7 +252,7 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
           </Chamber>
 
           <Chamber title="Next Operational Gate" subtitle="path forward" className="lg:col-span-5">
-            <p className="text-sm leading-relaxed text-foreground/90">{!status.storage.configured ? "Connect the dedicated AION Postgres database to unlock durable scheduled operations." : !status.moltbook.api_key_present ? "Connect the approved Moltbook credential before enabling live Moltbook research." : !status.moltbook.outbound_enabled ? "Research, review, pursuit packets, and preparation are active. Controlled commercial approval remains locked until the outbound gate is enabled." : !status.moltbook.execute_enabled ? "Exact commercial content can be owner-approved, but publishing remains separately locked until the execute gate is enabled." : "Eligible commercial comments can proceed only through Prepare → Approve exact content → Execute with a single-use token, quotas, and the kill switch."}</p>
+            <p className="text-sm leading-relaxed text-foreground/90">{nextOperationalGate(status)}</p>
           </Chamber>
         </> : null}
       </main>

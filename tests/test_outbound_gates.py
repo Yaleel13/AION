@@ -23,3 +23,24 @@ def test_gate_status_reports_go_live_checklist(monkeypatch) -> None:
     assert status["ready_for_revenue"] is False
     stripe = next(item for item in status["go_live_checklist"] if item["id"] == "stripe")
     assert stripe["ok"] is False
+
+
+def test_gate_status_reports_execute_without_outbound(monkeypatch) -> None:
+    monkeypatch.setenv("AION_KILL_SWITCH", "false")
+    monkeypatch.setenv("MOLTBOOK_MODE", "live")
+    monkeypatch.setenv("MOLTBOOK_API_KEY", "moltbook_test_key_placeholder")
+    monkeypatch.setenv("MOLTBOOK_BASE_URL", "https://www.moltbook.com/api/v1")
+    monkeypatch.setenv("MOLTBOOK_EXECUTE_ENABLED", "true")
+    monkeypatch.delenv("MOLTBOOK_OUTBOUND_ENABLED", raising=False)
+
+    status = build_outbound_gate_status()
+    assert status["moltbook_mode"] == "live"
+    assert status["moltbook_api_key_set"] is True
+    assert status["moltbook_outbound_enabled"] is False
+    assert status["moltbook_execute_enabled"] is True
+    assert "MOLTBOOK_OUTBOUND_ENABLED" in (status["moltbook_error"] or "")
+    assert any("MOLTBOOK_OUTBOUND_ENABLED=true" in action for action in status["owner_actions"])
+    live = next(item for item in status["go_live_checklist"] if item["id"] == "moltbook_live")
+    outbound = next(item for item in status["go_live_checklist"] if item["id"] == "outbound")
+    assert live["ok"] is True
+    assert outbound["ok"] is False
