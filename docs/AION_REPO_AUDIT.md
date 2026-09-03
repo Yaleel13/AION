@@ -903,10 +903,11 @@ README describes simpler structure than reality. Should document:
 
 | Finding | Status | Severity | Classification | Phase | Blockers |
 |---------|--------|----------|-----------------|-------|----------|
-| TypeScript error suppression | VERIFIED CURRENT | Medium | PRODUCTION RISK | B | Inventory errors, fix defects, remove flag |
-| Capability taxonomy mismatch | VERIFIED CURRENT | Low | REPO-LOCAL GAP | B | Define canonical taxonomy, update test/code |
-| Supabase schema parity unknown | REPORTED—NEEDS REPRODUCTION | High | LIVE-ENVIRONMENT GAP | C | Export schema, compare, produce drift report |
-| Public endpoint rate limiting | VERIFIED CURRENT | Medium | PRODUCTION RISK | D | Design distributed rate limiter |
+| TypeScript error suppression | ~~VERIFIED CURRENT~~ **RESOLVED (2026-09-01)** | Medium | PRODUCTION RISK | B | `ignoreBuildErrors: false`; CI typecheck passes |
+| Capability taxonomy mismatch | ~~VERIFIED CURRENT~~ **RESOLVED (2026-09-01)** | Low | REPO-LOCAL GAP | B | `ai` is first-class; qualification tests pass |
+| Supabase schema parity unknown | ~~REPORTED~~ **PARTIAL (2026-09-01/09-03)** | High | LIVE-ENVIRONMENT GAP | C | 27 tables exported; `payment_orders` now live but not in committed SQL — see FINDING U4 |
+| Public endpoint rate limiting | ~~VERIFIED CURRENT~~ **PARTIAL (2026-09-01)** | Medium | PRODUCTION RISK | D | FastAPI `/agent` hardened; Next.js chat route still unthrottled; limiter is process-local — see FINDING U2/U3 |
+| Experiment-ops tests fail collection | **NEW (2026-09-03)** | High | REPO-LOCAL GAP | B | `ImportError: YALITEK_QUICK_DIAGNOSTIC_URL` breaks Security CI pytest |
 | Session re-authentication missing | VERIFIED CURRENT | Low | PRODUCTION RISK | E | Add high-risk action re-auth |
 | Prompt injection coverage gaps | PARTIALLY VERIFIED | Medium | POST-LAUNCH ENHANCEMENT | B | Audit all input paths, add tests |
 | CSRF verification gaps | REPORTED—NEEDS VERIFICATION | Medium | PRODUCTION RISK | E | Verify middleware, add tests |
