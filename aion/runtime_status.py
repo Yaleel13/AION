@@ -29,6 +29,10 @@ def _payment_orders_ledger_available() -> bool:
             store.close()
 
 
+def _env_present(*names: str) -> bool:
+    return any(bool((os.getenv(name) or "").strip()) for name in names)
+
+
 def build_runtime_status() -> dict[str, Any]:
     """Assemble a non-secret snapshot of real runtime gates and backends."""
     from aion.stripe_runtime import StripeRuntime
@@ -82,6 +86,60 @@ def build_runtime_status() -> dict[str, Any]:
 
     vercel_runtime = bool(os.getenv("VERCEL"))
     owner_token_configured = bool(os.getenv("AION_OWNER_TOKEN"))
+    github_runtime_connector = _env_present("GITHUB_TOKEN", "GH_TOKEN", "AION_GITHUB_TOKEN")
+    vercel_control_connector = _env_present("VERCEL_TOKEN", "AION_VERCEL_TOKEN")
+    posthog_configured = _env_present("NEXT_PUBLIC_POSTHOG_KEY", "POSTHOG_API_KEY", "POSTHOG_PERSONAL_API_KEY")
+    google_runtime_connector = _env_present(
+        "GOOGLE_APPLICATION_CREDENTIALS",
+        "GOOGLE_SERVICE_ACCOUNT_JSON",
+        "GOOGLE_CLIENT_EMAIL",
+    )
+
+    external_connections = {
+        "terminal": {
+            "connected": vercel_runtime and owner_token_configured,
+            "actionable": vercel_runtime and owner_token_configured,
+            "mode": "vercel-sandbox-diagnostics" if vercel_runtime and owner_token_configured else None,
+        },
+        "github": {
+            "connected": github_runtime_connector,
+            "actionable": github_runtime_connector,
+            "note": "Requires a server-side GitHub credential; ChatGPT connector access is not inherited by the deployed AION runtime.",
+        },
+        "vercel": {
+            "connected": vercel_runtime,
+            "actionable": vercel_control_connector,
+            "note": "Production runtime detection does not imply deployment-control authority.",
+        },
+        "supabase_postgres": {
+            "connected": bool(storage.get("configured")) and storage.get("backend") == "postgres",
+            "actionable": bool(storage.get("configured")) and storage.get("backend") == "postgres",
+        },
+        "stripe": {
+            "connected": payment_rails["stripe_configured"],
+            "actionable": payment_rails["stripe_ready_for_checkout"],
+        },
+        "openai": {
+            "connected": bool(config.OPENAI_API_KEY),
+            "actionable": bool(config.OPENAI_API_KEY),
+        },
+        "posthog": {
+            "connected": posthog_configured,
+            "actionable": posthog_configured,
+        },
+        "google": {
+            "connected": google_runtime_connector,
+            "actionable": google_runtime_connector,
+            "note": "External Google account connections are not automatically available inside AION without runtime credentials.",
+        },
+        "moltbook": {
+            "connected": bool(moltbook.get("configured")),
+            "actionable": bool(moltbook.get("controlled_outbound_ready")),
+            "approval_gate": "activated" if moltbook.get("outbound_enabled") else "locked",
+            "execute_gate": "activated" if moltbook.get("execute_enabled") else "locked",
+            "note": "Approval and execute gates are independent and remain locked unless separately activated.",
+        },
+    }
 
     return {
         "ok": True,
@@ -114,11 +172,15 @@ def build_runtime_status() -> dict[str, Any]:
             "terminal_executor_connected": vercel_runtime and owner_token_configured,
             "terminal_executor_mode": "vercel-sandbox-diagnostics" if vercel_runtime and owner_token_configured else None,
             "arbitrary_terminal_commands_enabled": False,
+            "github_runtime_connector_configured": github_runtime_connector,
+            "vercel_control_connector_configured": vercel_control_connector,
         },
+        "external_connections": external_connections,
         "safety": {
             "moltbook_outbound_default": False,
             "moltbook_execute_default": False,
             "owner_approval_required_for_moltbook_write": True,
+            "moltbook_approval_and_execute_gates_independent": True,
             "autonomy_default": "inactive",
             "autonomy_dry_run_default": True,
             "paper_is_not_live_trading": True,

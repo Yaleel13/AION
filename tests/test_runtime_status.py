@@ -34,7 +34,13 @@ def test_runtime_status_shape_and_safe_defaults():
     assert "openai_configured" in data["providers"]
     assert "gemini_configured" in data["providers"]
     assert data["safety"]["paper_is_not_live_trading"] is True
+    assert data["safety"]["moltbook_approval_and_execute_gates_independent"] is True
     assert data["payment_rails"]["payment_orders_ledger"] is True
+
+    external = data["external_connections"]
+    assert set(("terminal", "github", "vercel", "supabase_postgres", "stripe", "openai", "posthog", "google", "moltbook")) <= set(external)
+    assert external["moltbook"]["approval_gate"] == "locked"
+    assert external["moltbook"]["execute_gate"] == "locked"
 
 
 def test_runtime_status_ledger_is_independent_of_stripe_configuration(monkeypatch):
@@ -62,6 +68,7 @@ def test_runtime_status_storage_sqlite_when_unset(monkeypatch):
     data = client.get("/runtime/status").json()
     assert data["storage"]["backend"] == "sqlite"
     assert data["storage"]["configured"] is True
+    assert data["external_connections"]["supabase_postgres"]["connected"] is False
 
 
 def test_runtime_status_preserves_flags_when_execute_lacks_outbound(monkeypatch):
@@ -80,3 +87,22 @@ def test_runtime_status_preserves_flags_when_execute_lacks_outbound(monkeypatch)
     assert moltbook["execute_enabled"] is True
     assert moltbook["controlled_outbound_ready"] is False
     assert "MOLTBOOK_OUTBOUND_ENABLED" in moltbook["error"]
+    assert data["external_connections"]["moltbook"]["approval_gate"] == "locked"
+    assert data["external_connections"]["moltbook"]["execute_gate"] == "activated"
+    assert data["external_connections"]["moltbook"]["actionable"] is False
+
+
+def test_external_runtime_connector_flags_are_truthful(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "test-github-token")
+    monkeypatch.setenv("VERCEL_TOKEN", "test-vercel-token")
+    monkeypatch.setenv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test")
+    monkeypatch.setenv("GOOGLE_CLIENT_EMAIL", "service@example.test")
+
+    data = client.get("/runtime/status").json()
+    external = data["external_connections"]
+
+    assert external["github"]["connected"] is True
+    assert external["github"]["actionable"] is True
+    assert external["vercel"]["actionable"] is True
+    assert external["posthog"]["connected"] is True
+    assert external["google"]["connected"] is True
