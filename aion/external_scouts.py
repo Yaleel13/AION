@@ -42,6 +42,12 @@ BUYER_TERMS = re.compile(
     r"ai implementation|technical support|looking for (?:a |an )?(?:developer|consultant|contractor|freelancer)|"
     r"need (?:a |an )?(?:developer|consultant|contractor|freelancer))\b"
 )
+STRONG_BUYER_TERMS = re.compile(
+    r"(?i)\b(looking to hire|hiring|seeking (?:a |an )?(?:developer|consultant|contractor|freelancer)|"
+    r"seeking freelancer|paid (?:gig|project|contract)|request for proposals?|\brfp\b|bounty|"
+    r"contract opportunity|looking for (?:a |an )?(?:developer|consultant|contractor|freelancer)|"
+    r"need (?:a |an )?(?:developer|consultant|contractor|freelancer))\b"
+)
 COMMERCIAL_TERMS = re.compile(
     r"(?i)\b(website|wordpress|shopify|hosting|deploy|deployment|vercel|automation|workflow|n8n|zapier|"
     r"ai agent|ai integration|technical support|diagnostic|debug|landing page|startup site|next\.js|react|"
@@ -130,6 +136,11 @@ def _walk_json(payload: Any, *, source: PublicSource) -> list[ScoutCandidate]:
 
     def visit(value: Any) -> None:
         if isinstance(value, dict):
+            # GitHub search results expose lifecycle state directly on each issue.
+            # Closed issues are not actionable buyer intent and must never enter
+            # the revenue queue even if historical text contains words like budget.
+            if source.scout == "github" and str(value.get("state") or "").strip().lower() == "closed":
+                return
             # Reddit listings wrap posts as {kind, data:{...}}. Descend into data
             # first so title/selftext/permalink are read from the inner object.
             inner = value.get("data")
@@ -169,7 +180,7 @@ def _walk_json(payload: Any, *, source: PublicSource) -> list[ScoutCandidate]:
                 visit(child)
 
     visit(payload)
-    seen: set[tuple[str, str]] = set()
+    seen: set[tuple[str, str, str]] = set()
     unique: list[ScoutCandidate] = []
     for candidate in candidates:
         key = (candidate.title[:200], candidate.text[:500], candidate.url)
@@ -185,6 +196,11 @@ def candidate_to_opportunity(candidate: ScoutCandidate, *, scout: str) -> Opport
         return None
     if not BUYER_TERMS.search(text):
         return None
+    # GitHub is especially noisy: technical issues routinely mention budgets,
+    # benchmarks, deployments, and automation without representing a buyer.
+    # Require an explicit hiring/paid-work phrase before treating an issue as a lead.
+    if scout == "github" and not STRONG_BUYER_TERMS.search(text):
+        return None
     if scout in {"commercial", "reddit", "github"} and not COMMERCIAL_TERMS.search(text):
         return None
 
@@ -195,7 +211,7 @@ def candidate_to_opportunity(candidate: ScoutCandidate, *, scout: str) -> Opport
     if scout in {"commercial", "reddit", "github"} and COMMERCIAL_TERMS.search(text):
         confidence = min(0.92, confidence + 0.12)
         probability = min(0.78, probability + 0.12)
-    if re.search(r"(?i)\b(seeking freelancer|looking to hire|hiring|budget|paid project|paid contract)\b", text):
+    if STRONG_BUYER_TERMS.search(text):
         confidence = min(0.95, confidence + 0.08)
         probability = min(0.82, probability + 0.08)
 
@@ -270,7 +286,7 @@ def default_sources(environ: dict[str, str] | None = None) -> list[PublicSource]
     Covers three independent channels:
     1. Hacker News Algolia — technical buyers, freelancer requests, automation help.
     2. Reddit JSON API (unauthenticated, public posts only) — r/forhire and r/freelance.
-    3. GitHub repository search — active repos posting help-wanted issues.
+    3. GitHub issue search — open issues with explicit paid/hiring language.
 
     All sources are read-only. No authentication is sent.
     """
@@ -313,34 +329,30 @@ def default_sources(environ: dict[str, str] | None = None) -> list[PublicSource]
             scout="web",
         ),
         # ── Reddit (public JSON, no auth) ──────────────────────────────────────
-        # r/forhire: hiring posts use [HIRING] tag; buyer intent is explicit.
         PublicSource(
             name="reddit_forhire_hiring",
             url="https://www.reddit.com/r/forhire/search.json?q=%5BHIRING%5D&sort=new&limit=50&t=week",
             scout="reddit",
         ),
-        # r/freelance: explicit paid work requests.
         PublicSource(
             name="reddit_freelance_new",
             url="https://www.reddit.com/r/freelance/new.json?limit=50",
             scout="reddit",
         ),
-        # r/webdev hiring thread.
         PublicSource(
             name="reddit_webdev_forhire",
             url="https://www.reddit.com/r/webdev/search.json?q=hiring+developer&sort=new&limit=50&t=week",
             scout="reddit",
         ),
-        # ── GitHub (unauthenticated public search, 60 req/h) ──────────────────
-        # Paid-intent issue text, not generic OSS "help wanted" chore lists.
+        # ── GitHub — open issues with explicit buyer language only ─────────────
         PublicSource(
             name="github_paid_hire_web",
-            url="https://api.github.com/search/issues?q=%22looking+to+hire%22+OR+%22paid+gig%22+OR+%22paid+contract%22+wordpress+OR+nextjs+OR+website&sort=created&order=desc&per_page=30",
+            url="https://api.github.com/search/issues?q=%22looking+to+hire%22+website+is%3Aissue+is%3Aopen&sort=created&order=desc&per_page=30",
             scout="github",
         ),
         PublicSource(
             name="github_paid_automation",
-            url="https://api.github.com/search/issues?q=budget+OR+%22paid+project%22+automation+OR+n8n+OR+zapier&sort=created&order=desc&per_page=30",
+            url="https://api.github.com/search/issues?q=%22paid+project%22+automation+is%3Aissue+is%3Aopen&sort=created&order=desc&per_page=30",
             scout="github",
         ),
     ]
