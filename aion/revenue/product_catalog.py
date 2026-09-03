@@ -60,7 +60,6 @@ CREATOR_COMMERCIAL_AUTHORIZATION = {
 
 
 PRODUCTS: tuple[CommercialProduct, ...] = (
-    # YaliTek Online — operational service contracts verified in the YaliTek repo.
     CommercialProduct(
         venture="YaliTek Online",
         product_key="quick-tech-diagnostic",
@@ -73,16 +72,9 @@ PRODUCTS: tuple[CommercialProduct, ...] = (
         revenue_model="one-time service",
         fulfillment="fixed-scope technical diagnostic + prioritized next-step plan",
         buyer_signals=(
-            "technical diagnostics",
-            "website repair",
-            "hosting and launch help",
-            "business automation",
-            "ai implementation plans",
-            "streaming setup",
-            "startup websites",
-            "production issue",
-            "debug",
-            "troubleshoot",
+            "technical diagnostics", "website repair", "hosting and launch help",
+            "business automation", "ai implementation plans", "streaming setup",
+            "startup websites", "production issue", "debug", "troubleshoot",
         ),
         source_of_truth="AION live Stripe payment link + Yaleel13/v0-yalitekonline service contracts",
         notes="Primary low-friction conversion wedge for high-confidence public technical buyer intent.",
@@ -100,14 +92,9 @@ PRODUCTS: tuple[CommercialProduct, ...] = (
     CommercialProduct("YaliTek Online", "automation-setup", "Automation Setup", "automation", "proposal_first", "https://yalitekonline.com", None, None, "project service", "configured workflows + tests + monitoring + runbook", ("automation", "workflow", "zapier", "n8n", "manual process"), "Yaleel13/v0-yalitekonline lib/service-contracts.ts"),
     CommercialProduct("YaliTek Online", "complete-automation", "Complete Automation", "automation", "proposal_first", "https://yalitekonline.com", None, None, "project service", "end-to-end digital launch + CRM/email automation + AI + analytics + 30-day support", ("complete automation", "business system", "crm automation", "customer flow"), "Yaleel13/v0-yalitekonline lib/service-contracts.ts"),
     CommercialProduct("YaliTek Online", "yalitek-care", "YaliTek Care", "recurring-support", "site_subscription_flow", "https://yalitekonline.com", None, "$149/month (creator-approved current plan)", "monthly subscription", "monthly remote support/maintenance allowance + activity summary", ("ongoing support", "maintenance", "retainer", "technical support"), "AION project canon + Yaleel13/v0-yalitekonline lib/service-contracts.ts"),
-
-    # Elaria — current plan/pricing source verified in Elaria repo.
     CommercialProduct("Elaria", "momentum-weekly", "Momentum", "wellness-saas", "live_site_checkout", "https://elaria.app/premium", None, "$3.99/week", "subscription", "guided daily alignment system", ("wellness", "daily alignment", "journaling", "meditation", "emotional clarity"), "Yaleel13/ElariaAI docs/comms-checkout-reminders-status.md"),
     CommercialProduct("Elaria", "expansion-monthly", "Expansion", "wellness-saas", "live_site_checkout", "https://elaria.app/premium", None, "$11.99/month", "subscription", "guided daily alignment system", ("wellness", "daily alignment", "journaling", "meditation", "emotional clarity"), "Yaleel13/ElariaAI docs/comms-checkout-reminders-status.md"),
     CommercialProduct("Elaria", "commitment-yearly", "Commitment", "wellness-saas", "live_site_checkout", "https://elaria.app/premium", None, "$79.99/year", "subscription", "guided daily alignment system", ("wellness", "daily alignment", "journaling", "meditation", "emotional clarity"), "Yaleel13/ElariaAI docs/comms-checkout-reminders-status.md"),
-
-    # Creator portfolio inventory. These are authorized commercial assets, but AION
-    # must not claim a direct checkout until one is verified and entered here.
     CommercialProduct("Cerebral Synergy", "content-collections", "Cerebral Synergy Collections", "research-content", "commercial_asset_no_verified_checkout", "https://cerebral-synergy.com", None, None, "content sales / audience monetization", "curated research, archive, laboratory, observatory, resonance and gallery content", ("ancient wisdom", "alchemy", "mythology", "ai research", "future culture", "art"), "Creator project canon + Yaleel13/Cerebral-synergy repository"),
     CommercialProduct("Elaria Sound Division", "music-catalog", "Elaria Sound Division Music Catalog", "music-ip", "commercial_asset_no_verified_checkout", "", None, None, "streaming / licensing / direct sales when rail exists", "music releases and artist catalog", ("music", "song", "licensing", "soundtrack", "artist"), "Creator project canon"),
     CommercialProduct("Unity Voyage", "media-catalog", "Unity Voyage Media Catalog", "media-ip", "commercial_asset_no_verified_checkout", "", None, None, "platform monetization / sponsorship / licensing", "faceless educational and cinematic media", ("youtube", "education", "short film", "history", "sponsorship"), "Creator project canon"),
@@ -133,38 +120,22 @@ def sale_ready_products() -> list[CommercialProduct]:
     return [
         product
         for product in PRODUCTS
-        if product.sale_status
-        in {"live_direct_checkout", "live_site_checkout", "site_checkout_or_order_flow", "site_subscription_flow"}
+        if product.sale_status in {"live_direct_checkout", "live_site_checkout", "site_checkout_or_order_flow", "site_subscription_flow"}
     ]
 
 
 def match_product_for_lead(lead: dict[str, Any]) -> CommercialProduct:
-    """Return the best truthful product match without inventing a sale path.
-
-    The low-friction $49 YaliTek diagnostic is the fallback for high-confidence
-    technical leads because it has a verified live checkout and can legitimately
-    act as a first paid step before larger scoped work.
-    """
     service = str(lead.get("relevant_service") or "").lower()
     problem = str(lead.get("stated_problem") or "").lower()
     text = f"{service} {problem}"
-
     scored: list[tuple[int, CommercialProduct]] = []
     for product in PRODUCTS:
         score = sum(1 for signal in product.buyer_signals if signal.lower() in text)
         if score:
             scored.append((score, product))
     if scored:
-        scored.sort(
-            key=lambda pair: (
-                pair[0],
-                1 if pair[1].checkout_url else 0,
-                1 if pair[1].sale_status.startswith("live") else 0,
-            ),
-            reverse=True,
-        )
+        scored.sort(key=lambda pair: (pair[0], 1 if pair[1].checkout_url else 0, 1 if pair[1].sale_status.startswith("live") else 0), reverse=True)
         return scored[0][1]
-
     return next(p for p in PRODUCTS if p.product_key == "quick-tech-diagnostic")
 
 
@@ -183,14 +154,11 @@ def commercial_inventory_snapshot() -> dict[str, Any]:
                 "price_display": p.price_display,
                 "revenue_model": p.revenue_model,
                 "fulfillment": p.fulfillment,
-                "buyer_signals": list(p.buyer_signals),
                 "source_of_truth": p.source_of_truth,
-                "notes": p.notes,
-                "social_proof": p.social_proof,
             }
             for p in PRODUCTS
         ],
-        "commercial_resources": [dict(item) for item in COMMERCIAL_RESOURCES],
-        "total_inventory_count": len(PRODUCTS),
+        "resources": list(COMMERCIAL_RESOURCES),
         "sale_ready_count": len(sale_ready_products()),
+        "total_inventory_count": len(PRODUCTS),
     }
