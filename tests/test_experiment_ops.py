@@ -5,9 +5,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from aion.moltbook.experiment_ops import (
+    conversion_channel,
     customize_lead_response,
     mark_backlog_status,
+    persistable_lead,
     refresh_queue_timing,
+    select_conversion_candidate,
     select_next_backlog_comment,
     select_next_campaign_draft,
 )
@@ -116,3 +119,67 @@ def test_mark_backlog_status() -> None:
     updated = mark_backlog_status(backlog, post_id="p2", priority=2, status="published")
     assert updated[0]["status"] == "published"
     assert updated[1]["status"] == "ready"
+
+
+def _explicit_lead(**overrides: object) -> dict:
+    row = {
+        "lead_id": "lead-1",
+        "source_url": "https://www.moltbook.com/post/abc123",
+        "stated_problem": "Need help debugging a production Next.js outage",
+        "relevant_service": "Technical diagnostics",
+        "confidence_score": 0.85,
+        "fit_score": 0.8,
+        "suggested_response": "Hey — I can help with a diagnostic.",
+        "risks": "intent_signal=explicit; monetization_track=yalitek_service",
+        "approval_status": "pending_owner_review",
+        "conversion_outcome": "uncontacted",
+        "revenue_attributed": 0.0,
+        "raw_excerpt": "Need help debugging a production Next.js outage",
+        "created_at": "2026-09-03T00:00:00+00:00",
+        "content_hash": "hash-1",
+        "requester_identity": "buyer",
+    }
+    row.update(overrides)
+    return row
+
+
+def test_select_conversion_candidate_accepts_moltbook_post() -> None:
+    chosen = select_conversion_candidate([_explicit_lead()])
+    assert chosen is not None
+    assert chosen["conversion_channel"] == "moltbook_comment"
+    assert chosen["source_post_id"] == "abc123"
+
+
+def test_select_conversion_candidate_accepts_reddit_as_owner_alert() -> None:
+    chosen = select_conversion_candidate(
+        [
+            _explicit_lead(
+                lead_id="lead-reddit",
+                source_url="https://www.reddit.com/r/forhire/comments/xyz/hiring/",
+            )
+        ]
+    )
+    assert chosen is not None
+    assert chosen["conversion_channel"] == "owner_direct_alert"
+    assert chosen["source_post_id"] == ""
+
+
+def test_select_conversion_candidate_skips_already_converted() -> None:
+    chosen = select_conversion_candidate(
+        [_explicit_lead(conversion_outcome="owner_sales_alert")]
+    )
+    assert chosen is None
+
+
+def test_conversion_channel_ignores_non_moltbook_post_paths() -> None:
+    assert conversion_channel({"source_url": "https://example.com/post/nope"}) == ""
+    assert conversion_channel({"source_url": "https://news.ycombinator.com/item?id=1"}) == "owner_direct_alert"
+
+
+def test_persistable_lead_drops_selection_extras() -> None:
+    row = persistable_lead(
+        _explicit_lead(conversion_channel="moltbook_comment", matched_product_key="quick-tech-diagnostic")
+    )
+    assert "conversion_channel" not in row
+    assert "matched_product_key" not in row
+    assert row["lead_id"] == "lead-1"

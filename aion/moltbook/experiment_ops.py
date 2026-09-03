@@ -5,7 +5,31 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from aion.revenue.external_leads import is_direct_sales_source
 from aion.revenue.product_catalog import match_product_for_lead
+
+_LEAD_COLUMNS = (
+    "lead_id",
+    "source_url",
+    "requester_identity",
+    "stated_problem",
+    "relevant_service",
+    "fit_score",
+    "confidence_score",
+    "suggested_response",
+    "risks",
+    "approval_status",
+    "conversion_outcome",
+    "revenue_attributed",
+    "raw_excerpt",
+    "created_at",
+    "content_hash",
+)
+
+
+def persistable_lead(lead: dict[str, Any]) -> dict[str, Any]:
+    """Drop conversion-selection extras so upsert_lead stays schema-safe."""
+    return {key: lead[key] for key in _LEAD_COLUMNS if key in lead}
 
 
 def _conversion_path(product: Any) -> str:
@@ -75,7 +99,10 @@ def customize_lead_response(lead: dict[str, Any]) -> str:
 
 
 def _source_post_id(lead: dict[str, Any]) -> str:
+    """Return a Moltbook post id only. Other platforms are not comment targets."""
     url = str(lead.get("source_url") or "")
+    if "moltbook.com" not in url.lower():
+        return ""
     marker = "/post/"
     if marker not in url:
         return ""
@@ -83,13 +110,26 @@ def _source_post_id(lead: dict[str, Any]) -> str:
     return tail if tail and "/" not in tail else ""
 
 
+def conversion_channel(lead: dict[str, Any]) -> str:
+    """Return how a qualified lead may be converted.
+
+    moltbook_comment — public Moltbook reply via controlled autonomy.
+    owner_direct_alert — owner sales alert + checkout; no auto-comment.
+    """
+    if _source_post_id(lead):
+        return "moltbook_comment"
+    url = str(lead.get("source_url") or "").strip()
+    if url.startswith("https://") and is_direct_sales_source(url):
+        return "owner_direct_alert"
+    return ""
+
+
 def select_conversion_candidate(leads: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Pick one explicit, high-confidence buyer with a real conversion path.
 
-    Selection is intentionally strict: public Moltbook post, explicit buyer signal,
-    confidence >= 0.70, non-hostile content, prepared response, and a truthful
-    checkout/site/proposal path. The execution engine still applies all policy,
-    pacing, quota, secret/PII, and idempotency gates.
+    Moltbook leads with a `/post/` id can be converted by a policy-gated public
+    comment. Reddit, GitHub, and HN leads convert as owner sales alerts with a
+    checkout link — AION never auto-comments on those platforms.
 
     When multiple leads qualify, AION prioritizes stronger conversion paths first
     (verified checkout > live site checkout > proposal), then confidence and fit.
@@ -99,12 +139,18 @@ def select_conversion_candidate(leads: list[dict[str, Any]]) -> dict[str, Any] |
         confidence = float(lead.get("confidence_score") or 0.0)
         risks = str(lead.get("risks") or "")
         content = str(lead.get("suggested_response") or "")
+        outcome = str(lead.get("conversion_outcome") or "uncontacted")
         post_id = _source_post_id(lead)
-        if confidence < 0.70 or not post_id or not content:
+        channel = conversion_channel(lead)
+        if confidence < 0.70 or not content or not channel:
+            continue
+        if outcome not in {"uncontacted", "", "none"}:
             continue
         if "intent_signal=explicit" not in risks:
             continue
         if "prompt-injection heuristics matched" in risks:
+            continue
+        if channel == "moltbook_comment" and not post_id:
             continue
 
         product = match_product_for_lead(lead)
@@ -114,6 +160,7 @@ def select_conversion_candidate(leads: list[dict[str, Any]]) -> dict[str, Any] |
 
         item = dict(lead)
         item["source_post_id"] = post_id
+        item["conversion_channel"] = channel
         item["matched_product_key"] = product.product_key
         item["matched_venture"] = product.venture
         item["conversion_path"] = path
