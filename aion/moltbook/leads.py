@@ -43,6 +43,12 @@ TARGETED_SEARCHES = [
     "AI agent implementation help",
     "debug troubleshoot production issue",
     "landing page startup website help",
+    # Broader discovery — technical problem-solving with budget signal
+    "need developer fix bug urgent budget",
+    "anyone help vercel supabase stripe issue",
+    "nextjs react fastapi help paid",
+    "startup website launch help asap",
+    "ai agent build integrate openai help",
 ]
 
 MIN_REVIEW_CONFIDENCE = 0.40

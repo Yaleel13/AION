@@ -106,8 +106,10 @@ def test_default_sources_include_multiple_recent_buyer_intent_feeds() -> None:
     names = {source.name for source in sources}
     assert "hn_seeking_freelancer" in names
     assert "hn_looking_to_hire_developer" in names
-    assert "hn_contract_developer" in names
-    assert sum(source.scout == "commercial" for source in sources) >= 5
+    # Reddit and GitHub sources added in C2 distribution expansion
+    assert any("reddit" in n for n in names), "Reddit sources must be present"
+    assert any("github" in n for n in names), "GitHub sources must be present"
+    assert sum(source.scout in {"commercial", "reddit", "github"} for source in sources) >= 7
 
 
 def test_external_opportunity_persists_in_unified_ledger(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
