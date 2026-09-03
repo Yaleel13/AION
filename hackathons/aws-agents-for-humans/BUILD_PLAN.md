@@ -58,51 +58,12 @@ Produce a compact decision packet with evidence links, risks, deadline, next act
 ## Technical architecture
 
 - **Agent framework:** AWS Strands Agents SDK
-- **Model:** Amazon Bedrock-supported model selected for cost/quality after verifying contest eligibility
+- **Model:** Amazon Bedrock, explicitly configured for live verification
 - **Runtime:** local first; optionally Bedrock AgentCore / AWS compute if useful for judging
-- **State:** lightweight durable opportunity ledger
-- **Tools:** web/source retrieval adapters, verifier, scoring tool, dedupe/change detector
-- **Interface:** minimal web or CLI dashboard showing only qualified opportunities and human-action gates
-- **Observability:** structured logs for discovery, verification, filtering, ranking, and escalation
-
-## Judging strategy
-
-### Technical implementation
-Show multiple Strands agents/tools cooperating on a real task, with clear error handling and durable state.
-
-### Product experience
-Make the demo obvious: noisy public opportunities in -> small verified queue out.
-
-### Real-world impact
-Demonstrate time saved and false-positive reduction rather than claiming unmeasured revenue.
-
-### Originality
-Differentiate through evidence-first qualification, explicit scam/safety filtering, and human-controlled execution.
-
-## Demo scenario
-
-1. User says: "Find legitimate ways my AI/automation skills could earn money this month."
-2. Scout ingests a mixed set containing:
-   - valid hackathon;
-   - real paid contract;
-   - stale bounty;
-   - Reddit rumor with no official source;
-   - wallet-connect promo;
-   - token speculation post.
-3. Verifier independently confirms official sources.
-4. Risk filter removes unsafe/low-quality items and explains why.
-5. Ranker scores remaining opportunities.
-6. Agent surfaces the top two with deadlines and action packets.
-7. User approves one for application preparation; no external submission is made automatically.
-
-## Safety boundaries
-
-- No autonomous financial transactions.
-- No token purchasing or live trading.
-- No sending funds to qualify for work.
-- No automatic third-party outreach or application submission.
-- No secret/private AION owner data in the hackathon project.
-- No claim of success without external confirmation.
+- **State:** persistent opportunity ledger
+- **Tools:** public-source retrieval adapters, verifier, scoring tool, dedupe/change detector
+- **Interface:** minimal FastAPI human-review surface
+- **Observability:** structured logs for discovery, verification, filtering, ranking, escalation, and live verification
 
 ## Build sequence
 
@@ -123,36 +84,39 @@ Differentiate through evidence-first qualification, explicit scam/safety filteri
 - minimal FastAPI human-review endpoint;
 - tests for social-only rejection, dedupe, silence, and material payout changes.
 
-### Phase 3 — real scout/verifier adapters — NEXT
-- add real public-source retrieval adapters;
-- normalize official-source evidence into Opportunity objects;
-- add source freshness and deadline parsing;
-- persist the ledger instead of keeping it process-local;
-- add structured logging / observability.
+### Phase 3 — scout/verifier foundations — IMPLEMENTED
+- read-only public JSON retrieval adapter;
+- explicit provenance normalization;
+- UTC deadline normalization;
+- persistent JSON-backed ledger;
+- structured JSON observability;
+- restart-persistence tests.
 
-### Phase 4 — AWS deployment/evidence
-- choose and verify qualifying Bedrock model configuration;
-- run a real Strands/Bedrock turn;
-- optionally deploy on Bedrock AgentCore / AWS compute where useful for judging;
-- capture architecture diagram and logs;
-- verify end-to-end run;
-- document reused pre-existing concepts/components.
+### Phase 4 — AWS live verification — HARNESS READY, EXECUTION PENDING
+- explicit Strands `BedrockModel` configuration;
+- verified default model example: `global.anthropic.claude-sonnet-4-6`;
+- safe `live_verify.py` fixture;
+- credential-safe execution instructions;
+- live AWS invocation still required on an authenticated AWS execution host;
+- optional Bedrock AgentCore deployment after the basic model turn succeeds.
 
 ### Phase 5 — submission
 - public MIT or Apache-licensed repository as required by the contest;
+- architecture diagram;
 - strong README and reproducibility instructions;
 - <=5-minute demo;
 - final Devpost submission.
 
-## External gates
+## Safety boundaries
 
-Before claiming submission readiness, verify:
-- current AWS contest rules and eligible Strands/Bedrock configuration;
-- AWS promotional credit availability;
-- public-repository/license requirement;
-- exact deadline and submission fields;
-- deployed URL if deployment is included in judging.
+- No autonomous financial transactions.
+- No token purchasing or live trading.
+- No sending funds to qualify for work.
+- No automatic third-party outreach or application submission.
+- No secret/private AION owner data in the hackathon project.
+- No AWS credentials in Git.
+- No claim of live success without external confirmation.
 
 ## Current status
 
-Phases 1 and 2 are implemented on the hackathon branch. The project has not yet been executed against a live Bedrock model or deployed to AWS. No hackathon submission has been filed.
+Phases 1-3 are implemented. The Phase 4 live-verification harness is implemented and configured against the current Strands Bedrock provider pattern. The project has **not yet produced a verified live Bedrock success event or AWS deployment**, and no hackathon submission has been filed.
