@@ -16,7 +16,7 @@ from aion.moltbook.errors import (
     MoltbookRateLimitError,
 )
 from aion.moltbook.redact import REDACTED, redact_text, redact_value
-from aion.moltbook.settings import load_moltbook_settings
+from aion.moltbook.settings import load_moltbook_settings, observe_moltbook_env
 
 
 def test_settings_repr_hides_api_key() -> None:
@@ -87,6 +87,32 @@ def test_settings_rejects_outbound_flag() -> None:
                 "MOLTBOOK_OUTBOUND_ENABLED": "true",
             }
         )
+
+
+def test_settings_rejects_execute_without_outbound() -> None:
+    with pytest.raises(MoltbookConfigError, match="MOLTBOOK_EXECUTE_ENABLED requires MOLTBOOK_OUTBOUND_ENABLED"):
+        load_moltbook_settings(
+            environ={
+                "MOLTBOOK_MODE": "live",
+                "MOLTBOOK_API_KEY": "moltbook_test_key_placeholder",
+                "MOLTBOOK_BASE_URL": "https://www.moltbook.com/api/v1",
+                "MOLTBOOK_EXECUTE_ENABLED": "true",
+            }
+        )
+
+
+def test_observe_moltbook_env_reports_execute_without_outbound() -> None:
+    observed = observe_moltbook_env(
+        environ={
+            "MOLTBOOK_MODE": "live",
+            "MOLTBOOK_API_KEY": "moltbook_test_key_placeholder",
+            "MOLTBOOK_EXECUTE_ENABLED": "true",
+        }
+    )
+    assert observed.mode == "live"
+    assert observed.api_key_present is True
+    assert observed.outbound_enabled is False
+    assert observed.execute_enabled is True
 
 
 def test_redaction_strips_secrets_and_email() -> None:

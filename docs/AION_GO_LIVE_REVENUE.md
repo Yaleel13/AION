@@ -55,6 +55,13 @@ Webhook URL to configure in Stripe:
 | `MOLTBOOK_CONTROLLED_AUTONOMY` | `true` only after quality review | Still inactive by default |
 | `MOLTBOOK_AUTONOMY_DRY_RUN` | `false` only when live writes are intended | Default `true` |
 
+If Boardroom shows Moltbook as **Unconfigured** or **misconfigured** with
+`MOLTBOOK_EXECUTE_ENABLED requires MOLTBOOK_OUTBOUND_ENABLED=true`, execute is
+on without outbound. Set `MOLTBOOK_OUTBOUND_ENABLED=true` on the AION Production
+environment (both flags are required; execute alone fail-closes the whole
+Moltbook client, including research). Confirm `MOLTBOOK_MODE=live` and
+`MOLTBOOK_API_KEY` are still set, then redeploy or wait for env to bind.
+
 ### After the first successful paid test
 
 | Variable | Production value |

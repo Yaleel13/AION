@@ -10,7 +10,7 @@ from aion.durable.db import storage_status
 from aion.moltbook.autonomy_policy import AutonomyMode, AutonomyPolicy
 from aion.moltbook.errors import MoltbookConfigError
 from aion.moltbook.security import KillSwitch
-from aion.moltbook.settings import load_moltbook_settings
+from aion.moltbook.settings import load_moltbook_settings, observe_moltbook_env
 
 
 def _payment_orders_ledger_available() -> bool:
@@ -47,12 +47,13 @@ def build_runtime_status() -> dict[str, Any]:
             "phase": "phase7-owner-controlled-outbound",
         }
     except MoltbookConfigError as exc:
+        observed = observe_moltbook_env()
         moltbook = {
             "configured": False,
-            "mode": None,
-            "api_key_present": False,
-            "outbound_enabled": False,
-            "execute_enabled": False,
+            "mode": observed.mode,
+            "api_key_present": observed.api_key_present,
+            "outbound_enabled": observed.outbound_enabled,
+            "execute_enabled": observed.execute_enabled,
             "controlled_outbound_ready": False,
             "phase": "phase7-owner-controlled-outbound",
             "error": str(exc),

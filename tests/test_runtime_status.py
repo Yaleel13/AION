@@ -62,3 +62,21 @@ def test_runtime_status_storage_sqlite_when_unset(monkeypatch):
     data = client.get("/runtime/status").json()
     assert data["storage"]["backend"] == "sqlite"
     assert data["storage"]["configured"] is True
+
+
+def test_runtime_status_preserves_flags_when_execute_lacks_outbound(monkeypatch):
+    monkeypatch.setenv("MOLTBOOK_MODE", "live")
+    monkeypatch.setenv("MOLTBOOK_API_KEY", "moltbook_test_key_placeholder")
+    monkeypatch.setenv("MOLTBOOK_BASE_URL", "https://www.moltbook.com/api/v1")
+    monkeypatch.setenv("MOLTBOOK_EXECUTE_ENABLED", "true")
+    monkeypatch.delenv("MOLTBOOK_OUTBOUND_ENABLED", raising=False)
+
+    data = client.get("/runtime/status").json()
+    moltbook = data["moltbook"]
+    assert moltbook["configured"] is False
+    assert moltbook["mode"] == "live"
+    assert moltbook["api_key_present"] is True
+    assert moltbook["outbound_enabled"] is False
+    assert moltbook["execute_enabled"] is True
+    assert moltbook["controlled_outbound_ready"] is False
+    assert "MOLTBOOK_OUTBOUND_ENABLED" in moltbook["error"]

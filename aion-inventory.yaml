@@ -1,5 +1,5 @@
 version: 1
-generated_at: '2026-09-02T04:50:37.568302+00:00'
+generated_at: '2026-09-03T19:41:21.643531+00:00'
 repository: Yaleel13/AION
 surfaces:
   fastapi_routes:
@@ -167,8 +167,16 @@ surfaces:
     handler: app/api/owner/operator-briefing/route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
+  - path: /api/owner/outbound-gates
+    handler: app/api/owner/outbound-gates/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
   - path: /api/owner/payment-rail
     handler: app/api/owner/payment-rail/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: /api/owner/sales-alerts
+    handler: app/api/owner/sales-alerts/route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: /api/owner/terminal/diagnose
@@ -186,6 +194,10 @@ surfaces:
     owner: vercel-python
   - path: /api/cron/ops
     file: api/cron/ops.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/cron/revenue-ops
+    file: api/cron/revenue-ops.py
     runtime: python
     owner: vercel-python
   - path: /api/index
@@ -236,12 +248,20 @@ surfaces:
     file: api/internal/opportunity-qualification.py
     runtime: python
     owner: vercel-python
+  - path: /api/internal/outbound-gates
+    file: api/internal/outbound-gates.py
+    runtime: python
+    owner: vercel-python
   - path: /api/internal/pursuit-packets
     file: api/internal/pursuit-packets.py
     runtime: python
     owner: vercel-python
   - path: /api/internal/revenue-scouts
     file: api/internal/revenue-scouts.py
+    runtime: python
+    owner: vercel-python
+  - path: /api/internal/sales-alerts
+    file: api/internal/sales-alerts.py
     runtime: python
     owner: vercel-python
   - path: /api/owner/autonomy/daily-report

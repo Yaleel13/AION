@@ -20,6 +20,7 @@ type GateStatus = {
   moltbook_api_key_set: boolean
   moltbook_outbound_enabled: boolean
   moltbook_execute_enabled: boolean
+  moltbook_error?: string | null
   stripe_checkout_ready: boolean
   ready_for_revenue: boolean
   go_live_checklist: GoLiveItem[]
@@ -112,6 +113,9 @@ export function OwnerOutboundGates() {
       ) : null}
       {notice ? (
         <p className="rounded-lg border border-positive/30 bg-positive/5 p-3 text-xs text-positive">{notice}</p>
+      ) : null}
+      {data?.moltbook_error ? (
+        <p className="rounded-lg border border-caution/30 bg-caution/5 p-3 text-xs text-caution">{data.moltbook_error}</p>
       ) : null}
 
       {data ? (

@@ -7,13 +7,14 @@ from typing import Any
 
 from aion.moltbook.errors import MoltbookConfigError
 from aion.moltbook.security import KillSwitch
-from aion.moltbook.settings import load_moltbook_settings
+from aion.moltbook.settings import load_moltbook_settings, observe_moltbook_env
 from aion.runtime_status import build_runtime_status
 
 
 def build_outbound_gate_status() -> dict[str, Any]:
     """Return outbound blockers plus the owner go-live checklist."""
     kill = KillSwitch.from_env()
+    observed = observe_moltbook_env()
     try:
         settings = load_moltbook_settings()
         moltbook_ok = True
@@ -32,7 +33,13 @@ def build_outbound_gate_status() -> dict[str, Any]:
 
     if not moltbook_ok:
         blockers.append(f"Moltbook config error: {moltbook_error}")
-        actions.append("Check MOLTBOOK_MODE, MOLTBOOK_API_KEY, MOLTBOOK_BASE_URL in Vercel env.")
+        if observed.execute_enabled and not observed.outbound_enabled:
+            actions.append(
+                "Set MOLTBOOK_OUTBOUND_ENABLED=true in Vercel Production. "
+                "MOLTBOOK_EXECUTE_ENABLED is already true; both are required or Moltbook fails closed."
+            )
+        else:
+            actions.append("Check MOLTBOOK_MODE, MOLTBOOK_API_KEY, MOLTBOOK_BASE_URL in Vercel env.")
     elif settings is not None:
         if settings.mode == "mock":
             blockers.append("MOLTBOOK_MODE=mock — live Moltbook access disabled")
@@ -108,7 +115,7 @@ def build_outbound_gate_status() -> dict[str, Any]:
         },
         {
             "id": "moltbook_live",
-            "ok": bool(settings and settings.mode == "live" and settings.api_key),
+            "ok": observed.mode == "live" and observed.api_key_present,
             "label": "Moltbook live + API key",
             "action": "Set MOLTBOOK_MODE=live and MOLTBOOK_API_KEY.",
         },
@@ -142,10 +149,15 @@ def build_outbound_gate_status() -> dict[str, Any]:
     return {
         "current_mode": current_mode,
         "kill_switch_engaged": kill.engaged,
-        "moltbook_mode": settings.mode if settings else None,
-        "moltbook_api_key_set": bool(settings and settings.api_key),
-        "moltbook_outbound_enabled": bool(settings and settings.outbound_enabled),
-        "moltbook_execute_enabled": bool(settings and settings.execute_enabled),
+        "moltbook_mode": settings.mode if settings else observed.mode,
+        "moltbook_api_key_set": bool(settings.api_key) if settings else observed.api_key_present,
+        "moltbook_outbound_enabled": (
+            settings.outbound_enabled if settings else observed.outbound_enabled
+        ),
+        "moltbook_execute_enabled": (
+            settings.execute_enabled if settings else observed.execute_enabled
+        ),
+        "moltbook_error": moltbook_error,
         "stripe_checkout_ready": stripe_ready,
         "ready_for_revenue": ready_for_revenue,
         "go_live_checklist": go_live_checklist,

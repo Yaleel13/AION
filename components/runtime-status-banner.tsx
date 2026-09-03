@@ -68,7 +68,7 @@ export function RuntimeStatusBanner({ className }: { className?: string }) {
         </span>
         <span>
           moltbook: {moltbook.mode ?? "unset"}
-          {moltbook.outbound_enabled ? " · outbound on" : " · outbound off"}
+          {moltbook.error ? ` · ${moltbook.error}` : moltbook.outbound_enabled ? " · outbound on" : " · outbound off"}
         </span>
         <span>
           autonomy: {autonomy.mode}
