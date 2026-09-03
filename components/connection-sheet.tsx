@@ -21,11 +21,11 @@ type ConnectionOption = {
   icon: typeof TerminalSquare
   title: string
   desc: string
-  fallbackAvailable?: boolean
+  uiAction?: boolean
 }
 
 const baseOptions: ConnectionOption[] = [
-  { key: "terminal", icon: TerminalSquare, title: "Terminal Session", desc: "Owner-gated repository diagnostics in Vercel Sandbox" },
+  { key: "terminal", icon: TerminalSquare, title: "Terminal Session", desc: "Owner-gated repository diagnostics in Vercel Sandbox", uiAction: true },
   { key: "github", icon: Github, title: "GitHub Repository", desc: "Server-side repository access for source, code changes, and fulfillment assets" },
   { key: "vercel", icon: Cloud, title: "Cloud Deployment", desc: "Production runtime plus deployment-control readiness" },
   { key: "supabase_postgres", icon: Database, title: "Supabase / Postgres", desc: "Durable operational storage and ledgers" },
@@ -33,14 +33,14 @@ const baseOptions: ConnectionOption[] = [
   { key: "openai", icon: BrainCircuit, title: "OpenAI", desc: "Primary reasoning and generation provider" },
   { key: "posthog", icon: BarChart3, title: "PostHog", desc: "Product analytics runtime configuration" },
   { key: "google", icon: Globe2, title: "Google", desc: "Runtime Google credentials for Drive/Cloud workflows" },
-  { key: "moltbook", icon: Server, title: "Moltbook", desc: "Public research and controlled outbound gates" },
-  { key: "local", icon: HardDrive, title: "Local Project", desc: "Unavailable from the hosted web runtime", fallbackAvailable: false },
-  { key: "upload", icon: Upload, title: "Upload Files", desc: "File ingestion is not wired into AION yet", fallbackAvailable: false },
+  { key: "moltbook", icon: Server, title: "Moltbook", desc: "Public research and separately gated controlled outbound" },
+  { key: "local", icon: HardDrive, title: "Local Project", desc: "Unavailable from the hosted web runtime" },
+  { key: "upload", icon: Upload, title: "Upload Files", desc: "File ingestion is not wired into AION yet" },
 ]
 
-function statusLabel(connection: ExternalConnection | undefined, fallbackAvailable = false) {
-  if (!connection) return fallbackAvailable ? "Available" : "Not connected"
-  if (connection.actionable) return "Actionable"
+function statusLabel(connection: ExternalConnection | undefined) {
+  if (!connection) return "Not connected"
+  if (connection.actionable) return "Runtime ready"
   if (connection.connected) return "Connected"
   return "Not connected"
 }
@@ -82,14 +82,14 @@ export function ConnectionSheet({
     () =>
       baseOptions.map((option) => {
         const connection = runtime?.external_connections?.[option.key]
-        const available = Boolean(connection?.actionable || option.fallbackAvailable)
+        const available = Boolean(option.uiAction && connection?.actionable)
         const desc = connection?.note ? `${option.desc}. ${connection.note}` : option.desc
         return {
           ...option,
           connection,
           available,
           desc,
-          label: statusLabel(connection, option.fallbackAvailable),
+          label: statusLabel(connection),
         }
       }),
     [runtime],
@@ -110,7 +110,7 @@ export function ConnectionSheet({
           <div>
             <h2 className="text-lg font-medium text-foreground">AION Connections</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              This panel reflects credentials and capabilities available inside the deployed AION runtime, not connections available only to ChatGPT or the owner externally.
+              Runtime wiring is detected from AION's own server environment. A service can be connected without having a direct control button in this panel.
             </p>
           </div>
           <button
@@ -129,7 +129,7 @@ export function ConnectionSheet({
               type="button"
               onClick={() => o.available && onConnect(o.title)}
               disabled={!o.available}
-              className="group flex items-start gap-3 rounded-xl border border-border bg-surface/50 p-3 text-left transition-colors enabled:hover:border-border-strong enabled:hover:bg-surface disabled:cursor-not-allowed disabled:opacity-55"
+              className="group flex items-start gap-3 rounded-xl border border-border bg-surface/50 p-3 text-left transition-colors enabled:hover:border-border-strong enabled:hover:bg-surface disabled:cursor-default disabled:opacity-70"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors group-enabled:group-hover:bg-gold/12 group-enabled:group-hover:text-gold">
                 <o.icon className="h-4.5 w-4.5" />
@@ -140,6 +140,9 @@ export function ConnectionSheet({
                   <span className="text-[0.62rem] uppercase tracking-wider text-muted-foreground">{o.label}</span>
                 </span>
                 <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">{o.desc}</span>
+                {o.connection?.connected && !o.uiAction ? (
+                  <span className="mt-1 block text-[0.68rem] text-muted-foreground">No direct UI control on this surface.</span>
+                ) : null}
                 {o.key === "moltbook" && o.connection ? (
                   <span className="mt-1 block text-[0.68rem] text-muted-foreground">
                     Approval: {o.connection.approval_gate ?? "locked"} · Execute: {o.connection.execute_gate ?? "locked"}
