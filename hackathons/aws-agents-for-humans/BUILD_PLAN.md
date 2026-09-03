@@ -15,7 +15,7 @@ Build a new hackathon project during the contest period that turns a user goal s
 5. prepare an action packet;
 6. surface only the decisions that require human review.
 
-This is inspired by AION but is implemented as a new project using the AWS Strands Agents SDK, with reused pre-existing concepts/components to be disclosed where required.
+This is inspired by AION but should be implemented as a new project using the AWS Strands Agents SDK, with any reused pre-existing concepts or code disclosed.
 
 ## Why this fits Agents for Humans
 
@@ -61,14 +61,14 @@ Produce a compact decision packet with evidence links, risks, deadline, next act
 - **Model:** Amazon Bedrock-supported model selected for cost/quality after verifying contest eligibility
 - **Runtime:** local first; optionally Bedrock AgentCore / AWS compute if useful for judging
 - **State:** lightweight durable opportunity ledger
-- **Tools:** web/source retrieval adapters, verifier, deterministic safety/ranking tool, dedupe/change detector
+- **Tools:** web/source retrieval adapters, verifier, scoring tool, dedupe/change detector
 - **Interface:** minimal web or CLI dashboard showing only qualified opportunities and human-action gates
 - **Observability:** structured logs for discovery, verification, filtering, ranking, and escalation
 
 ## Judging strategy
 
 ### Technical implementation
-Show Strands agent/tool cooperation on a real task, with clear error handling and durable state.
+Show multiple Strands agents/tools cooperating on a real task, with clear error handling and durable state.
 
 ### Product experience
 Make the demo obvious: noisy public opportunities in -> small verified queue out.
@@ -106,26 +106,34 @@ Differentiate through evidence-first qualification, explicit scam/safety filteri
 
 ## Build sequence
 
-### Phase 1 — skeleton — IMPLEMENTED ON BRANCH
-- isolated Strands dependency set;
+### Phase 1 — skeleton — IMPLEMENTED
+- isolated Strands project;
 - typed opportunity/evidence/decision models;
-- deterministic reject rules and ranking logic;
-- Strands agent wrapper with evaluation tool;
-- tests covering high-value review, upfront-fee rejection, social-only verification failure, and speculative-trading rejection.
+- deterministic safety rejection and ranking logic;
+- sample scoring tests;
+- Strands tool wrapper.
 
-### Phase 2 — agent workflow — NEXT
-- implement scout/verifier workflow adapters;
-- add retry/error handling and dedupe/change detection;
-- add source freshness and provenance handling;
-- add sample mixed-opportunity fixture for demo/evaluation.
+### Phase 2 — qualification pipeline — IMPLEMENTED
+- official-source verification gate;
+- stable opportunity fingerprinting;
+- material-change signature and ledger;
+- same-batch dedupe;
+- unchanged-result silence behavior;
+- mixed-opportunity demo fixtures;
+- minimal FastAPI human-review endpoint;
+- tests for social-only rejection, dedupe, silence, and material payout changes.
 
-### Phase 3 — product surface
-- minimal dashboard/CLI;
-- action packet view;
-- human approval state.
+### Phase 3 — real scout/verifier adapters — NEXT
+- add real public-source retrieval adapters;
+- normalize official-source evidence into Opportunity objects;
+- add source freshness and deadline parsing;
+- persist the ledger instead of keeping it process-local;
+- add structured logging / observability.
 
 ### Phase 4 — AWS deployment/evidence
-- deploy on qualifying AWS infrastructure if used;
+- choose and verify qualifying Bedrock model configuration;
+- run a real Strands/Bedrock turn;
+- optionally deploy on Bedrock AgentCore / AWS compute where useful for judging;
 - capture architecture diagram and logs;
 - verify end-to-end run;
 - document reused pre-existing concepts/components.
@@ -147,4 +155,4 @@ Before claiming submission readiness, verify:
 
 ## Current status
 
-Phase 1 code exists on `funding/digital-science-aws-2026`. It has not yet been executed against a live Bedrock model or deployed to AWS, and no claim is made that the hackathon submission is complete.
+Phases 1 and 2 are implemented on the hackathon branch. The project has not yet been executed against a live Bedrock model or deployed to AWS. No hackathon submission has been filed.
