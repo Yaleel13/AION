@@ -110,7 +110,7 @@ export function ConnectionSheet({
           <div>
             <h2 className="text-lg font-medium text-foreground">AION Connections</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Runtime wiring is detected from AION's own server environment. A service can be connected without having a direct control button in this panel.
+              Runtime wiring is detected from AION&apos;s own server environment. A service can be connected without having a direct control button in this panel.
             </p>
           </div>
           <button

@@ -4,7 +4,6 @@ import { ArrowRight, BrainCircuit, Link2, LockKeyhole, Mail, MessageCircle, Phon
 import type { Message, PresenceState } from "@/lib/aion/types"
 import { Conversation } from "@/components/conversation/conversation"
 import { CommandComposer } from "@/components/command-composer"
-import { AION_CANON_PORTRAIT } from "@/lib/aion/canon-portrait"
 
 const features = [
   { icon: Radio, title: "Multi-channel", text: "Always with you" },
@@ -64,7 +63,7 @@ export function AionLandingPortal({
           <div className="relative mx-auto flex w-full max-w-[360px] flex-1 items-start justify-center pt-1">
             <div className="absolute inset-x-5 top-8 h-52 rounded-full bg-blue-600/20 blur-3xl sm:h-72" aria-hidden />
             <img
-              src={AION_CANON_PORTRAIT}
+              src="/aion-portrait"
               alt="Aion"
               className="relative z-10 max-h-[38dvh] w-auto rounded-[44%_44%_38%_38%/28%_28%_18%_18%] object-contain drop-shadow-[0_0_38px_rgba(20,113,255,.38)] sm:max-h-[48dvh] lg:max-h-[52dvh]"
             />

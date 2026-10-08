@@ -183,6 +183,21 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "LocalExecutiveRequest": {
+        "additionalProperties": false,
+        "description": "Strict request envelope for one predefined local capability.",
+        "properties": {
+          "capability": {
+            "title": "Capability",
+            "type": "string"
+          }
+        },
+        "required": [
+          "capability"
+        ],
+        "title": "LocalExecutiveRequest",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -368,6 +383,68 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/local-executive/capabilities": {
+      "get": {
+        "description": "Expose the fixed Local Executive registry to loopback callers only.",
+        "operationId": "local_executive_capabilities_local_executive_capabilities_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Local Executive Capabilities Local Executive Capabilities Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List safe local capabilities"
+      }
+    },
+    "/local-executive/execute": {
+      "post": {
+        "description": "Execute one predefined Local Executive capability.\n\nCallers may select a capability ID only. They cannot provide executables,\nargv, paths, shell fragments, environment overrides, or sudo.",
+        "operationId": "local_executive_execute_local_executive_execute_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalExecutiveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Local Executive Execute Local Executive Execute Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Execute one safe local capability"
       }
     },
     "/owner/approvals/{request_id}/decide": {

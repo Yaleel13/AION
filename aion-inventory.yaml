@@ -1,5 +1,5 @@
 version: 1
-generated_at: '2026-09-03T19:41:21.643531+00:00'
+generated_at: '2026-10-08T20:28:52.354320+00:00'
 repository: Yaleel13/AION
 surfaces:
   fastapi_routes:
@@ -22,6 +22,16 @@ surfaces:
     path: /health
     operation_id: health_health_get
     summary: Health
+    owner: fastapi
+  - method: GET
+    path: /local-executive/capabilities
+    operation_id: local_executive_capabilities_local_executive_capabilities_get
+    summary: List safe local capabilities
+    owner: fastapi
+  - method: POST
+    path: /local-executive/execute
+    operation_id: local_executive_execute_local_executive_execute_post
+    summary: Execute one safe local capability
     owner: fastapi
   - method: POST
     path: /owner/approvals/{request_id}/decide
