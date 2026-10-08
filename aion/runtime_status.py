@@ -86,6 +86,23 @@ def build_runtime_status() -> dict[str, Any]:
 
     vercel_runtime = bool(os.getenv("VERCEL"))
     owner_token_configured = bool(os.getenv("AION_OWNER_TOKEN"))
+
+    # AION OS provides a secretless, controlled local executor when the
+    # runtime is explicitly operating in local mode. Cloud/Vercel execution
+    # remains a separate optional path.
+    from aion.local_executor import executor_status
+
+    local_executor = executor_status()
+    local_terminal_ready = bool(local_executor["connected"])
+    vercel_terminal_ready = vercel_runtime and owner_token_configured
+    terminal_ready = local_terminal_ready or vercel_terminal_ready
+    terminal_mode = (
+        "local-controlled"
+        if local_terminal_ready
+        else "vercel-sandbox-diagnostics"
+        if vercel_terminal_ready
+        else None
+    )
     github_runtime_connector = _env_present("GITHUB_TOKEN", "GH_TOKEN", "AION_GITHUB_TOKEN")
     vercel_control_connector = _env_present("VERCEL_TOKEN", "AION_VERCEL_TOKEN")
     posthog_configured = _env_present("NEXT_PUBLIC_POSTHOG_KEY", "POSTHOG_API_KEY", "POSTHOG_PERSONAL_API_KEY")
@@ -97,9 +114,9 @@ def build_runtime_status() -> dict[str, Any]:
 
     external_connections = {
         "terminal": {
-            "connected": vercel_runtime and owner_token_configured,
-            "actionable": vercel_runtime and owner_token_configured,
-            "mode": "vercel-sandbox-diagnostics" if vercel_runtime and owner_token_configured else None,
+            "connected": terminal_ready,
+            "actionable": terminal_ready,
+            "mode": terminal_mode,
         },
         "github": {
             "connected": github_runtime_connector,
@@ -169,8 +186,8 @@ def build_runtime_status() -> dict[str, Any]:
             "database_url_configured": bool(os.getenv("AION_DATABASE_URL")),
             "owner_token_configured": owner_token_configured,
             "cron_secret_configured": bool(os.getenv("CRON_SECRET")),
-            "terminal_executor_connected": vercel_runtime and owner_token_configured,
-            "terminal_executor_mode": "vercel-sandbox-diagnostics" if vercel_runtime and owner_token_configured else None,
+            "terminal_executor_connected": terminal_ready,
+            "terminal_executor_mode": terminal_mode,
             "arbitrary_terminal_commands_enabled": False,
             "github_runtime_connector_configured": github_runtime_connector,
             "vercel_control_connector_configured": vercel_control_connector,

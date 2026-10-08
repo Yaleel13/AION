@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 import math
 
 from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel, ConfigDict
 
 from aion import config
 from aion.agent_runtime import run_aion
@@ -85,6 +86,73 @@ async def runtime_status() -> dict:
     from aion.runtime_status import build_runtime_status
 
     return build_runtime_status()
+
+
+class LocalExecutiveRequest(BaseModel):
+    """Strict request envelope for one predefined local capability."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    capability: str
+
+
+@app.get("/local-executive/capabilities", summary="List safe local capabilities")
+async def local_executive_capabilities(http_request: Request) -> dict:
+    """Expose the fixed Local Executive registry to loopback callers only."""
+    from aion.local_executor import CAPABILITIES, executor_status
+
+    client_host = http_request.client.host if http_request.client else None
+    if client_host not in {"127.0.0.1", "::1"}:
+        raise HTTPException(status_code=403, detail="Local Executive is loopback-only")
+
+    status = executor_status()
+    if not status["connected"]:
+        raise HTTPException(status_code=503, detail="Local Executive is not enabled")
+
+    return {
+        "ok": True,
+        "executor": "aion-local-controlled",
+        "mode": status["mode"],
+        "arbitrary_commands_enabled": False,
+        "capabilities": [
+            {
+                "name": capability.name,
+                "classification": capability.classification,
+                "timeout": capability.timeout,
+            }
+            for capability in CAPABILITIES.values()
+        ],
+    }
+
+
+@app.post("/local-executive/execute", summary="Execute one safe local capability")
+async def local_executive_execute(
+    body: LocalExecutiveRequest, http_request: Request
+) -> dict:
+    """Execute one predefined Local Executive capability.
+
+    Callers may select a capability ID only. They cannot provide executables,
+    argv, paths, shell fragments, environment overrides, or sudo.
+    """
+    from aion.local_executor import execute_capability
+
+    client_host = http_request.client.host if http_request.client else None
+    if client_host not in {"127.0.0.1", "::1"}:
+        raise HTTPException(status_code=403, detail="Local Executive is loopback-only")
+
+    capability = body.capability.strip()
+    if not capability:
+        raise HTTPException(status_code=400, detail="A capability ID is required")
+
+    result = execute_capability(capability)
+
+    if result.get("error") == "Unsupported local capability.":
+        raise HTTPException(status_code=400, detail="Unsupported local capability")
+
+    if result.get("error") == "Local executor is not enabled for this runtime.":
+        raise HTTPException(status_code=503, detail="Local Executive is not enabled")
+
+    return result
 
 
 @app.post("/agent", response_model=AgentResponse, summary="Run AION")
