@@ -19,6 +19,39 @@ def test_voice_threads_never_exceed_available_cpu(monkeypatch):
     assert local_voice._threads() == 2
 
 
+def test_voice_capture_defaults_to_six_seconds_and_is_bounded(monkeypatch):
+    monkeypatch.delenv("AION_AUDIO_CAPTURE_SECONDS", raising=False)
+    assert local_voice._voice_capture_seconds() == 6
+
+    monkeypatch.setenv("AION_AUDIO_CAPTURE_SECONDS", "2")
+    assert local_voice._voice_capture_seconds() == 3
+
+    monkeypatch.setenv("AION_AUDIO_CAPTURE_SECONDS", "30")
+    assert local_voice._voice_capture_seconds() == 10
+
+    monkeypatch.setenv("AION_AUDIO_CAPTURE_SECONDS", "invalid")
+    assert local_voice._voice_capture_seconds() == 6
+
+
+def test_voice_capture_temporarily_overrides_media_duration(monkeypatch):
+    monkeypatch.setenv("AION_AUDIO_CAPTURE_SECONDS", "7")
+    original = local_voice.local_media.AUDIO_CAPTURE_SECONDS
+    seen = None
+
+    def fake_capture():
+        nonlocal seen
+        seen = local_voice.local_media.AUDIO_CAPTURE_SECONDS
+        return {"ok": True, "seconds": seen, "path": "/tmp/test.wav"}
+
+    monkeypatch.setattr(local_voice.local_media, "capture_emeet_audio", fake_capture)
+
+    result = local_voice.capture_emeet_audio()
+
+    assert result["ok"] is True
+    assert seen == 7
+    assert local_voice.local_media.AUDIO_CAPTURE_SECONDS == original
+
+
 def test_transcribe_uses_laptop_tuned_whisper_shape(monkeypatch, tmp_path):
     wav = tmp_path / "sample.wav"
     wav.write_bytes(b"RIFF-test")
@@ -75,7 +108,7 @@ def test_listen_once_reuses_gated_capture(monkeypatch, tmp_path):
     monkeypatch.setattr(
         local_voice,
         "capture_emeet_audio",
-        lambda: {"ok": True, "kind": "audio-capture", "path": str(wav), "seconds": 4},
+        lambda: {"ok": True, "kind": "audio-capture", "path": str(wav), "seconds": 6},
     )
     monkeypatch.setattr(
         local_voice,
@@ -94,6 +127,7 @@ def test_listen_once_reuses_gated_capture(monkeypatch, tmp_path):
     assert data["ok"] is True
     assert data["kind"] == "voice-listen"
     assert data["transcript"] == "AION local voice online."
+    assert data["capture"]["seconds"] == 6
     assert data["stt_threads"] == 4
     assert data["continuous_listening"] is False
     assert data["network_required"] is False
