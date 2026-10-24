@@ -44,11 +44,36 @@ def test_audio_inventory_reports_sources_without_capture(monkeypatch):
     assert data["sources"][0]["name"] == "test-source"
 
 
+def test_runtime_inventory_is_read_only(monkeypatch):
+    monkeypatch.setattr(
+        local_media.shutil,
+        "which",
+        lambda name: f"/usr/bin/{name}" if name in {"ffmpeg", "pactl", "espeak-ng"} else None,
+    )
+    monkeypatch.setattr(
+        local_media.importlib.util,
+        "find_spec",
+        lambda name: object() if name == "vosk" else None,
+    )
+
+    data = local_media.runtime_inventory()
+
+    assert data["kind"] == "media-runtime"
+    assert data["capture_enabled"] is False
+    assert data["network_required"] is False
+    assert data["tools"]["ffmpeg"] == "/usr/bin/ffmpeg"
+    assert data["tools"]["pactl"] == "/usr/bin/pactl"
+    assert data["tools"]["whisper-cli"] is None
+    assert data["python_modules"]["vosk"] is True
+    assert data["python_modules"]["faster_whisper"] is False
+
+
 def test_inventory_rejects_unknown_kind():
     try:
         local_media.inventory("screen")
     except ValueError as exc:
         assert "camera" in str(exc)
         assert "audio" in str(exc)
+        assert "runtime" in str(exc)
     else:
         raise AssertionError("unknown media kind should fail closed")
