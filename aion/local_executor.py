@@ -11,7 +11,7 @@ Core principles:
 - bounded execution time
 - bounded output
 - no sudo/root escalation
-- read/test/build capabilities only in v1
+- read/test/build plus explicitly gated local media capture capabilities
 """
 
 from __future__ import annotations
@@ -67,6 +67,12 @@ CAPABILITIES: dict[str, Capability] = {
     "media.runtime": Capability(
         name="media.runtime",
         argv=("python", "-m", "aion.local_media", "runtime"),
+    ),
+    "media.voice.listen": Capability(
+        name="media.voice.listen",
+        argv=("python", "-m", "aion.local_media", "listen"),
+        timeout=150,
+        classification="capture",
     ),
     "git.status": Capability(
         name="git.status",
