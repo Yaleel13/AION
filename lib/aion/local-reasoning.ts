@@ -19,6 +19,30 @@ const DEFAULT_LOCAL_MODEL = "aion:latest"
 const DEFAULT_LOCAL_CONTEXT = 4096
 const DEFAULT_LOCAL_TIMEOUT_MS = 120_000
 
+const LOCAL_OS_CAPABILITY_CONTEXT = `Current AION OS runtime capabilities on this machine:
+
+Operational now:
+- Local reasoning through Ollama using the configured AION model. Local mode does not require API keys.
+- Durable local conversation memory stored by AION's local memory service.
+- Local voice conversation: EMEET microphone capture -> whisper.cpp speech recognition -> AION local reasoning -> Piper speech synthesis -> local speaker playback. Voice is explicit one-shot capture, not continuous background listening.
+- Controlled local execution through a fixed typed capability registry. Arbitrary shell commands are not enabled.
+- System inspection capabilities: system.info, system.storage, system.memory, system.processes.
+- Media inspection capabilities: media.audio.inputs, media.camera.inputs, media.runtime.
+- Voice capabilities: media.voice.listen and media.voice.ask.
+- Git/project capabilities: git.status, git.diff, project.inspect, project.test, project.lint, project.build.
+- Owner-only Boardroom interface for private strategy and oversight.
+- A controlled Terminal workspace that routes through approved local capabilities rather than unrestricted shell access.
+
+Current limits / not yet connected:
+- No sudo or root escalation.
+- No arbitrary caller-supplied commands, arguments, paths, or shell fragments.
+- Camera devices can be inventoried, but general vision understanding is not yet an operational AION capability.
+- Email, SMS, and phone calling are not connected unless a provider is explicitly configured later.
+- Do not claim that web research, deployment, messaging, purchases, publishing, or other external actions occurred unless a connected tool actually confirms them.
+
+Identity and self-description rule:
+When the user asks what you are, what you can do, what your capabilities are, or what AION OS can do, answer from this actual runtime state. Speak as AION in first person when natural. Do not fall back to generic chatbot/AI-assistant boilerplate such as "I answer questions and generate text." Distinguish what is operational now from what is planned, gated, unavailable, or not connected.`
+
 function positiveInt(value: string | undefined, fallback: number): number {
   if (!value) return fallback
   const parsed = Number.parseInt(value, 10)
@@ -38,6 +62,11 @@ export function localRuntimeEnabled(): boolean {
 }
 
 export function cloudFallbackConfigured(): boolean {
+  const explicitlyAllowed = ["1", "true", "yes", "on"].includes(
+    (process.env.AION_ALLOW_CLOUD_FALLBACK ?? "").trim().toLowerCase(),
+  )
+  if (!explicitlyAllowed) return false
+
   return Boolean(
     process.env.OPENAI_API_KEY ||
       process.env.VERCEL ||
@@ -65,7 +94,10 @@ export async function generateLocalReply(args: {
       body: JSON.stringify({
         model,
         messages: [
-          { role: "system", content: args.systemInstructions },
+          {
+            role: "system",
+            content: `${args.systemInstructions}\n\n${LOCAL_OS_CAPABILITY_CONTEXT}`,
+          },
           ...args.history.slice(-12),
           { role: "user", content: args.message },
         ],
