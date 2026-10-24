@@ -50,9 +50,16 @@ export function AionLandingPortal({
   onVoiceToggle: () => void
   onOpenConnections: () => void
   onOpenBoardroom: () => void
-  onOpenTerminal: () => void
+  onOpenTerminal?: () => void
 }) {
   const focusComposer = () => document.getElementById("aion-message")?.focus()
+  const openTerminal = () => {
+    if (onOpenTerminal) {
+      onOpenTerminal()
+      return
+    }
+    onSubmit("Open it in the terminal.")
+  }
 
   return (
     <main className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-5 sm:px-5 lg:px-6">
@@ -119,7 +126,7 @@ export function AionLandingPortal({
             {!compact && (
               <div className="mt-3 flex flex-wrap items-center justify-center gap-2.5">
                 <button type="button" onClick={focusComposer} className="inline-flex min-w-40 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 px-4 py-2.5 text-sm font-medium text-white shadow-[0_0_28px_rgba(0,173,255,.22)] transition-transform hover:-translate-y-0.5">Command AION <ArrowRight className="h-4 w-4" /></button>
-                <button type="button" onClick={onOpenTerminal} className="inline-flex min-w-40 items-center justify-center gap-2 rounded-xl border border-cyan/25 bg-[#071426]/80 px-4 py-2.5 text-sm text-foreground transition-colors hover:bg-cyan/7">Open Terminal <TerminalSquare className="h-4 w-4 text-cyan/75" /></button>
+                <button type="button" onClick={openTerminal} className="inline-flex min-w-40 items-center justify-center gap-2 rounded-xl border border-cyan/25 bg-[#071426]/80 px-4 py-2.5 text-sm text-foreground transition-colors hover:bg-cyan/7">Open Terminal <TerminalSquare className="h-4 w-4 text-cyan/75" /></button>
               </div>
             )}
           </div>
@@ -166,7 +173,7 @@ export function AionLandingPortal({
                 <ArrowRight className="h-4 w-4 text-cyan/55" />
               </button>
 
-              <button type="button" onClick={onOpenTerminal} className="group flex w-full items-center gap-3 rounded-xl border border-cyan/14 bg-background/24 p-3.5 text-left transition-colors hover:border-cyan/30 hover:bg-cyan/5">
+              <button type="button" onClick={openTerminal} className="group flex w-full items-center gap-3 rounded-xl border border-cyan/14 bg-background/24 p-3.5 text-left transition-colors hover:border-cyan/30 hover:bg-cyan/5">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600/12 text-cyan"><TerminalSquare className="h-5 w-5" /></span>
                 <span className="min-w-0 flex-1"><span className="flex items-center gap-2"><span className="block text-sm font-medium text-foreground">Terminal</span><span className="text-[0.58rem] uppercase tracking-[0.12em] text-cyan">Controlled</span></span><span className="mt-0.5 block text-xs text-muted-foreground">Typed local execution with owner gates.</span></span>
                 <ArrowRight className="h-4 w-4 text-cyan/55" />
