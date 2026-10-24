@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -18,6 +19,7 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from aion.durable.paths import resolve_durable_paths
+from aion.local_executor import CAPABILITIES
 from aion.local_intelligence import local_context_size, local_model_name, ollama_base_url
 from aion.local_memory import LocalMemoryMessage, LocalMemoryRequest, handle_local_memory
 from aion.local_voice import listen_once
@@ -27,12 +29,23 @@ DEFAULT_PIPER_VOICE = Path.home() / ".local/share/aion/piper/en_US-ryan-medium.o
 DEFAULT_VOICE_SESSION_ID = "aion-local-voice-primary"
 VOICE_HISTORY_LIMIT = 12
 VOICE_SYSTEM_PROMPT = (
-    "You are AION. Reply naturally for spoken conversation. Be concise unless the "
-    "user asks for depth. Do not mention implementation details unless asked."
+    "You are AION, the operating intelligence for the owner's local AION OS environment. "
+    "Reply naturally for spoken conversation. Be concise unless the user asks for depth. "
+    "Never describe yourself as a generic chatbot. Never claim a system capability or action "
+    "that is not actually available or confirmed."
 )
 OLLAMA_TIMEOUT_SECONDS = 120
 TTS_TIMEOUT_SECONDS = 90
 PLAYBACK_TIMEOUT_SECONDS = 90
+
+SELF_CAPABILITY_PATTERNS = (
+    re.compile(r"\bwhat (?:are|is) (?:your|aion(?: os)?(?:'s)?) capabilities\b", re.IGNORECASE),
+    re.compile(r"\bwhat can you do\b", re.IGNORECASE),
+    re.compile(r"\bwhat can aion(?: os)? do\b", re.IGNORECASE),
+    re.compile(r"\bwhat are you capable of\b", re.IGNORECASE),
+    re.compile(r"\bhow can you help me\b", re.IGNORECASE),
+    re.compile(r"\btell me (?:about )?your capabilities\b", re.IGNORECASE),
+)
 
 
 def _local_mode() -> bool:
@@ -118,9 +131,39 @@ def _playback_enabled() -> bool:
     return raw in {"1", "true", "yes", "on"}
 
 
+def _is_self_capability_question(text: str) -> bool:
+    cleaned = text.strip()
+    return any(pattern.search(cleaned) for pattern in SELF_CAPABILITY_PATTERNS)
+
+
+def _capability_reply() -> str:
+    names = sorted(CAPABILITIES)
+    return (
+        "I'm AION, the operating intelligence for this local AION OS environment. "
+        "Right now I can reason locally with Ollama, remember conversations in durable local memory, "
+        "hear you through the EMEET microphone with whisper.cpp, and answer aloud with Piper. "
+        "I can inspect system information, storage, memory, processes, audio and camera inputs, Git status and diffs, "
+        "and I can inspect, test, lint, and build the AION project through controlled actions. "
+        "I also have the owner-only Boardroom and a controlled Terminal workspace. "
+        f"My current typed local capability registry contains {len(names)} actions: {', '.join(names)}. "
+        "I do not have arbitrary shell access, sudo or root escalation, general vision understanding, email, SMS, or phone calling yet. "
+        "I keep those limits explicit rather than pretending a capability exists."
+    )
+
+
 def reason_locally(text: str, history: list[dict[str, str]] | None = None) -> dict[str, Any]:
     if not _local_mode():
         return {"ok": False, "kind": "voice-reasoning", "error": "Local runtime mode is required"}
+
+    if _is_self_capability_question(text):
+        return {
+            "ok": True,
+            "kind": "voice-reasoning",
+            "reply": _capability_reply(),
+            "model": "aion-local-self-model",
+            "history_messages": len(history or []),
+            "network_required": False,
+        }
 
     base_url = _loopback_ollama_url()
     if not base_url:
