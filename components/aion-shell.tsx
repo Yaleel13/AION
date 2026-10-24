@@ -43,6 +43,14 @@ type DurableMemoryResponse = {
   previous_response_id?: string | null
 }
 
+type LocalVoiceResponse = {
+  available?: boolean
+  transcript?: string
+  reply?: string
+  played?: boolean
+  error?: string
+}
+
 const busyStates: PresenceState[] = ["thinking", "researching", "executing"]
 
 function createClientSessionId() {
@@ -59,6 +67,7 @@ export function AionShell() {
   const [ownerAuthOpen, setOwnerAuthOpen] = useState(false)
   const [ownerAuthenticated, setOwnerAuthenticated] = useState(false)
   const [listening, setListening] = useState(false)
+  const [voiceAvailable, setVoiceAvailable] = useState(false)
   const [previousResponseId, setPreviousResponseId] = useState<string | null>(null)
   const [clientSessionId, setClientSessionId] = useState<string | null>(null)
   const [conversationHydrated, setConversationHydrated] = useState(false)
@@ -69,6 +78,23 @@ export function AionShell() {
       .then((res) => res.json())
       .then((data) => setOwnerAuthenticated(Boolean(data.authenticated)))
       .catch(() => setOwnerAuthenticated(false))
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    void fetch("/api/aion/voice", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data: LocalVoiceResponse) => {
+        if (!cancelled) setVoiceAvailable(Boolean(data.available))
+      })
+      .catch(() => {
+        if (!cancelled) setVoiceAvailable(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
@@ -167,6 +193,35 @@ export function AionShell() {
     if (ownerAuthenticated) setMode("boardroom")
     else setOwnerAuthOpen(true)
   }, [ownerAuthenticated])
+
+  const handleVoiceToggle = useCallback(async () => {
+    if (!voiceAvailable || listening || busyRef.current) return
+
+    busyRef.current = true
+    setListening(true)
+
+    try {
+      const res = await fetch("/api/aion/voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+      const data = (await res.json()) as LocalVoiceResponse
+      if (!res.ok || !data.transcript || !data.reply) {
+        throw new Error(data.error || `AION local voice request failed (${res.status})`)
+      }
+
+      pushMessage({ id: uid(), role: "user", content: data.transcript })
+      pushMessage({ id: uid(), role: "aion", content: data.reply })
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Unknown local voice error"
+      pushMessage({ id: uid(), role: "aion", content: `I couldn't complete that local voice turn. ${detail}` })
+    } finally {
+      setListening(false)
+      setWorking("complete")
+      setTimeout(() => setWorking("idle"), 500)
+      busyRef.current = false
+    }
+  }, [listening, pushMessage, voiceAvailable])
 
   const handleSend = useCallback(
     async (text: string) => {
@@ -298,6 +353,7 @@ export function AionShell() {
   }, [])
 
   const isBusy = busyStates.includes(working)
+  const conversationDisabled = isBusy || listening || !conversationHydrated
 
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden bg-background">
@@ -321,7 +377,7 @@ export function AionShell() {
             focus={focus}
             listening={listening}
             onSubmit={handleSend}
-            onVoiceToggle={() => setListening((v) => !v)}
+            onVoiceToggle={handleVoiceToggle}
             onExit={() => setMode("conversation")}
             onOpenConnections={() => setConnectionOpen(true)}
           />
@@ -334,10 +390,11 @@ export function AionShell() {
               working={working}
               presence={presence}
               listening={listening}
-              disabled={isBusy || !conversationHydrated}
+              voiceAvailable={voiceAvailable}
+              disabled={conversationDisabled}
               ownerAuthenticated={ownerAuthenticated}
               onSubmit={handleSend}
-              onVoiceToggle={() => setListening((v) => !v)}
+              onVoiceToggle={handleVoiceToggle}
               onOpenConnections={() => setConnectionOpen(true)}
               onOpenBoardroom={handleOpenBoardroom}
             />
@@ -352,10 +409,11 @@ export function AionShell() {
           working={working}
           presence={presence}
           listening={listening}
-          disabled={isBusy || !conversationHydrated}
+          voiceAvailable={voiceAvailable}
+          disabled={conversationDisabled}
           ownerAuthenticated={ownerAuthenticated}
           onSubmit={handleSend}
-          onVoiceToggle={() => setListening((v) => !v)}
+          onVoiceToggle={handleVoiceToggle}
           onOpenConnections={() => setConnectionOpen(true)}
           onOpenBoardroom={handleOpenBoardroom}
         />
