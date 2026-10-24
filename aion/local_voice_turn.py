@@ -1,8 +1,9 @@
 """One explicit local spoken conversation turn for AION OS.
 
-Flow: EMEET capture -> whisper.cpp -> loopback Ollama -> Piper -> local playback.
-The capability is one-shot only, accepts no caller-supplied commands/paths, and
-never contacts a non-loopback reasoning endpoint.
+Flow: EMEET capture -> whisper.cpp -> durable local history -> loopback Ollama ->
+Piper -> local playback -> durable local append. The capability is one-shot only,
+accepts no caller-supplied commands/paths, and never contacts a non-loopback
+reasoning endpoint.
 """
 
 from __future__ import annotations
@@ -18,10 +19,13 @@ from urllib.request import Request, urlopen
 
 from aion.durable.paths import resolve_durable_paths
 from aion.local_intelligence import local_context_size, local_model_name, ollama_base_url
+from aion.local_memory import LocalMemoryMessage, LocalMemoryRequest, handle_local_memory
 from aion.local_voice import listen_once
 
 
 DEFAULT_PIPER_VOICE = Path.home() / ".local/share/aion/piper/en_US-ryan-medium.onnx"
+DEFAULT_VOICE_SESSION_ID = "aion-local-voice-primary"
+VOICE_HISTORY_LIMIT = 12
 VOICE_SYSTEM_PROMPT = (
     "You are AION. Reply naturally for spoken conversation. Be concise unless the "
     "user asks for depth. Do not mention implementation details unless asked."
@@ -48,6 +52,56 @@ def _loopback_ollama_url() -> str | None:
     return value.rstrip("/")
 
 
+def _voice_session_id() -> str:
+    value = (os.getenv("AION_VOICE_SESSION_ID") or DEFAULT_VOICE_SESSION_ID).strip()
+    return value if len(value) >= 16 else DEFAULT_VOICE_SESSION_ID
+
+
+def _load_voice_history() -> tuple[list[dict[str, str]], str | None]:
+    try:
+        data = handle_local_memory(
+            LocalMemoryRequest(action="load", client_session_id=_voice_session_id())
+        )
+    except Exception as exc:  # noqa: BLE001 - memory failure must not break voice
+        return [], f"{type(exc).__name__}: {exc}"
+
+    raw = data.get("messages") if isinstance(data, dict) else None
+    if not isinstance(raw, list):
+        return [], None
+
+    history: list[dict[str, str]] = []
+    for item in raw[-VOICE_HISTORY_LIMIT:]:
+        if not isinstance(item, dict):
+            continue
+        role = item.get("role")
+        content = item.get("content")
+        if role not in {"user", "assistant"} or not isinstance(content, str):
+            continue
+        cleaned = content.strip()
+        if cleaned:
+            history.append({"role": role, "content": cleaned})
+    return history, None
+
+
+def _save_voice_turn(transcript: str, reply: str) -> tuple[bool, str | None]:
+    try:
+        handle_local_memory(
+            LocalMemoryRequest(
+                action="append",
+                client_session_id=_voice_session_id(),
+                messages=[
+                    LocalMemoryMessage(role="user", content=transcript),
+                    LocalMemoryMessage(role="assistant", content=reply),
+                ],
+                model=local_model_name(),
+                runtime="ollama-local-voice",
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 - memory failure must not break voice
+        return False, f"{type(exc).__name__}: {exc}"
+    return True, None
+
+
 def _piper_voice() -> Path:
     configured = (os.getenv("AION_PIPER_VOICE") or "").strip()
     return Path(configured).expanduser() if configured else DEFAULT_PIPER_VOICE
@@ -64,7 +118,7 @@ def _playback_enabled() -> bool:
     return raw in {"1", "true", "yes", "on"}
 
 
-def reason_locally(text: str) -> dict[str, Any]:
+def reason_locally(text: str, history: list[dict[str, str]] | None = None) -> dict[str, Any]:
     if not _local_mode():
         return {"ok": False, "kind": "voice-reasoning", "error": "Local runtime mode is required"}
 
@@ -76,12 +130,17 @@ def reason_locally(text: str) -> dict[str, Any]:
             "error": "Voice reasoning requires a loopback Ollama endpoint",
         }
 
+    messages: list[dict[str, str]] = [{"role": "system", "content": VOICE_SYSTEM_PROMPT}]
+    for message in history or []:
+        role = message.get("role")
+        content = message.get("content")
+        if role in {"user", "assistant"} and isinstance(content, str) and content.strip():
+            messages.append({"role": role, "content": content.strip()})
+    messages.append({"role": "user", "content": text})
+
     payload = {
         "model": local_model_name(),
-        "messages": [
-            {"role": "system", "content": VOICE_SYSTEM_PROMPT},
-            {"role": "user", "content": text},
-        ],
+        "messages": messages,
         "stream": False,
         "keep_alive": "30m",
         "options": {"num_ctx": local_context_size(), "temperature": 0.4},
@@ -108,6 +167,7 @@ def reason_locally(text: str) -> dict[str, Any]:
         "kind": "voice-reasoning",
         "reply": reply.strip(),
         "model": local_model_name(),
+        "history_messages": len(history or []),
         "network_required": False,
     }
 
@@ -195,11 +255,14 @@ def voice_turn() -> dict[str, Any]:
     if not transcript:
         return {"ok": False, "kind": "voice-turn", "error": "No speech was transcribed", "listen": heard}
 
-    reasoned = reason_locally(transcript)
+    history, memory_load_error = _load_voice_history()
+    reasoned = reason_locally(transcript, history)
     if not reasoned.get("ok"):
-        return {**reasoned, "transcript": transcript}
+        return {**reasoned, "transcript": transcript, "memory_load_error": memory_load_error}
 
     reply = str(reasoned["reply"])
+    memory_saved, memory_save_error = _save_voice_turn(transcript, reply)
+
     spoken = synthesize_reply(reply)
     if not spoken.get("ok"):
         return {
@@ -208,6 +271,11 @@ def voice_turn() -> dict[str, Any]:
             "transcript": transcript,
             "reply": reply,
             "reasoning_model": reasoned.get("model"),
+            "memory_session_id": _voice_session_id(),
+            "history_messages": len(history),
+            "memory_saved": memory_saved,
+            "memory_load_error": memory_load_error,
+            "memory_save_error": memory_save_error,
         }
 
     playback = play_reply(Path(str(spoken["path"])))
@@ -217,6 +285,11 @@ def voice_turn() -> dict[str, Any]:
         "transcript": transcript,
         "reply": reply,
         "reasoning_model": reasoned.get("model"),
+        "memory_session_id": _voice_session_id(),
+        "history_messages": len(history),
+        "memory_saved": memory_saved,
+        "memory_load_error": memory_load_error,
+        "memory_save_error": memory_save_error,
         "tts_voice": spoken.get("voice"),
         "audio_path": spoken.get("path"),
         "played": playback.get("played", False),
