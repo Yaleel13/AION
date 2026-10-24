@@ -65,7 +65,7 @@ export function OwnerReliabilityAcceptance() {
       <Check label="Paper-market isolation" ok={!data.paper_market.live_trading} detail={`${data.paper_market.live_snapshots_24h} live-public and ${data.paper_market.fallback_snapshots_24h} fallback snapshot(s) in 24h; ${data.paper_market.price_cache_seconds}s request cache; no live trading.`} />
       <Check label="Durable storage" ok={data.runtime.storage_configured} detail="Dedicated AION Postgres runtime is required for acceptance." />
       <Check label="Cron protection" ok={data.runtime.cron_secret_configured} detail="Scheduled operations remain protected by CRON_SECRET." />
-      <Check label="Safe executor" ok={data.runtime.terminal_executor_connected && !data.runtime.arbitrary_terminal_commands_enabled} detail="Vercel Sandbox executor connected; arbitrary terminal commands remain disabled." />
+      <Check label="Safe executor" ok={data.runtime.terminal_executor_connected && !data.runtime.arbitrary_terminal_commands_enabled} detail="Controlled executor connected; arbitrary terminal commands remain disabled." />
       <Check label="External writes" ok={!data.runtime.moltbook_outbound_enabled && !data.runtime.moltbook_execute_enabled} detail="Moltbook approval and execute gates are currently locked unless separately activated." />
     </div> : null}
   </div>

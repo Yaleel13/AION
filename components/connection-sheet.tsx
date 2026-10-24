@@ -25,7 +25,7 @@ type ConnectionOption = {
 }
 
 const baseOptions: ConnectionOption[] = [
-  { key: "terminal", icon: TerminalSquare, title: "Terminal Session", desc: "Owner-gated repository diagnostics in Vercel Sandbox", uiAction: true },
+  { key: "terminal", icon: TerminalSquare, title: "Terminal Session", desc: "Controlled local execution on AION OS or isolated cloud diagnostics", uiAction: true },
   { key: "github", icon: Github, title: "GitHub Repository", desc: "Server-side repository access for source, code changes, and fulfillment assets" },
   { key: "vercel", icon: Cloud, title: "Cloud Deployment", desc: "Production runtime plus deployment-control readiness" },
   { key: "supabase_postgres", icon: Database, title: "Supabase / Postgres", desc: "Durable operational storage and ledgers" },
