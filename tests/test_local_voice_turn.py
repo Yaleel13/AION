@@ -27,7 +27,7 @@ def test_reasoning_rejects_non_loopback_ollama(monkeypatch):
     assert "loopback" in result["error"].lower()
 
 
-def test_reasoning_posts_to_loopback_ollama(monkeypatch):
+def test_reasoning_posts_history_to_loopback_ollama(monkeypatch):
     monkeypatch.setenv("AION_RUNTIME_MODE", "local")
     monkeypatch.setenv("AION_OLLAMA_URL", "http://127.0.0.1:11434")
     monkeypatch.setenv("AION_LOCAL_MODEL", "aion:latest")
@@ -42,15 +42,64 @@ def test_reasoning_posts_to_loopback_ollama(monkeypatch):
 
     monkeypatch.setattr(local_voice_turn, "urlopen", fake_urlopen)
 
-    result = local_voice_turn.reason_locally("Can you hear me?")
+    history = [
+        {"role": "user", "content": "Remember our last turn."},
+        {"role": "assistant", "content": "I remember it."},
+    ]
+    result = local_voice_turn.reason_locally("Can you hear me?", history)
 
     assert result["ok"] is True
     assert result["reply"] == "I hear you."
+    assert result["history_messages"] == 2
     assert result["network_required"] is False
     assert seen["url"] == "http://127.0.0.1:11434/api/chat"
     assert seen["payload"]["model"] == "aion:latest"
+    assert seen["payload"]["messages"][1:3] == history
     assert seen["payload"]["messages"][-1]["content"] == "Can you hear me?"
     assert seen["payload"]["stream"] is False
+
+
+def test_voice_memory_load_is_bounded(monkeypatch):
+    messages = [
+        {"role": "user" if index % 2 == 0 else "assistant", "content": f"message-{index}"}
+        for index in range(20)
+    ]
+
+    monkeypatch.setattr(
+        local_voice_turn,
+        "handle_local_memory",
+        lambda _request: {"found": True, "messages": messages},
+    )
+
+    history, error = local_voice_turn._load_voice_history()
+
+    assert error is None
+    assert len(history) == local_voice_turn.VOICE_HISTORY_LIMIT
+    assert history[0]["content"] == "message-8"
+    assert history[-1]["content"] == "message-19"
+
+
+def test_voice_memory_append_uses_stable_session(monkeypatch):
+    seen = {}
+
+    def fake_memory(request):
+        seen["request"] = request
+        return {"saved": True, "message_count": 2}
+
+    monkeypatch.setenv("AION_LOCAL_MODEL", "aion:latest")
+    monkeypatch.setattr(local_voice_turn, "handle_local_memory", fake_memory)
+
+    saved, error = local_voice_turn._save_voice_turn("Hello AION", "I hear you.")
+
+    assert saved is True
+    assert error is None
+    request = seen["request"]
+    assert request.action == "append"
+    assert request.client_session_id == "aion-local-voice-primary"
+    assert [message.role for message in request.messages] == ["user", "assistant"]
+    assert [message.content for message in request.messages] == ["Hello AION", "I hear you."]
+    assert request.model == "aion:latest"
+    assert request.runtime == "ollama-local-voice"
 
 
 def test_synthesize_requires_voice_model(monkeypatch, tmp_path):
@@ -99,7 +148,7 @@ def test_synthesize_uses_fixed_piper_shape(monkeypatch, tmp_path):
     )
 
 
-def test_voice_turn_runs_listen_reason_speak_and_play(monkeypatch, tmp_path):
+def test_voice_turn_runs_memory_listen_reason_speak_and_play(monkeypatch, tmp_path):
     wav = tmp_path / "reply.wav"
     wav.write_bytes(b"RIFF")
 
@@ -110,8 +159,25 @@ def test_voice_turn_runs_listen_reason_speak_and_play(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(
         local_voice_turn,
-        "reason_locally",
-        lambda text: {"ok": True, "reply": "Yes. I can hear you.", "model": "aion:latest"},
+        "_load_voice_history",
+        lambda: ([{"role": "assistant", "content": "Previous reply."}], None),
+    )
+
+    seen = {}
+
+    def fake_reason(text, history):
+        seen["reason_text"] = text
+        seen["history"] = history
+        return {"ok": True, "reply": "Yes. I can hear you.", "model": "aion:latest"}
+
+    monkeypatch.setattr(local_voice_turn, "reason_locally", fake_reason)
+    monkeypatch.setattr(
+        local_voice_turn,
+        "_save_voice_turn",
+        lambda transcript, reply: (
+            seen.update({"saved_transcript": transcript, "saved_reply": reply}) or True,
+            None,
+        ),
     )
     monkeypatch.setattr(
         local_voice_turn,
@@ -131,6 +197,12 @@ def test_voice_turn_runs_listen_reason_speak_and_play(monkeypatch, tmp_path):
     assert result["transcript"] == "AION, can you hear me?"
     assert result["reply"] == "Yes. I can hear you."
     assert result["reasoning_model"] == "aion:latest"
+    assert result["memory_session_id"] == "aion-local-voice-primary"
+    assert result["history_messages"] == 1
+    assert result["memory_saved"] is True
     assert result["played"] is True
     assert result["network_required"] is False
     assert result["continuous_listening"] is False
+    assert seen["history"] == [{"role": "assistant", "content": "Previous reply."}]
+    assert seen["saved_transcript"] == "AION, can you hear me?"
+    assert seen["saved_reply"] == "Yes. I can hear you."
