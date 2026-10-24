@@ -100,7 +100,7 @@ function explicitMemoryRequest(message: string): ExplicitMemoryRequest {
 }
 
 async function callMemory<T>(req: Request, clientSessionId: string | undefined, payload: Record<string, unknown>): Promise<T | null> {
-  if (!clientSessionId || !process.env.AION_OWNER_TOKEN) return null
+  if (!clientSessionId || (!localRuntimeEnabled() && !process.env.AION_OWNER_TOKEN)) return null
   try {
     const response = await fetch(new URL("/api/internal/conversation", req.url), {
       method: "POST",
