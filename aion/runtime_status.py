@@ -7,6 +7,7 @@ from typing import Any
 
 from aion import config
 from aion.durable.db import storage_status
+from aion.local_intelligence import local_intelligence_status
 from aion.moltbook.autonomy_policy import AutonomyMode, AutonomyPolicy
 from aion.moltbook.errors import MoltbookConfigError
 from aion.moltbook.security import KillSwitch
@@ -86,6 +87,7 @@ def build_runtime_status() -> dict[str, Any]:
 
     vercel_runtime = bool(os.getenv("VERCEL"))
     owner_token_configured = bool(os.getenv("AION_OWNER_TOKEN"))
+    local_intelligence = local_intelligence_status()
 
     # AION OS provides a secretless, controlled local executor when the
     # runtime is explicitly operating in local mode. Cloud/Vercel execution
@@ -117,6 +119,15 @@ def build_runtime_status() -> dict[str, Any]:
             "connected": terminal_ready,
             "actionable": terminal_ready,
             "mode": terminal_mode,
+        },
+        "ollama": {
+            "connected": bool(local_intelligence["reachable"]),
+            "actionable": bool(local_intelligence["actionable"]),
+            "model": local_intelligence["model"],
+            "model_installed": bool(local_intelligence["model_installed"]),
+            "secret_required": False,
+            "endpoint": local_intelligence["endpoint"],
+            "note": "Local reasoning is selected only when AION_RUNTIME_MODE=local; no API key is required.",
         },
         "github": {
             "connected": github_runtime_connector,
@@ -178,6 +189,7 @@ def build_runtime_status() -> dict[str, Any]:
             "note": "Paper trading only. Official metrics separate live public market marks from mock/fallback prices.",
         },
         "providers": {
+            "local_intelligence": local_intelligence,
             "openai_configured": bool(config.OPENAI_API_KEY),
             "gemini_configured": bool(config.GEMINI_API_KEY),
             "vercel_ai_gateway_fallback_eligible": vercel_runtime,
@@ -189,6 +201,7 @@ def build_runtime_status() -> dict[str, Any]:
             "terminal_executor_connected": terminal_ready,
             "terminal_executor_mode": terminal_mode,
             "arbitrary_terminal_commands_enabled": False,
+            "local_intelligence_actionable": bool(local_intelligence["actionable"]),
             "github_runtime_connector_configured": github_runtime_connector,
             "vercel_control_connector_configured": vercel_control_connector,
         },
@@ -203,6 +216,7 @@ def build_runtime_status() -> dict[str, Any]:
             "paper_is_not_live_trading": True,
             "payment_rails_default": "stripe_disabled_until_owner_configured",
             "stripe_requires_explicit_enablement": True,
+            "local_reasoning_secret_required": False,
         },
         "payment_rails": payment_rails,
     }
