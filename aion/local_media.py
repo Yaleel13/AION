@@ -6,12 +6,34 @@ open cameras, record files, or accept caller-supplied device paths.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
+
+MEDIA_TOOLS = (
+    "ffmpeg",
+    "ffplay",
+    "pactl",
+    "parec",
+    "pw-record",
+    "arecord",
+    "whisper-cli",
+    "whisper",
+    "piper",
+    "espeak-ng",
+)
+
+PYTHON_MEDIA_MODULES = (
+    "faster_whisper",
+    "whisper",
+    "vosk",
+    "sounddevice",
+)
 
 
 def camera_inventory() -> dict[str, Any]:
@@ -104,12 +126,31 @@ def audio_inventory() -> dict[str, Any]:
     }
 
 
+def runtime_inventory() -> dict[str, Any]:
+    """Report installed local media/STT/TTS building blocks without executing them."""
+    tools = {name: shutil.which(name) for name in MEDIA_TOOLS}
+    modules = {
+        name: importlib.util.find_spec(name) is not None
+        for name in PYTHON_MEDIA_MODULES
+    }
+    return {
+        "ok": True,
+        "kind": "media-runtime",
+        "tools": tools,
+        "python_modules": modules,
+        "capture_enabled": False,
+        "network_required": False,
+    }
+
+
 def inventory(kind: str) -> dict[str, Any]:
     if kind == "camera":
         return camera_inventory()
     if kind == "audio":
         return audio_inventory()
-    raise ValueError("kind must be 'camera' or 'audio'")
+    if kind == "runtime":
+        return runtime_inventory()
+    raise ValueError("kind must be 'camera', 'audio', or 'runtime'")
 
 
 def main() -> int:
