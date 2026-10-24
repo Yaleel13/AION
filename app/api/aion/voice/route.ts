@@ -29,9 +29,24 @@ type VoiceTurnPayload = {
 const VOICE_CAPABILITY = "media.voice.ask"
 const AVAILABILITY_TIMEOUT_MS = 2_500
 const VOICE_TURN_TIMEOUT_MS = 300_000
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"])
 
 function localRuntimeEnabled(): boolean {
   return (process.env.AION_RUNTIME_MODE ?? "").trim().toLowerCase() === "local"
+}
+
+function requestIsLocalAndSameOrigin(request: Request): boolean {
+  try {
+    const requestUrl = new URL(request.url)
+    if (!LOOPBACK_HOSTS.has(requestUrl.hostname)) return false
+
+    const origin = request.headers.get("origin")
+    if (!origin) return true
+
+    return new URL(origin).origin === requestUrl.origin
+  } catch {
+    return false
+  }
 }
 
 function loopbackRuntimeOrigin(): string | null {
@@ -39,8 +54,8 @@ function loopbackRuntimeOrigin(): string | null {
 
   try {
     const parsed = new URL(configured)
-    if (!['http:', 'https:'].includes(parsed.protocol)) return null
-    if (!["127.0.0.1", "localhost", "::1"].includes(parsed.hostname)) return null
+    if (!["http:", "https:"].includes(parsed.protocol)) return null
+    if (!LOOPBACK_HOSTS.has(parsed.hostname)) return null
     if (parsed.username || parsed.password || parsed.search || parsed.hash) return null
     if (parsed.pathname !== "/" && parsed.pathname !== "") return null
     return parsed.origin
@@ -59,7 +74,11 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!requestIsLocalAndSameOrigin(request)) {
+    return NextResponse.json({ available: false, reason: "loopback-only" }, { status: 403 })
+  }
+
   if (!localRuntimeEnabled()) {
     return NextResponse.json({ available: false, reason: "local-runtime-disabled" })
   }
@@ -87,7 +106,11 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(request: Request) {
+  if (!requestIsLocalAndSameOrigin(request)) {
+    return NextResponse.json({ error: "AION local voice is available only from the loopback interface." }, { status: 403 })
+  }
+
   if (!localRuntimeEnabled()) {
     return NextResponse.json({ error: "Local voice is unavailable outside AION local mode." }, { status: 503 })
   }
