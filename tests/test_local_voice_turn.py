@@ -27,6 +27,25 @@ def test_reasoning_rejects_non_loopback_ollama(monkeypatch):
     assert "loopback" in result["error"].lower()
 
 
+def test_capability_question_uses_deterministic_local_self_model(monkeypatch):
+    monkeypatch.setenv("AION_RUNTIME_MODE", "local")
+
+    def fail_urlopen(*_args, **_kwargs):
+        raise AssertionError("capability self-description must not call Ollama")
+
+    monkeypatch.setattr(local_voice_turn, "urlopen", fail_urlopen)
+
+    result = local_voice_turn.reason_locally("Hey, what are your capabilities?")
+
+    assert result["ok"] is True
+    assert result["model"] == "aion-local-self-model"
+    assert "AION OS" in result["reply"]
+    assert "whisper.cpp" in result["reply"]
+    assert "project.build" in result["reply"]
+    assert "arbitrary shell" in result["reply"]
+    assert result["network_required"] is False
+
+
 def test_reasoning_posts_history_to_loopback_ollama(monkeypatch):
     monkeypatch.setenv("AION_RUNTIME_MODE", "local")
     monkeypatch.setenv("AION_OLLAMA_URL", "http://127.0.0.1:11434")
