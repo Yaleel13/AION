@@ -56,6 +56,14 @@ CAPABILITIES: dict[str, Capability] = {
         name="system.processes",
         argv=("ps", "-eo", "pid,ppid,comm,%cpu,%mem"),
     ),
+    "media.audio.inputs": Capability(
+        name="media.audio.inputs",
+        argv=("python", "-m", "aion.local_media", "audio"),
+    ),
+    "media.camera.inputs": Capability(
+        name="media.camera.inputs",
+        argv=("python", "-m", "aion.local_media", "camera"),
+    ),
     "git.status": Capability(
         name="git.status",
         argv=("git", "status", "--short", "--branch"),
