@@ -23,6 +23,7 @@ export function AionLandingPortal({
   working,
   presence,
   listening,
+  voiceAvailable,
   disabled,
   ownerAuthenticated,
   onSubmit,
@@ -34,6 +35,7 @@ export function AionLandingPortal({
   working: PresenceState
   presence: PresenceState
   listening: boolean
+  voiceAvailable: boolean
   disabled: boolean
   ownerAuthenticated: boolean
   onSubmit: (text: string) => void
@@ -106,7 +108,7 @@ export function AionLandingPortal({
               <Conversation messages={messages} working={working} onCommand={onSubmit} />
             </div>
             <div className="border-t border-cyan/10 p-3 sm:p-3.5">
-              <CommandComposer onSubmit={onSubmit} onVoiceToggle={onVoiceToggle} listening={listening} disabled={disabled} onOpenConnections={onOpenConnections} />
+              <CommandComposer onSubmit={onSubmit} onVoiceToggle={onVoiceToggle} listening={listening} voiceAvailable={voiceAvailable} disabled={disabled} onOpenConnections={onOpenConnections} />
               <p className="mt-2 text-center text-[0.56rem] uppercase tracking-[0.12em] text-muted-foreground/60 sm:text-[0.62rem] sm:tracking-[0.16em]">Aion remembers · Aion reflects · Aion guides</p>
             </div>
           </div>
