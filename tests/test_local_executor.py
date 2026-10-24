@@ -35,15 +35,20 @@ def test_capability_registry_contains_no_sudo_or_shell():
         assert capability.argv[0] not in {"sudo", "su", "sh", "bash", "zsh"}
 
 
-def test_media_inventory_capabilities_are_read_only_and_fixed():
+def test_media_capabilities_are_fixed_and_classified():
     audio = CAPABILITIES["media.audio.inputs"]
     camera = CAPABILITIES["media.camera.inputs"]
+    runtime = CAPABILITIES["media.runtime"]
+    listen = CAPABILITIES["media.voice.listen"]
 
     assert audio.classification == "read"
     assert camera.classification == "read"
+    assert runtime.classification == "read"
+    assert listen.classification == "capture"
     assert audio.argv == ("python", "-m", "aion.local_media", "audio")
     assert camera.argv == ("python", "-m", "aion.local_media", "camera")
-    assert not any(name.startswith("media.capture") for name in CAPABILITIES)
+    assert runtime.argv == ("python", "-m", "aion.local_media", "runtime")
+    assert listen.argv == ("python", "-m", "aion.local_media", "listen")
 
 
 def test_unknown_command_cannot_be_executed(monkeypatch):
