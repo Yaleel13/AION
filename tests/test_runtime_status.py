@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+import aion.runtime_status as runtime_status
 from aion.main import app
 
 client = TestClient(app)
@@ -31,16 +32,50 @@ def test_runtime_status_shape_and_safe_defaults():
 
     assert data["kill_switch"]["engaged"] is False
     assert data["paper_market_data"]["live_trading"] is False
+    assert "local_intelligence" in data["providers"]
+    assert data["providers"]["local_intelligence"]["secret_required"] is False
     assert "openai_configured" in data["providers"]
     assert "gemini_configured" in data["providers"]
     assert data["safety"]["paper_is_not_live_trading"] is True
     assert data["safety"]["moltbook_approval_and_execute_gates_independent"] is True
+    assert data["safety"]["local_reasoning_secret_required"] is False
     assert data["payment_rails"]["payment_orders_ledger"] is True
 
     external = data["external_connections"]
-    assert set(("terminal", "github", "vercel", "supabase_postgres", "stripe", "openai", "posthog", "google", "moltbook")) <= set(external)
+    assert set(("terminal", "ollama", "github", "vercel", "supabase_postgres", "stripe", "openai", "posthog", "google", "moltbook")) <= set(external)
+    assert external["ollama"]["secret_required"] is False
     assert external["moltbook"]["approval_gate"] == "locked"
     assert external["moltbook"]["execute_gate"] == "locked"
+
+
+def test_runtime_status_reports_actionable_local_intelligence(monkeypatch):
+    monkeypatch.setattr(
+        runtime_status,
+        "local_intelligence_status",
+        lambda: {
+            "enabled": True,
+            "configured": True,
+            "reachable": True,
+            "model": "aion:latest",
+            "model_installed": True,
+            "actionable": True,
+            "context": 4096,
+            "secret_required": False,
+            "endpoint": "http://127.0.0.1:11434",
+            "error": None,
+        },
+    )
+
+    data = client.get("/runtime/status").json()
+
+    local = data["providers"]["local_intelligence"]
+    assert local["enabled"] is True
+    assert local["reachable"] is True
+    assert local["model_installed"] is True
+    assert local["actionable"] is True
+    assert data["operations"]["local_intelligence_actionable"] is True
+    assert data["external_connections"]["ollama"]["connected"] is True
+    assert data["external_connections"]["ollama"]["actionable"] is True
 
 
 def test_runtime_status_ledger_is_independent_of_stripe_configuration(monkeypatch):
