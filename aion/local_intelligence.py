@@ -41,14 +41,17 @@ def local_context_size() -> int:
 
 def _safe_endpoint(value: str) -> str:
     """Return a display-safe endpoint that cannot leak URL credentials or paths."""
-    parsed = urlparse(value)
-    if not parsed.scheme or not parsed.hostname:
+    try:
+        parsed = urlparse(value)
+        if not parsed.scheme or not parsed.hostname:
+            return DEFAULT_OLLAMA_URL
+        host = parsed.hostname
+        if ":" in host and not host.startswith("["):
+            host = f"[{host}]"
+        port = f":{parsed.port}" if parsed.port else ""
+        return f"{parsed.scheme}://{host}{port}"
+    except ValueError:
         return DEFAULT_OLLAMA_URL
-    host = parsed.hostname
-    if ":" in host and not host.startswith("["):
-        host = f"[{host}]"
-    port = f":{parsed.port}" if parsed.port else ""
-    return f"{parsed.scheme}://{host}{port}"
 
 
 def _probe_models(base_url: str, timeout: float = STATUS_TIMEOUT_SECONDS) -> tuple[bool, list[str], str | None]:
