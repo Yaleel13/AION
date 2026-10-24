@@ -64,6 +64,10 @@ CAPABILITIES: dict[str, Capability] = {
         name="media.camera.inputs",
         argv=("python", "-m", "aion.local_media", "camera"),
     ),
+    "media.runtime": Capability(
+        name="media.runtime",
+        argv=("python", "-m", "aion.local_media", "runtime"),
+    ),
     "git.status": Capability(
         name="git.status",
         argv=("git", "status", "--short", "--branch"),
