@@ -16,6 +16,7 @@ const uid = () => `m${++idCounter}-${Date.now()}`
 
 const CONVERSATION_STORAGE_KEY = "aion.conversation.v1"
 const MAX_PERSISTED_MESSAGES = 50
+const VOICE_CAPTURE_PHASE_MS = 7_000
 
 const GREETING: Message = {
   id: "aion-greeting",
@@ -72,6 +73,7 @@ export function AionShell() {
   const [clientSessionId, setClientSessionId] = useState<string | null>(null)
   const [conversationHydrated, setConversationHydrated] = useState(false)
   const busyRef = useRef(false)
+  const voicePhaseTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     void fetch("/api/aion/owner-session", { cache: "no-store" })
@@ -94,6 +96,14 @@ export function AionShell() {
 
     return () => {
       cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (voicePhaseTimerRef.current !== null) {
+        window.clearTimeout(voicePhaseTimerRef.current)
+      }
     }
   }, [])
 
@@ -198,7 +208,14 @@ export function AionShell() {
     if (!voiceAvailable || listening || busyRef.current) return
 
     busyRef.current = true
+    setWorking("idle")
     setListening(true)
+
+    voicePhaseTimerRef.current = window.setTimeout(() => {
+      voicePhaseTimerRef.current = null
+      setListening(false)
+      setWorking("thinking")
+    }, VOICE_CAPTURE_PHASE_MS)
 
     try {
       const res = await fetch("/api/aion/voice", {
@@ -216,9 +233,13 @@ export function AionShell() {
       const detail = error instanceof Error ? error.message : "Unknown local voice error"
       pushMessage({ id: uid(), role: "aion", content: `I couldn't complete that local voice turn. ${detail}` })
     } finally {
+      if (voicePhaseTimerRef.current !== null) {
+        window.clearTimeout(voicePhaseTimerRef.current)
+        voicePhaseTimerRef.current = null
+      }
       setListening(false)
       setWorking("complete")
-      setTimeout(() => setWorking("idle"), 500)
+      window.setTimeout(() => setWorking("idle"), 500)
       busyRef.current = false
     }
   }, [listening, pushMessage, voiceAvailable])
@@ -250,7 +271,7 @@ export function AionShell() {
           dataSource: "demo_fixture",
         })
         setWorking("complete")
-        setTimeout(() => setWorking("idle"), 500)
+        window.setTimeout(() => setWorking("idle"), 500)
         busyRef.current = false
         return
       }
@@ -271,7 +292,7 @@ export function AionShell() {
             setOwnerAuthOpen(true)
             pushMessage({ id: uid(), role: "aion", content: "Owner authentication is required to unlock the Boardroom." })
             setWorking("complete")
-            setTimeout(() => setWorking("idle"), 500)
+            window.setTimeout(() => setWorking("idle"), 500)
             busyRef.current = false
             return
           }
@@ -286,7 +307,7 @@ export function AionShell() {
 
         pushMessage({ id: uid(), role: "aion", content: turn.reply, serif: turn.serif, dataSource: "demo_fixture" })
         setWorking("complete")
-        setTimeout(() => setWorking("idle"), 500)
+        window.setTimeout(() => setWorking("idle"), 500)
         busyRef.current = false
         return
       }
@@ -318,7 +339,7 @@ export function AionShell() {
         pushMessage({ id: uid(), role: "aion", content: `I couldn't complete that through the live AION runtime. ${detail}` })
       } finally {
         setWorking("complete")
-        setTimeout(() => setWorking("idle"), 500)
+        window.setTimeout(() => setWorking("idle"), 500)
         busyRef.current = false
       }
     },
@@ -326,12 +347,15 @@ export function AionShell() {
   )
 
   const handleNewConversation = useCallback(() => {
+    if (busyRef.current) return
+
     setMessages([GREETING])
     setPreviousResponseId(null)
     setClientSessionId(createClientSessionId())
     setTerminalOpen(false)
     setMode("conversation")
     setWorking("idle")
+    setListening(false)
     try {
       window.localStorage.removeItem(CONVERSATION_STORAGE_KEY)
     } catch (error) {
@@ -361,6 +385,7 @@ export function AionShell() {
       <TopBar
         state={presence}
         mode={mode}
+        interactionLocked={conversationDisabled}
         hasNotifications={false}
         onHome={() => setMode("conversation")}
         onNewConversation={handleNewConversation}
@@ -370,7 +395,7 @@ export function AionShell() {
       />
 
       {mode === "boardroom" ? (
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           <Boardroom
             presence={presence}
             working={working}
@@ -392,11 +417,13 @@ export function AionShell() {
               listening={listening}
               voiceAvailable={voiceAvailable}
               disabled={conversationDisabled}
+              compact
               ownerAuthenticated={ownerAuthenticated}
               onSubmit={handleSend}
               onVoiceToggle={handleVoiceToggle}
               onOpenConnections={() => setConnectionOpen(true)}
               onOpenBoardroom={handleOpenBoardroom}
+              onOpenTerminal={() => setTerminalOpen(true)}
             />
           </div>
           <div className="min-h-[42dvh] border-t border-cyan/12 p-3 lg:min-h-0 lg:w-[42%] lg:border-l lg:border-t-0">
@@ -416,6 +443,7 @@ export function AionShell() {
           onVoiceToggle={handleVoiceToggle}
           onOpenConnections={() => setConnectionOpen(true)}
           onOpenBoardroom={handleOpenBoardroom}
+          onOpenTerminal={() => setTerminalOpen(true)}
         />
       )}
 
