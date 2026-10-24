@@ -40,15 +40,18 @@ def test_media_capabilities_are_fixed_and_classified():
     camera = CAPABILITIES["media.camera.inputs"]
     runtime = CAPABILITIES["media.runtime"]
     listen = CAPABILITIES["media.voice.listen"]
+    ask = CAPABILITIES["media.voice.ask"]
 
     assert audio.classification == "read"
     assert camera.classification == "read"
     assert runtime.classification == "read"
     assert listen.classification == "capture"
+    assert ask.classification == "capture"
     assert audio.argv == ("python", "-m", "aion.local_media", "audio")
     assert camera.argv == ("python", "-m", "aion.local_media", "camera")
     assert runtime.argv == ("python", "-m", "aion.local_media", "runtime")
     assert listen.argv == ("python", "-m", "aion.local_voice")
+    assert ask.argv == ("python", "-m", "aion.local_voice_turn")
 
 
 def test_unknown_command_cannot_be_executed(monkeypatch):
