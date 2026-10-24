@@ -14,8 +14,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from aion import local_media
 from aion.durable.paths import resolve_durable_paths
-from aion.local_media import capture_emeet_audio
 
 
 DEFAULT_WHISPER_BIN = Path.home() / ".local/bin/whisper-cli"
@@ -27,6 +27,9 @@ DEFAULT_PROMPT = (
     "Local voice recognition and personal assistant conversation."
 )
 MAX_THREADS = 4
+DEFAULT_VOICE_CAPTURE_SECONDS = 6
+MIN_VOICE_CAPTURE_SECONDS = 3
+MAX_VOICE_CAPTURE_SECONDS = 10
 
 
 def _whisper_binary() -> str | None:
@@ -52,6 +55,25 @@ def _threads() -> int:
 
 def _prompt() -> str:
     return (os.getenv("AION_WHISPER_PROMPT") or DEFAULT_PROMPT).strip()
+
+
+def _voice_capture_seconds() -> int:
+    raw = (os.getenv("AION_AUDIO_CAPTURE_SECONDS") or str(DEFAULT_VOICE_CAPTURE_SECONDS)).strip()
+    try:
+        seconds = int(raw)
+    except ValueError:
+        return DEFAULT_VOICE_CAPTURE_SECONDS
+    return max(MIN_VOICE_CAPTURE_SECONDS, min(MAX_VOICE_CAPTURE_SECONDS, seconds))
+
+
+def capture_emeet_audio() -> dict[str, Any]:
+    """Run the gated EMEET capture with a bounded voice-specific duration."""
+    original_seconds = local_media.AUDIO_CAPTURE_SECONDS
+    local_media.AUDIO_CAPTURE_SECONDS = _voice_capture_seconds()
+    try:
+        return local_media.capture_emeet_audio()
+    finally:
+        local_media.AUDIO_CAPTURE_SECONDS = original_seconds
 
 
 def _media_root() -> Path:
