@@ -48,7 +48,7 @@ def test_media_capabilities_are_fixed_and_classified():
     assert audio.argv == ("python", "-m", "aion.local_media", "audio")
     assert camera.argv == ("python", "-m", "aion.local_media", "camera")
     assert runtime.argv == ("python", "-m", "aion.local_media", "runtime")
-    assert listen.argv == ("python", "-m", "aion.local_media", "listen")
+    assert listen.argv == ("python", "-m", "aion.local_voice")
 
 
 def test_unknown_command_cannot_be_executed(monkeypatch):
