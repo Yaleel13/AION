@@ -70,7 +70,7 @@ CAPABILITIES: dict[str, Capability] = {
     ),
     "media.voice.listen": Capability(
         name="media.voice.listen",
-        argv=("python", "-m", "aion.local_media", "listen"),
+        argv=("python", "-m", "aion.local_voice"),
         timeout=150,
         classification="capture",
     ),
