@@ -74,6 +74,12 @@ CAPABILITIES: dict[str, Capability] = {
         timeout=150,
         classification="capture",
     ),
+    "media.voice.ask": Capability(
+        name="media.voice.ask",
+        argv=("python", "-m", "aion.local_voice_turn"),
+        timeout=300,
+        classification="capture",
+    ),
     "git.status": Capability(
         name="git.status",
         argv=("git", "status", "--short", "--branch"),
