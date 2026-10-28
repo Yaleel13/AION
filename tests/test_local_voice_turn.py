@@ -40,10 +40,19 @@ def test_capability_question_uses_deterministic_local_self_model(monkeypatch):
     assert result["ok"] is True
     assert result["model"] == "aion-local-self-model"
     assert "AION OS" in result["reply"]
-    assert "whisper.cpp" in result["reply"]
-    assert "project.build" in result["reply"]
-    assert "arbitrary shell" in result["reply"]
+    assert "EMEET" in result["reply"]
+    assert "tests, linting, and builds" in result["reply"]
+    assert "unrestricted shell" in result["reply"]
     assert result["network_required"] is False
+
+
+def test_capability_question_handles_whisper_pronoun_drift(monkeypatch):
+    monkeypatch.setenv("AION_RUNTIME_MODE", "local")
+
+    result = local_voice_turn.reason_locally("What are their capabilities?")
+
+    assert result["ok"] is True
+    assert result["model"] == "aion-local-self-model"
 
 
 def test_reasoning_posts_history_to_loopback_ollama(monkeypatch):
@@ -131,7 +140,7 @@ def test_synthesize_requires_voice_model(monkeypatch, tmp_path):
     assert "missing" in result["error"].lower()
 
 
-def test_synthesize_uses_fixed_piper_shape(monkeypatch, tmp_path):
+def test_synthesize_uses_smoothed_piper_cadence(monkeypatch, tmp_path):
     voice = tmp_path / "voice.onnx"
     voice.write_bytes(b"model")
     Path(f"{voice}.json").write_text("{}", encoding="utf-8")
@@ -139,6 +148,8 @@ def test_synthesize_uses_fixed_piper_shape(monkeypatch, tmp_path):
     media_root.mkdir()
 
     monkeypatch.setenv("AION_PIPER_VOICE", str(voice))
+    monkeypatch.delenv("AION_PIPER_LENGTH_SCALE", raising=False)
+    monkeypatch.delenv("AION_PIPER_SENTENCE_SILENCE", raising=False)
     monkeypatch.setattr(local_voice_turn, "_media_root", lambda: media_root)
     monkeypatch.setattr(local_voice_turn.shutil, "which", lambda name: "/usr/bin/piper" if name == "piper" else None)
 
@@ -156,15 +167,29 @@ def test_synthesize_uses_fixed_piper_shape(monkeypatch, tmp_path):
     result = local_voice_turn.synthesize_reply("AION online.")
 
     assert result["ok"] is True
+    assert result["length_scale"] == 1.12
+    assert result["sentence_silence"] == 0.2
     assert seen == (
         "/usr/bin/piper",
         "-m",
         str(voice),
         "-f",
         str(media_root / "latest-aion-reply.wav"),
+        "--length-scale",
+        "1.12",
+        "--sentence-silence",
+        "0.2",
         "--",
         "AION online.",
     )
+
+
+def test_piper_cadence_env_is_bounded(monkeypatch):
+    monkeypatch.setenv("AION_PIPER_LENGTH_SCALE", "9")
+    monkeypatch.setenv("AION_PIPER_SENTENCE_SILENCE", "-2")
+
+    assert local_voice_turn._piper_length_scale() == 2.0
+    assert local_voice_turn._piper_sentence_silence() == 0.0
 
 
 def test_voice_turn_runs_memory_listen_reason_speak_and_play(monkeypatch, tmp_path):
