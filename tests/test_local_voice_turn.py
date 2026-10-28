@@ -55,10 +55,13 @@ def test_capability_question_handles_whisper_pronoun_drift(monkeypatch):
     assert result["model"] == "aion-local-self-model"
 
 
-def test_reasoning_posts_history_to_loopback_ollama(monkeypatch):
+def test_reasoning_posts_history_with_low_latency_voice_options(monkeypatch):
     monkeypatch.setenv("AION_RUNTIME_MODE", "local")
     monkeypatch.setenv("AION_OLLAMA_URL", "http://127.0.0.1:11434")
     monkeypatch.setenv("AION_LOCAL_MODEL", "aion:latest")
+    monkeypatch.delenv("AION_VOICE_CONTEXT", raising=False)
+    monkeypatch.delenv("AION_VOICE_MAX_TOKENS", raising=False)
+    monkeypatch.setattr(local_voice_turn, "local_context_size", lambda: 4096)
 
     seen = {}
 
@@ -66,7 +69,17 @@ def test_reasoning_posts_history_to_loopback_ollama(monkeypatch):
         seen["url"] = request.full_url
         seen["timeout"] = timeout
         seen["payload"] = json.loads(request.data.decode("utf-8"))
-        return _FakeResponse(json.dumps({"message": {"content": "I hear you."}}).encode("utf-8"))
+        return _FakeResponse(
+            json.dumps(
+                {
+                    "message": {"content": "I hear you."},
+                    "total_duration": 2_000_000_000,
+                    "load_duration": 100_000_000,
+                    "prompt_eval_duration": 700_000_000,
+                    "eval_duration": 1_100_000_000,
+                }
+            ).encode("utf-8")
+        )
 
     monkeypatch.setattr(local_voice_turn, "urlopen", fake_urlopen)
 
@@ -79,12 +92,43 @@ def test_reasoning_posts_history_to_loopback_ollama(monkeypatch):
     assert result["ok"] is True
     assert result["reply"] == "I hear you."
     assert result["history_messages"] == 2
+    assert result["voice_context"] == 2048
+    assert result["max_tokens"] == 96
+    assert result["ollama_timings_ms"] == {
+        "ollama_total": 2000,
+        "ollama_load": 100,
+        "ollama_prompt_eval": 700,
+        "ollama_eval": 1100,
+    }
     assert result["network_required"] is False
     assert seen["url"] == "http://127.0.0.1:11434/api/chat"
     assert seen["payload"]["model"] == "aion:latest"
     assert seen["payload"]["messages"][1:3] == history
     assert seen["payload"]["messages"][-1]["content"] == "Can you hear me?"
     assert seen["payload"]["stream"] is False
+    assert seen["payload"]["options"] == {
+        "num_ctx": 2048,
+        "num_predict": 96,
+        "temperature": 0.3,
+    }
+
+
+def test_voice_profile_env_is_bounded(monkeypatch):
+    monkeypatch.setattr(local_voice_turn, "local_context_size", lambda: 4096)
+
+    monkeypatch.setenv("AION_VOICE_HISTORY_MESSAGES", "99")
+    monkeypatch.setenv("AION_VOICE_CONTEXT", "99999")
+    monkeypatch.setenv("AION_VOICE_MAX_TOKENS", "999")
+    assert local_voice_turn._voice_history_limit() == 12
+    assert local_voice_turn._voice_context_size() == 4096
+    assert local_voice_turn._voice_max_tokens() == 256
+
+    monkeypatch.setenv("AION_VOICE_HISTORY_MESSAGES", "1")
+    monkeypatch.setenv("AION_VOICE_CONTEXT", "1")
+    monkeypatch.setenv("AION_VOICE_MAX_TOKENS", "1")
+    assert local_voice_turn._voice_history_limit() == 2
+    assert local_voice_turn._voice_context_size() == 1024
+    assert local_voice_turn._voice_max_tokens() == 32
 
 
 def test_voice_memory_load_is_bounded(monkeypatch):
@@ -93,6 +137,7 @@ def test_voice_memory_load_is_bounded(monkeypatch):
         for index in range(20)
     ]
 
+    monkeypatch.delenv("AION_VOICE_HISTORY_MESSAGES", raising=False)
     monkeypatch.setattr(
         local_voice_turn,
         "handle_local_memory",
@@ -103,7 +148,7 @@ def test_voice_memory_load_is_bounded(monkeypatch):
 
     assert error is None
     assert len(history) == local_voice_turn.VOICE_HISTORY_LIMIT
-    assert history[0]["content"] == "message-8"
+    assert history[0]["content"] == "message-14"
     assert history[-1]["content"] == "message-19"
 
 
