@@ -20,16 +20,20 @@ export function Conversation({
   working: PresenceState
   onCommand?: (text: string) => void
 }) {
-  const endRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+    // Scroll only the conversation viewport. `scrollIntoView()` can also move
+    // outer AION OS workspace ancestors and tuck the shell under the top bar.
+    const viewport = contentRef.current?.parentElement
+    if (!viewport) return
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" })
   }, [messages, working])
 
   const isWorking = working !== "idle" && working !== "complete"
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6 px-4 pb-5">
+    <div ref={contentRef} className="mx-auto w-full max-w-3xl space-y-6 px-4 pb-5">
       {messages.map((m) => (
         <Message key={m.id} message={m} onCommand={onCommand} />
       ))}
@@ -48,8 +52,6 @@ export function Conversation({
           <span className="font-serif italic text-foreground/75">{workingLabel[working] ?? "Working"}…</span>
         </div>
       )}
-
-      <div ref={endRef} />
     </div>
   )
 }
