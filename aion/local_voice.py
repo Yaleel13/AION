@@ -11,6 +11,7 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -165,11 +166,14 @@ def transcribe(path: Path) -> dict[str, Any]:
 
 
 def listen_once() -> dict[str, Any]:
+    started = time.perf_counter()
     captured = capture_emeet_audio()
+    captured_at = time.perf_counter()
     if not captured.get("ok"):
         return captured
 
     transcribed = transcribe(Path(str(captured["path"])))
+    transcribed_at = time.perf_counter()
     if not transcribed.get("ok"):
         return {**transcribed, "capture": captured}
 
@@ -180,6 +184,11 @@ def listen_once() -> dict[str, Any]:
         "capture": captured,
         "stt_model": transcribed["model"],
         "stt_threads": transcribed["threads"],
+        "timings_ms": {
+            "capture": round((captured_at - started) * 1000),
+            "stt": round((transcribed_at - captured_at) * 1000),
+            "listen_total": round((transcribed_at - started) * 1000),
+        },
         "network_required": False,
         "continuous_listening": False,
     }
