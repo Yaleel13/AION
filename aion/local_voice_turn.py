@@ -38,7 +38,6 @@ VOICE_SYSTEM_PROMPT = (
 )
 OLLAMA_TIMEOUT_SECONDS = 120
 TTS_TIMEOUT_SECONDS = 90
-PLAYBACK_TIMEOUT_SECONDS = 90
 
 SELF_CAPABILITY_PATTERNS = (
     re.compile(r"\bwhat (?:are|is) (?:your|their|aion(?: os)?(?:'s)?) capabilities\b", re.IGNORECASE),
@@ -300,6 +299,7 @@ def synthesize_reply(text: str) -> dict[str, Any]:
 
 
 def play_reply(path: Path) -> dict[str, Any]:
+    """Start local playback without blocking the voice API until speech ends."""
     if not _playback_enabled():
         return {"ok": True, "kind": "voice-playback", "played": False, "disabled": True}
 
@@ -308,22 +308,22 @@ def play_reply(path: Path) -> dict[str, Any]:
         return {"ok": True, "kind": "voice-playback", "played": False, "error": "ffplay is unavailable"}
 
     try:
-        completed = subprocess.run(
+        process = subprocess.Popen(  # noqa: S603 - fixed executable/argv, no shell
             (ffplay, "-nodisp", "-autoexit", "-loglevel", "error", str(path)),
-            capture_output=True,
-            text=True,
-            timeout=PLAYBACK_TIMEOUT_SECONDS,
-            check=False,
-            shell=False,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
+    except OSError as exc:
         return {"ok": True, "kind": "voice-playback", "played": False, "error": str(exc)}
 
     return {
         "ok": True,
         "kind": "voice-playback",
-        "played": completed.returncode == 0,
-        "error": completed.stderr.strip() or None if completed.returncode != 0 else None,
+        "played": True,
+        "pid": process.pid,
+        "error": None,
     }
 
 
@@ -376,6 +376,7 @@ def voice_turn() -> dict[str, Any]:
         "tts_sentence_silence": spoken.get("sentence_silence"),
         "audio_path": spoken.get("path"),
         "played": playback.get("played", False),
+        "playback_pid": playback.get("pid"),
         "playback_error": playback.get("error"),
         "network_required": False,
         "continuous_listening": False,
