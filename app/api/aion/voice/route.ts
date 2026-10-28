@@ -20,7 +20,9 @@ type VoiceTurnPayload = {
   history_messages?: number
   memory_saved?: boolean
   played?: boolean
+  playback_pid?: number
   playback_error?: string | null
+  timings_ms?: Record<string, number>
   network_required?: boolean
   continuous_listening?: boolean
   error?: string
@@ -191,7 +193,9 @@ export async function POST(request: Request) {
       historyMessages: voice.history_messages ?? 0,
       memorySaved: voice.memory_saved ?? false,
       played: voice.played ?? false,
+      playbackPid: voice.playback_pid ?? null,
       playbackError: voice.playback_error ?? null,
+      timingsMs: voice.timings_ms ?? null,
       networkRequired: voice.network_required ?? false,
       continuousListening: voice.continuous_listening ?? false,
     })
