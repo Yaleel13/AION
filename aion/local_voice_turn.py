@@ -32,7 +32,14 @@ DEFAULT_PIPER_VOICE = Path.home() / ".local/share/aion/piper/en_US-ryan-medium.o
 DEFAULT_PIPER_LENGTH_SCALE = 1.12
 DEFAULT_PIPER_SENTENCE_SILENCE = 0.20
 DEFAULT_VOICE_SESSION_ID = "aion-local-voice-primary"
-VOICE_HISTORY_LIMIT = 12
+VOICE_HISTORY_LIMIT = 6
+MIN_VOICE_HISTORY_LIMIT = 2
+MAX_VOICE_HISTORY_LIMIT = 12
+DEFAULT_VOICE_CONTEXT = 2048
+MIN_VOICE_CONTEXT = 1024
+DEFAULT_VOICE_MAX_TOKENS = 96
+MIN_VOICE_MAX_TOKENS = 32
+MAX_VOICE_MAX_TOKENS = 256
 VOICE_SYSTEM_PROMPT = (
     "You are AION, the operating intelligence for the owner's local AION OS environment. "
     "Reply naturally for spoken conversation. Prefer short sentences and conversational phrasing. "
@@ -74,6 +81,46 @@ def _voice_session_id() -> str:
     return value if len(value) >= 16 else DEFAULT_VOICE_SESSION_ID
 
 
+def _bounded_int(name: str, default: int, minimum: int, maximum: int) -> int:
+    raw = (os.getenv(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return min(max(value, minimum), maximum)
+
+
+def _voice_history_limit() -> int:
+    return _bounded_int(
+        "AION_VOICE_HISTORY_MESSAGES",
+        VOICE_HISTORY_LIMIT,
+        MIN_VOICE_HISTORY_LIMIT,
+        MAX_VOICE_HISTORY_LIMIT,
+    )
+
+
+def _voice_context_size() -> int:
+    local_limit = max(MIN_VOICE_CONTEXT, local_context_size())
+    default = min(DEFAULT_VOICE_CONTEXT, local_limit)
+    return _bounded_int(
+        "AION_VOICE_CONTEXT",
+        default,
+        MIN_VOICE_CONTEXT,
+        local_limit,
+    )
+
+
+def _voice_max_tokens() -> int:
+    return _bounded_int(
+        "AION_VOICE_MAX_TOKENS",
+        DEFAULT_VOICE_MAX_TOKENS,
+        MIN_VOICE_MAX_TOKENS,
+        MAX_VOICE_MAX_TOKENS,
+    )
+
+
 def _load_voice_history() -> tuple[list[dict[str, str]], str | None]:
     try:
         data = handle_local_memory(
@@ -87,7 +134,7 @@ def _load_voice_history() -> tuple[list[dict[str, str]], str | None]:
         return [], None
 
     history: list[dict[str, str]] = []
-    for item in raw[-VOICE_HISTORY_LIMIT:]:
+    for item in raw[-_voice_history_limit():]:
         if not isinstance(item, dict):
             continue
         role = item.get("role")
@@ -187,6 +234,12 @@ def _wav_duration_ms(path: Path) -> int | None:
     return round((frames / rate) * 1000)
 
 
+def _ns_to_ms(value: Any) -> int | None:
+    if not isinstance(value, int) or value < 0:
+        return None
+    return round(value / 1_000_000)
+
+
 def reason_locally(text: str, history: list[dict[str, str]] | None = None) -> dict[str, Any]:
     if not _local_mode():
         return {"ok": False, "kind": "voice-reasoning", "error": "Local runtime mode is required"}
@@ -217,12 +270,18 @@ def reason_locally(text: str, history: list[dict[str, str]] | None = None) -> di
             messages.append({"role": role, "content": content.strip()})
     messages.append({"role": "user", "content": text})
 
+    voice_context = _voice_context_size()
+    max_tokens = _voice_max_tokens()
     payload = {
         "model": local_model_name(),
         "messages": messages,
         "stream": False,
         "keep_alive": "30m",
-        "options": {"num_ctx": local_context_size(), "temperature": 0.4},
+        "options": {
+            "num_ctx": voice_context,
+            "num_predict": max_tokens,
+            "temperature": 0.3,
+        },
     }
     request = Request(
         f"{base_url}/api/chat",
@@ -241,12 +300,22 @@ def reason_locally(text: str, history: list[dict[str, str]] | None = None) -> di
     if not isinstance(reply, str) or not reply.strip():
         return {"ok": False, "kind": "voice-reasoning", "error": "Ollama returned no reply"}
 
+    ollama_timings = {
+        "ollama_total": _ns_to_ms(data.get("total_duration")) if isinstance(data, dict) else None,
+        "ollama_load": _ns_to_ms(data.get("load_duration")) if isinstance(data, dict) else None,
+        "ollama_prompt_eval": _ns_to_ms(data.get("prompt_eval_duration")) if isinstance(data, dict) else None,
+        "ollama_eval": _ns_to_ms(data.get("eval_duration")) if isinstance(data, dict) else None,
+    }
+
     return {
         "ok": True,
         "kind": "voice-reasoning",
         "reply": reply.strip(),
         "model": local_model_name(),
         "history_messages": len(history or []),
+        "voice_context": voice_context,
+        "max_tokens": max_tokens,
+        "ollama_timings_ms": {key: value for key, value in ollama_timings.items() if value is not None},
         "network_required": False,
     }
 
@@ -389,12 +458,15 @@ def voice_turn() -> dict[str, Any]:
     playback = play_reply(Path(str(spoken["path"])))
     playback_started_at = time.perf_counter()
     listen_timings = heard.get("timings_ms") if isinstance(heard.get("timings_ms"), dict) else {}
+    ollama_timings = reasoned.get("ollama_timings_ms") if isinstance(reasoned.get("ollama_timings_ms"), dict) else {}
     return {
         "ok": True,
         "kind": "voice-turn",
         "transcript": transcript,
         "reply": reply,
         "reasoning_model": reasoned.get("model"),
+        "reasoning_context": reasoned.get("voice_context"),
+        "reasoning_max_tokens": reasoned.get("max_tokens"),
         "memory_session_id": _voice_session_id(),
         "history_messages": len(history),
         "memory_saved": memory_saved,
@@ -410,6 +482,7 @@ def voice_turn() -> dict[str, Any]:
         "playback_error": playback.get("error"),
         "timings_ms": {
             **listen_timings,
+            **ollama_timings,
             "memory_load": round((memory_loaded_at - listened_at) * 1000),
             "reasoning": round((reasoned_at - memory_loaded_at) * 1000),
             "memory_save": round((memory_saved_at - reasoned_at) * 1000),
