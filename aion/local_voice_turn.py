@@ -40,12 +40,9 @@ DEFAULT_VOICE_MAX_TOKENS = 96
 MIN_VOICE_MAX_TOKENS = 32
 MAX_VOICE_MAX_TOKENS = 256
 VOICE_SYSTEM_PROMPT = (
-    "You are AION, the operating intelligence for the owner's local AION OS environment. "
-    "This is real-time spoken conversation. Reply in one or two short sentences unless the owner explicitly asks for depth. "
-    "Never describe yourself as a generic chatbot. Never invent current system state, project state, diagnostics, issues, pull requests, files, or observations. "
-    "You have not checked, inspected, opened, searched, diagnosed, tested, reviewed, or run anything unless an actual tool result is present in this turn. "
-    "Do not say 'let me check' and then invent a result. If fresh data or an action is needed, say what you can check next. "
-    "Never claim a system capability or action that is not actually available or confirmed."
+    "You are AION, the owner's local OS intelligence. Speak briefly. "
+    "Never invent live state, observations, or actions. Without a tool result, do not claim you checked, ran, found, or inspected anything. "
+    "If fresh data is needed, offer the controlled check."
 )
 OLLAMA_TIMEOUT_SECONDS = 120
 TTS_TIMEOUT_SECONDS = 90
@@ -59,16 +56,30 @@ SELF_CAPABILITY_PATTERNS = (
     re.compile(r"\btell me (?:about )?(?:your|their) capabilities\b", re.IGNORECASE),
 )
 
+NEXT_WORK_PATTERNS = (
+    re.compile(r"\bwhat (?:project|projects|should|thing|things).{0,32}(?:work on|do) next\b", re.IGNORECASE),
+    re.compile(r"\bwhat should we work on next\b", re.IGNORECASE),
+    re.compile(r"\bwhat do you think we should work on next\b", re.IGNORECASE),
+    re.compile(r"\bwhat(?:'s| is) next for (?:aion|the project|this project)\b", re.IGNORECASE),
+)
+
 UNVERIFIED_ACTION_PATTERNS = (
     re.compile(r"\bi(?:'ve| have)?\s+(?:checked|inspected|opened|searched|diagnosed|tested|reviewed|run|ran)\b", re.IGNORECASE),
     re.compile(r"\bi(?:'ve| have)?\s+been\s+(?:running|checking|inspecting|reviewing|testing|diagnosing)\b", re.IGNORECASE),
     re.compile(r"\b(?:after|from)\s+(?:checking|inspecting|reviewing|testing|running|diagnosing)\b", re.IGNORECASE),
     re.compile(r"\bit looks like there (?:is|are)\b", re.IGNORECASE),
+    re.compile(r"\bwe(?:'ve| have) been working on\b", re.IGNORECASE),
+    re.compile(r"\bour current (?:project|task|data|state|status)\b", re.IGNORECASE),
 )
 
 TRUTH_GUARD_REPLY = (
     "I haven't checked the live system or project state yet. "
     "I can inspect the AION project through controlled actions next and then give you a grounded recommendation."
+)
+
+NEXT_WORK_REPLY = (
+    "I haven't inspected the live AION project state yet. "
+    "I can check the repository status, tests, and current changes through controlled actions, then recommend the next priority."
 )
 
 
@@ -231,6 +242,11 @@ def _is_self_capability_question(text: str) -> bool:
     return any(pattern.search(cleaned) for pattern in SELF_CAPABILITY_PATTERNS)
 
 
+def _is_next_work_question(text: str) -> bool:
+    cleaned = text.strip()
+    return any(pattern.search(cleaned) for pattern in NEXT_WORK_PATTERNS)
+
+
 def _capability_reply() -> str:
     return (
         "I'm AION, the operating intelligence for this local AION OS environment. "
@@ -276,6 +292,17 @@ def reason_locally(text: str, history: list[dict[str, str]] | None = None) -> di
             "kind": "voice-reasoning",
             "reply": _capability_reply(),
             "model": "aion-local-self-model",
+            "history_messages": len(history or []),
+            "truth_guard_triggered": False,
+            "network_required": False,
+        }
+
+    if _is_next_work_question(text):
+        return {
+            "ok": True,
+            "kind": "voice-reasoning",
+            "reply": NEXT_WORK_REPLY,
+            "model": "aion-local-planning-guard",
             "history_messages": len(history or []),
             "truth_guard_triggered": False,
             "network_required": False,
