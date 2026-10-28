@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -328,7 +329,9 @@ def play_reply(path: Path) -> dict[str, Any]:
 
 
 def voice_turn() -> dict[str, Any]:
+    started = time.perf_counter()
     heard = listen_once()
+    listened_at = time.perf_counter()
     if not heard.get("ok"):
         return heard
 
@@ -337,14 +340,18 @@ def voice_turn() -> dict[str, Any]:
         return {"ok": False, "kind": "voice-turn", "error": "No speech was transcribed", "listen": heard}
 
     history, memory_load_error = _load_voice_history()
+    memory_loaded_at = time.perf_counter()
     reasoned = reason_locally(transcript, history)
+    reasoned_at = time.perf_counter()
     if not reasoned.get("ok"):
         return {**reasoned, "transcript": transcript, "memory_load_error": memory_load_error}
 
     reply = str(reasoned["reply"])
     memory_saved, memory_save_error = _save_voice_turn(transcript, reply)
+    memory_saved_at = time.perf_counter()
 
     spoken = synthesize_reply(reply)
+    synthesized_at = time.perf_counter()
     if not spoken.get("ok"):
         return {
             **spoken,
@@ -360,6 +367,8 @@ def voice_turn() -> dict[str, Any]:
         }
 
     playback = play_reply(Path(str(spoken["path"])))
+    playback_started_at = time.perf_counter()
+    listen_timings = heard.get("timings_ms") if isinstance(heard.get("timings_ms"), dict) else {}
     return {
         "ok": True,
         "kind": "voice-turn",
@@ -378,6 +387,15 @@ def voice_turn() -> dict[str, Any]:
         "played": playback.get("played", False),
         "playback_pid": playback.get("pid"),
         "playback_error": playback.get("error"),
+        "timings_ms": {
+            **listen_timings,
+            "memory_load": round((memory_loaded_at - listened_at) * 1000),
+            "reasoning": round((reasoned_at - memory_loaded_at) * 1000),
+            "memory_save": round((memory_saved_at - reasoned_at) * 1000),
+            "tts": round((synthesized_at - memory_saved_at) * 1000),
+            "playback_start": round((playback_started_at - synthesized_at) * 1000),
+            "turn_to_playback": round((playback_started_at - started) * 1000),
+        },
         "network_required": False,
         "continuous_listening": False,
     }
