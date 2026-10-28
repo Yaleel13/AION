@@ -22,7 +22,6 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from aion.durable.paths import resolve_durable_paths
-from aion.local_executor import CAPABILITIES
 from aion.local_intelligence import local_context_size, local_model_name, ollama_base_url
 from aion.local_memory import LocalMemoryMessage, LocalMemoryRequest, handle_local_memory
 from aion.local_voice import listen_once
@@ -42,8 +41,10 @@ MIN_VOICE_MAX_TOKENS = 32
 MAX_VOICE_MAX_TOKENS = 256
 VOICE_SYSTEM_PROMPT = (
     "You are AION, the operating intelligence for the owner's local AION OS environment. "
-    "Reply naturally for spoken conversation. Prefer short sentences and conversational phrasing. "
-    "Be concise unless the user asks for depth. Never describe yourself as a generic chatbot. "
+    "This is real-time spoken conversation. Reply in one or two short sentences unless the owner explicitly asks for depth. "
+    "Never describe yourself as a generic chatbot. Never invent current system state, project state, diagnostics, issues, pull requests, files, or observations. "
+    "You have not checked, inspected, opened, searched, diagnosed, tested, reviewed, or run anything unless an actual tool result is present in this turn. "
+    "Do not say 'let me check' and then invent a result. If fresh data or an action is needed, say what you can check next. "
     "Never claim a system capability or action that is not actually available or confirmed."
 )
 OLLAMA_TIMEOUT_SECONDS = 120
@@ -56,6 +57,18 @@ SELF_CAPABILITY_PATTERNS = (
     re.compile(r"\bwhat are you capable of\b", re.IGNORECASE),
     re.compile(r"\bhow can you help me\b", re.IGNORECASE),
     re.compile(r"\btell me (?:about )?(?:your|their) capabilities\b", re.IGNORECASE),
+)
+
+UNVERIFIED_ACTION_PATTERNS = (
+    re.compile(r"\bi(?:'ve| have)?\s+(?:checked|inspected|opened|searched|diagnosed|tested|reviewed|run|ran)\b", re.IGNORECASE),
+    re.compile(r"\bi(?:'ve| have)?\s+been\s+(?:running|checking|inspecting|reviewing|testing|diagnosing)\b", re.IGNORECASE),
+    re.compile(r"\b(?:after|from)\s+(?:checking|inspecting|reviewing|testing|running|diagnosing)\b", re.IGNORECASE),
+    re.compile(r"\bit looks like there (?:is|are)\b", re.IGNORECASE),
+)
+
+TRUTH_GUARD_REPLY = (
+    "I haven't checked the live system or project state yet. "
+    "I can inspect the AION project through controlled actions next and then give you a grounded recommendation."
 )
 
 
@@ -74,6 +87,13 @@ def _loopback_ollama_url() -> str | None:
     if parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
         return None
     return value.rstrip("/")
+
+
+def _voice_model_name() -> str:
+    configured = (os.getenv("AION_VOICE_MODEL") or "").strip()
+    if configured and len(configured) <= 128 and not any(char in configured for char in "\r\n\x00"):
+        return configured
+    return local_model_name()
 
 
 def _voice_session_id() -> str:
@@ -157,7 +177,7 @@ def _save_voice_turn(transcript: str, reply: str) -> tuple[bool, str | None]:
                     LocalMemoryMessage(role="user", content=transcript),
                     LocalMemoryMessage(role="assistant", content=reply),
                 ],
-                model=local_model_name(),
+                model=_voice_model_name(),
                 runtime="ollama-local-voice",
             )
         )
@@ -183,7 +203,6 @@ def _bounded_float(name: str, default: float, minimum: float, maximum: float) ->
 
 
 def _piper_length_scale() -> float:
-    # Piper: > 1.0 is slower; < 1.0 is faster.
     return _bounded_float("AION_PIPER_LENGTH_SCALE", DEFAULT_PIPER_LENGTH_SCALE, 0.60, 2.00)
 
 
@@ -222,6 +241,13 @@ def _capability_reply() -> str:
     )
 
 
+def _apply_truth_guard(reply: str) -> tuple[str, bool]:
+    cleaned = reply.strip()
+    if any(pattern.search(cleaned) for pattern in UNVERIFIED_ACTION_PATTERNS):
+        return TRUTH_GUARD_REPLY, True
+    return cleaned, False
+
+
 def _wav_duration_ms(path: Path) -> int | None:
     try:
         with wave.open(str(path), "rb") as wav_file:
@@ -251,6 +277,7 @@ def reason_locally(text: str, history: list[dict[str, str]] | None = None) -> di
             "reply": _capability_reply(),
             "model": "aion-local-self-model",
             "history_messages": len(history or []),
+            "truth_guard_triggered": False,
             "network_required": False,
         }
 
@@ -272,8 +299,9 @@ def reason_locally(text: str, history: list[dict[str, str]] | None = None) -> di
 
     voice_context = _voice_context_size()
     max_tokens = _voice_max_tokens()
+    voice_model = _voice_model_name()
     payload = {
-        "model": local_model_name(),
+        "model": voice_model,
         "messages": messages,
         "stream": False,
         "keep_alive": "30m",
@@ -300,6 +328,7 @@ def reason_locally(text: str, history: list[dict[str, str]] | None = None) -> di
     if not isinstance(reply, str) or not reply.strip():
         return {"ok": False, "kind": "voice-reasoning", "error": "Ollama returned no reply"}
 
+    grounded_reply, truth_guard_triggered = _apply_truth_guard(reply)
     ollama_timings = {
         "ollama_total": _ns_to_ms(data.get("total_duration")) if isinstance(data, dict) else None,
         "ollama_load": _ns_to_ms(data.get("load_duration")) if isinstance(data, dict) else None,
@@ -310,11 +339,12 @@ def reason_locally(text: str, history: list[dict[str, str]] | None = None) -> di
     return {
         "ok": True,
         "kind": "voice-reasoning",
-        "reply": reply.strip(),
-        "model": local_model_name(),
+        "reply": grounded_reply,
+        "model": voice_model,
         "history_messages": len(history or []),
         "voice_context": voice_context,
         "max_tokens": max_tokens,
+        "truth_guard_triggered": truth_guard_triggered,
         "ollama_timings_ms": {key: value for key, value in ollama_timings.items() if value is not None},
         "network_required": False,
     }
@@ -467,6 +497,7 @@ def voice_turn() -> dict[str, Any]:
         "reasoning_model": reasoned.get("model"),
         "reasoning_context": reasoned.get("voice_context"),
         "reasoning_max_tokens": reasoned.get("max_tokens"),
+        "truth_guard_triggered": reasoned.get("truth_guard_triggered", False),
         "memory_session_id": _voice_session_id(),
         "history_messages": len(history),
         "memory_saved": memory_saved,
