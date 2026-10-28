@@ -64,7 +64,7 @@ def test_reasoning_uses_dedicated_voice_model(monkeypatch):
 
     monkeypatch.setattr(local_voice_turn, "urlopen", fake_urlopen)
 
-    result = local_voice_turn.reason_locally("What should we work on next?", [])
+    result = local_voice_turn.reason_locally("Help me think through the voice latency tradeoffs.", [])
 
     assert result["ok"] is True
     assert result["model"] == "llama3.2:1b-instruct-q4_K_M"
