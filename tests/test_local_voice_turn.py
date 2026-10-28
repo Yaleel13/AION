@@ -202,9 +202,19 @@ def test_playback_starts_without_waiting_for_audio_to_finish(monkeypatch, tmp_pa
     def fake_popen(argv, **kwargs):
         seen["argv"] = tuple(argv)
         seen["kwargs"] = kwargs
-        return SimpleNamespace(pid=4321)
+        return SimpleNamespace(pid=4321, wait=lambda: 0)
+
+    class FakeThread:
+        def __init__(self, *, target, name, daemon):
+            seen["thread_target"] = target
+            seen["thread_name"] = name
+            seen["thread_daemon"] = daemon
+
+        def start(self):
+            seen["thread_started"] = True
 
     monkeypatch.setattr(local_voice_turn.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(local_voice_turn.threading, "Thread", FakeThread)
 
     result = local_voice_turn.play_reply(wav)
 
@@ -223,6 +233,9 @@ def test_playback_starts_without_waiting_for_audio_to_finish(monkeypatch, tmp_pa
     assert seen["kwargs"]["stdin"] is local_voice_turn.subprocess.DEVNULL
     assert seen["kwargs"]["stdout"] is local_voice_turn.subprocess.DEVNULL
     assert seen["kwargs"]["stderr"] is local_voice_turn.subprocess.DEVNULL
+    assert seen["thread_name"] == "aion-voice-playback-reaper"
+    assert seen["thread_daemon"] is True
+    assert seen["thread_started"] is True
 
 
 def test_voice_turn_runs_memory_listen_reason_speak_and_play(monkeypatch, tmp_path):
@@ -259,7 +272,7 @@ def test_voice_turn_runs_memory_listen_reason_speak_and_play(monkeypatch, tmp_pa
     monkeypatch.setattr(
         local_voice_turn,
         "synthesize_reply",
-        lambda text: {"ok": True, "voice": "/voices/ryan.onnx", "path": str(wav)},
+        lambda text: {"ok": True, "voice": "/voices/ryan.onnx", "path": str(wav), "duration_ms": 1234},
     )
     monkeypatch.setattr(
         local_voice_turn,
@@ -277,6 +290,7 @@ def test_voice_turn_runs_memory_listen_reason_speak_and_play(monkeypatch, tmp_pa
     assert result["memory_session_id"] == "aion-local-voice-primary"
     assert result["history_messages"] == 1
     assert result["memory_saved"] is True
+    assert result["audio_duration_ms"] == 1234
     assert result["played"] is True
     assert result["playback_pid"] == 777
     assert result["network_required"] is False
