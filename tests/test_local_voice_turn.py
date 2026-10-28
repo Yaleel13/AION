@@ -192,6 +192,39 @@ def test_piper_cadence_env_is_bounded(monkeypatch):
     assert local_voice_turn._piper_sentence_silence() == 0.0
 
 
+def test_playback_starts_without_waiting_for_audio_to_finish(monkeypatch, tmp_path):
+    wav = tmp_path / "reply.wav"
+    wav.write_bytes(b"RIFF")
+    seen = {}
+
+    monkeypatch.setattr(local_voice_turn.shutil, "which", lambda name: "/usr/bin/ffplay" if name == "ffplay" else None)
+
+    def fake_popen(argv, **kwargs):
+        seen["argv"] = tuple(argv)
+        seen["kwargs"] = kwargs
+        return SimpleNamespace(pid=4321)
+
+    monkeypatch.setattr(local_voice_turn.subprocess, "Popen", fake_popen)
+
+    result = local_voice_turn.play_reply(wav)
+
+    assert result["ok"] is True
+    assert result["played"] is True
+    assert result["pid"] == 4321
+    assert seen["argv"] == (
+        "/usr/bin/ffplay",
+        "-nodisp",
+        "-autoexit",
+        "-loglevel",
+        "error",
+        str(wav),
+    )
+    assert seen["kwargs"]["start_new_session"] is True
+    assert seen["kwargs"]["stdin"] is local_voice_turn.subprocess.DEVNULL
+    assert seen["kwargs"]["stdout"] is local_voice_turn.subprocess.DEVNULL
+    assert seen["kwargs"]["stderr"] is local_voice_turn.subprocess.DEVNULL
+
+
 def test_voice_turn_runs_memory_listen_reason_speak_and_play(monkeypatch, tmp_path):
     wav = tmp_path / "reply.wav"
     wav.write_bytes(b"RIFF")
@@ -231,7 +264,7 @@ def test_voice_turn_runs_memory_listen_reason_speak_and_play(monkeypatch, tmp_pa
     monkeypatch.setattr(
         local_voice_turn,
         "play_reply",
-        lambda path: {"ok": True, "played": True, "error": None},
+        lambda path: {"ok": True, "played": True, "pid": 777, "error": None},
     )
 
     result = local_voice_turn.voice_turn()
@@ -245,6 +278,7 @@ def test_voice_turn_runs_memory_listen_reason_speak_and_play(monkeypatch, tmp_pa
     assert result["history_messages"] == 1
     assert result["memory_saved"] is True
     assert result["played"] is True
+    assert result["playback_pid"] == 777
     assert result["network_required"] is False
     assert result["continuous_listening"] is False
     assert seen["history"] == [{"role": "assistant", "content": "Previous reply."}]
