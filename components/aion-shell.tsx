@@ -17,6 +17,8 @@ const uid = () => `m${++idCounter}-${Date.now()}`
 const CONVERSATION_STORAGE_KEY = "aion.conversation.v1"
 const MAX_PERSISTED_MESSAGES = 50
 const VOICE_CAPTURE_PHASE_MS = 7_000
+const MAX_VOICE_PLAYBACK_LOCK_MS = 120_000
+const VOICE_PLAYBACK_RELEASE_PADDING_MS = 250
 
 const GREETING: Message = {
   id: "aion-greeting",
@@ -49,6 +51,8 @@ type LocalVoiceResponse = {
   transcript?: string
   reply?: string
   played?: boolean
+  audioDurationMs?: number | null
+  timingsMs?: Record<string, number> | null
   error?: string
 }
 
@@ -68,12 +72,14 @@ export function AionShell() {
   const [ownerAuthOpen, setOwnerAuthOpen] = useState(false)
   const [ownerAuthenticated, setOwnerAuthenticated] = useState(false)
   const [listening, setListening] = useState(false)
+  const [speaking, setSpeaking] = useState(false)
   const [voiceAvailable, setVoiceAvailable] = useState(false)
   const [previousResponseId, setPreviousResponseId] = useState<string | null>(null)
   const [clientSessionId, setClientSessionId] = useState<string | null>(null)
   const [conversationHydrated, setConversationHydrated] = useState(false)
   const busyRef = useRef(false)
   const voicePhaseTimerRef = useRef<number | null>(null)
+  const voicePlaybackTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     void fetch("/api/aion/owner-session", { cache: "no-store" })
@@ -103,6 +109,9 @@ export function AionShell() {
     return () => {
       if (voicePhaseTimerRef.current !== null) {
         window.clearTimeout(voicePhaseTimerRef.current)
+      }
+      if (voicePlaybackTimerRef.current !== null) {
+        window.clearTimeout(voicePlaybackTimerRef.current)
       }
     }
   }, [])
@@ -205,11 +214,13 @@ export function AionShell() {
   }, [ownerAuthenticated])
 
   const handleVoiceToggle = useCallback(async () => {
-    if (!voiceAvailable || listening || busyRef.current) return
+    if (!voiceAvailable || listening || speaking || busyRef.current) return
 
     busyRef.current = true
+    setSpeaking(false)
     setWorking("idle")
     setListening(true)
+    let playbackLockMs = 0
 
     voicePhaseTimerRef.current = window.setTimeout(() => {
       voicePhaseTimerRef.current = null
@@ -229,6 +240,15 @@ export function AionShell() {
 
       pushMessage({ id: uid(), role: "user", content: data.transcript })
       pushMessage({ id: uid(), role: "aion", content: data.reply })
+
+      if (data.timingsMs) {
+        console.info("[AION] local voice timings (ms)", data.timingsMs)
+      }
+
+      if (data.played && typeof data.audioDurationMs === "number" && data.audioDurationMs > 0) {
+        playbackLockMs = Math.min(data.audioDurationMs, MAX_VOICE_PLAYBACK_LOCK_MS)
+        setSpeaking(true)
+      }
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Unknown local voice error"
       pushMessage({ id: uid(), role: "aion", content: `I couldn't complete that local voice turn. ${detail}` })
@@ -239,10 +259,21 @@ export function AionShell() {
       }
       setListening(false)
       setWorking("complete")
-      window.setTimeout(() => setWorking("idle"), 500)
-      busyRef.current = false
+
+      if (playbackLockMs > 0) {
+        voicePlaybackTimerRef.current = window.setTimeout(() => {
+          voicePlaybackTimerRef.current = null
+          setSpeaking(false)
+          setWorking("idle")
+          busyRef.current = false
+        }, playbackLockMs + VOICE_PLAYBACK_RELEASE_PADDING_MS)
+      } else {
+        setSpeaking(false)
+        window.setTimeout(() => setWorking("idle"), 500)
+        busyRef.current = false
+      }
     }
-  }, [listening, pushMessage, voiceAvailable])
+  }, [listening, pushMessage, speaking, voiceAvailable])
 
   const handleSend = useCallback(
     async (text: string) => {
@@ -349,6 +380,10 @@ export function AionShell() {
   const handleNewConversation = useCallback(() => {
     if (busyRef.current) return
 
+    if (voicePlaybackTimerRef.current !== null) {
+      window.clearTimeout(voicePlaybackTimerRef.current)
+      voicePlaybackTimerRef.current = null
+    }
     setMessages([GREETING])
     setPreviousResponseId(null)
     setClientSessionId(createClientSessionId())
@@ -356,12 +391,16 @@ export function AionShell() {
     setMode("conversation")
     setWorking("idle")
     setListening(false)
+    setSpeaking(false)
     try {
       window.localStorage.removeItem(CONVERSATION_STORAGE_KEY)
     } catch (error) {
       console.warn("[AION] Could not clear browser conversation:", error)
     }
-    window.setTimeout(() => document.getElementById("aion-message")?.focus(), 60)
+    window.setTimeout(() => {
+      document.getElementById("conversation")?.scrollIntoView({ behavior: "smooth", block: "start" })
+      document.getElementById("aion-message")?.focus()
+    }, 60)
   }, [])
 
   const handleAttention = useCallback(() => {
@@ -377,7 +416,7 @@ export function AionShell() {
   }, [])
 
   const isBusy = busyStates.includes(working)
-  const conversationDisabled = isBusy || listening || !conversationHydrated
+  const conversationDisabled = isBusy || listening || speaking || !conversationHydrated
 
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden bg-background">
