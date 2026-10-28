@@ -13,7 +13,9 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import time
+import wave
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -173,6 +175,18 @@ def _capability_reply() -> str:
     )
 
 
+def _wav_duration_ms(path: Path) -> int | None:
+    try:
+        with wave.open(str(path), "rb") as wav_file:
+            rate = wav_file.getframerate()
+            frames = wav_file.getnframes()
+    except (OSError, EOFError, wave.Error):
+        return None
+    if rate <= 0:
+        return None
+    return round((frames / rate) * 1000)
+
+
 def reason_locally(text: str, history: list[dict[str, str]] | None = None) -> dict[str, Any]:
     if not _local_mode():
         return {"ok": False, "kind": "voice-reasoning", "error": "Local runtime mode is required"}
@@ -293,6 +307,7 @@ def synthesize_reply(text: str) -> dict[str, Any]:
         "voice": str(voice),
         "path": str(output),
         "bytes": output.stat().st_size,
+        "duration_ms": _wav_duration_ms(output),
         "length_scale": length_scale,
         "sentence_silence": sentence_silence,
         "network_required": False,
@@ -316,6 +331,11 @@ def play_reply(path: Path) -> dict[str, Any]:
             stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
+        threading.Thread(
+            target=process.wait,
+            name="aion-voice-playback-reaper",
+            daemon=True,
+        ).start()
     except OSError as exc:
         return {"ok": True, "kind": "voice-playback", "played": False, "error": str(exc)}
 
@@ -384,6 +404,7 @@ def voice_turn() -> dict[str, Any]:
         "tts_length_scale": spoken.get("length_scale"),
         "tts_sentence_silence": spoken.get("sentence_silence"),
         "audio_path": spoken.get("path"),
+        "audio_duration_ms": spoken.get("duration_ms"),
         "played": playback.get("played", False),
         "playback_pid": playback.get("pid"),
         "playback_error": playback.get("error"),
