@@ -26,25 +26,27 @@ from aion.local_voice import listen_once
 
 
 DEFAULT_PIPER_VOICE = Path.home() / ".local/share/aion/piper/en_US-ryan-medium.onnx"
+DEFAULT_PIPER_LENGTH_SCALE = 1.12
+DEFAULT_PIPER_SENTENCE_SILENCE = 0.20
 DEFAULT_VOICE_SESSION_ID = "aion-local-voice-primary"
 VOICE_HISTORY_LIMIT = 12
 VOICE_SYSTEM_PROMPT = (
     "You are AION, the operating intelligence for the owner's local AION OS environment. "
-    "Reply naturally for spoken conversation. Be concise unless the user asks for depth. "
-    "Never describe yourself as a generic chatbot. Never claim a system capability or action "
-    "that is not actually available or confirmed."
+    "Reply naturally for spoken conversation. Prefer short sentences and conversational phrasing. "
+    "Be concise unless the user asks for depth. Never describe yourself as a generic chatbot. "
+    "Never claim a system capability or action that is not actually available or confirmed."
 )
 OLLAMA_TIMEOUT_SECONDS = 120
 TTS_TIMEOUT_SECONDS = 90
 PLAYBACK_TIMEOUT_SECONDS = 90
 
 SELF_CAPABILITY_PATTERNS = (
-    re.compile(r"\bwhat (?:are|is) (?:your|aion(?: os)?(?:'s)?) capabilities\b", re.IGNORECASE),
+    re.compile(r"\bwhat (?:are|is) (?:your|their|aion(?: os)?(?:'s)?) capabilities\b", re.IGNORECASE),
     re.compile(r"\bwhat can you do\b", re.IGNORECASE),
     re.compile(r"\bwhat can aion(?: os)? do\b", re.IGNORECASE),
     re.compile(r"\bwhat are you capable of\b", re.IGNORECASE),
     re.compile(r"\bhow can you help me\b", re.IGNORECASE),
-    re.compile(r"\btell me (?:about )?your capabilities\b", re.IGNORECASE),
+    re.compile(r"\btell me (?:about )?(?:your|their) capabilities\b", re.IGNORECASE),
 )
 
 
@@ -120,6 +122,31 @@ def _piper_voice() -> Path:
     return Path(configured).expanduser() if configured else DEFAULT_PIPER_VOICE
 
 
+def _bounded_float(name: str, default: float, minimum: float, maximum: float) -> float:
+    raw = (os.getenv(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        return default
+    return min(max(value, minimum), maximum)
+
+
+def _piper_length_scale() -> float:
+    # Piper: > 1.0 is slower; < 1.0 is faster.
+    return _bounded_float("AION_PIPER_LENGTH_SCALE", DEFAULT_PIPER_LENGTH_SCALE, 0.60, 2.00)
+
+
+def _piper_sentence_silence() -> float:
+    return _bounded_float(
+        "AION_PIPER_SENTENCE_SILENCE",
+        DEFAULT_PIPER_SENTENCE_SILENCE,
+        0.0,
+        1.0,
+    )
+
+
 def _media_root() -> Path:
     root = resolve_durable_paths().root / "media"
     root.mkdir(parents=True, exist_ok=True)
@@ -137,17 +164,12 @@ def _is_self_capability_question(text: str) -> bool:
 
 
 def _capability_reply() -> str:
-    names = sorted(CAPABILITIES)
     return (
         "I'm AION, the operating intelligence for this local AION OS environment. "
-        "Right now I can reason locally with Ollama, remember conversations in durable local memory, "
-        "hear you through the EMEET microphone with whisper.cpp, and answer aloud with Piper. "
-        "I can inspect system information, storage, memory, processes, audio and camera inputs, Git status and diffs, "
-        "and I can inspect, test, lint, and build the AION project through controlled actions. "
+        "I can reason locally, remember our conversations, hear you through the EMEET microphone, and answer aloud. "
+        "I can inspect this computer and work with the AION project through controlled actions, including Git, tests, linting, and builds. "
         "I also have the owner-only Boardroom and a controlled Terminal workspace. "
-        f"My current typed local capability registry contains {len(names)} actions: {', '.join(names)}. "
-        "I do not have arbitrary shell access, sudo or root escalation, general vision understanding, email, SMS, or phone calling yet. "
-        "I keep those limits explicit rather than pretending a capability exists."
+        "I do not have unrestricted shell or root access, and vision, email, text messaging, and phone calling are not active yet."
     )
 
 
@@ -230,11 +252,25 @@ def synthesize_reply(text: str) -> dict[str, Any]:
             "voice": str(voice),
         }
 
+    length_scale = _piper_length_scale()
+    sentence_silence = _piper_sentence_silence()
     output = _media_root() / "latest-aion-reply.wav"
     output.unlink(missing_ok=True)
     try:
         completed = subprocess.run(
-            (piper, "-m", str(voice), "-f", str(output), "--", text),
+            (
+                piper,
+                "-m",
+                str(voice),
+                "-f",
+                str(output),
+                "--length-scale",
+                str(length_scale),
+                "--sentence-silence",
+                str(sentence_silence),
+                "--",
+                text,
+            ),
             capture_output=True,
             text=True,
             timeout=TTS_TIMEOUT_SECONDS,
@@ -257,6 +293,8 @@ def synthesize_reply(text: str) -> dict[str, Any]:
         "voice": str(voice),
         "path": str(output),
         "bytes": output.stat().st_size,
+        "length_scale": length_scale,
+        "sentence_silence": sentence_silence,
         "network_required": False,
     }
 
@@ -334,6 +372,8 @@ def voice_turn() -> dict[str, Any]:
         "memory_load_error": memory_load_error,
         "memory_save_error": memory_save_error,
         "tts_voice": spoken.get("voice"),
+        "tts_length_scale": spoken.get("length_scale"),
+        "tts_sentence_silence": spoken.get("sentence_silence"),
         "audio_path": spoken.get("path"),
         "played": playback.get("played", False),
         "playback_error": playback.get("error"),
