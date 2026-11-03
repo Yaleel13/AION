@@ -83,9 +83,13 @@ async def health() -> dict:
 @app.get("/runtime/status", summary="Truthful runtime status (no secrets)")
 async def runtime_status() -> dict:
     """Real storage / Moltbook / autonomy / paper gates for UI honesty."""
-    from aion.runtime_status import build_runtime_status
+    from aion.capabilities import CapabilityDispatchError, dispatch_capability
 
-    return build_runtime_status()
+    try:
+        return dispatch_capability("runtime_status")
+    except CapabilityDispatchError as exc:
+        status = {"unknown_capability": 404, "policy_unavailable": 503}.get(exc.code, 403)
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
 
 
 class LocalExecutiveRequest(BaseModel):

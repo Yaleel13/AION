@@ -1,5 +1,5 @@
 version: 1
-generated_at: '2026-11-03T21:08:52.724890+00:00'
+generated_at: '2026-11-03T21:33:31.229010+00:00'
 repository: Yaleel13/AION
 surfaces:
   fastapi_routes:
@@ -478,6 +478,15 @@ integrations:
   execute: true
   scope: Virtual BTC/ETH paper simulation only
   note: Public price marks may be live; order execution is never live trading.
+- name: runtime_status
+  configured: true
+  read: true
+  propose: false
+  approve: false
+  execute: false
+  scope: Non-secret runtime status snapshot only
+  note: Owner and MCP access retain the existing owner-token policy; this grants no
+    execution authority.
 - name: terminal
   configured: false
   read: false

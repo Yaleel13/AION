@@ -6,6 +6,7 @@ approve, and execute are reported separately and default closed.
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from typing import Any
 
 from aion.runtime_status import build_runtime_status
@@ -34,6 +35,15 @@ def _build_capabilities(
     github_credential_present: bool,
 ) -> dict[str, dict[str, Any]]:
     return {
+        "runtime_status": _entry(
+            configured=True,
+            read=True,
+            propose=False,
+            approve=False,
+            execute=False,
+            scope="Non-secret runtime status snapshot only",
+            note="Owner and MCP access retain the existing owner-token policy; this grants no execution authority.",
+        ),
         "conversation": _entry(
             configured=True,
             read=True,
@@ -117,6 +127,45 @@ def capability_catalog() -> dict[str, Any]:
         "global_autonomy_switch": False,
         "capabilities": capabilities,
     }
+
+
+class CapabilityDispatchError(RuntimeError):
+    """A capability is unknown to dispatch or denied by its permission entry."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
+def dispatch_capability(name: str, *, action: str = "read") -> dict[str, Any]:
+    """Dispatch a fixed handler only after its catalog permission allows it.
+
+    The catalog is pure policy: the live registry observes runtime status and
+    would otherwise do handler work before authorization. Transport-specific
+    caller authorization remains at the existing HTTP boundary.
+    """
+    from aion.runtime_status import build_runtime_status as read_runtime_status
+
+    # Catalog membership alone never registers executable behavior. There is
+    # intentionally no shell, Local Executive, or runtime.syntax handler here.
+    handlers = {"runtime_status": ("read", read_runtime_status)}
+    registered = handlers.get(name)
+    if registered is None:
+        raise CapabilityDispatchError("unknown_capability", "Unknown capability.")
+    allowed_action, handler = registered
+    if action != allowed_action:
+        raise CapabilityDispatchError("policy_denied", "Capability action is not permitted.")
+    try:
+        catalog = capability_catalog()
+        if not isinstance(catalog, Mapping) or not isinstance(catalog.get("capabilities"), Mapping):
+            raise TypeError("Invalid capability policy")
+        entry = catalog["capabilities"].get(name)
+        permitted = isinstance(entry, Mapping) and entry.get("configured") is True and entry.get(action) is True
+    except Exception as exc:
+        raise CapabilityDispatchError("policy_unavailable", "Capability policy is unavailable.") from exc
+    if not permitted:
+        raise CapabilityDispatchError("policy_denied", "Capability action is not permitted.")
+    return handler()
 
 
 def capability_registry() -> dict[str, Any]:

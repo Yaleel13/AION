@@ -20,3 +20,23 @@ The HTTP timeout is five seconds; proxies and redirects are disabled.
 
 This bridge exposes no shell, executor, mutation tools, or network listener.
 Existing browser WebMCP tools remain separate.
+
+The HTTP status handler now calls the shared `dispatch_capability("runtime_status")`
+path in `aion.capabilities`. It checks the existing capability catalog's
+`configured` and `read` permissions before invoking the status builder. The
+public status route and the owner-protected route share this dispatch path;
+the latter still checks the existing owner token first. The stdio tool retains
+its fixed HTTP transport, argument-free name, status payload, and MCP error
+contract. It does not import the runtime registry or load dotenv files.
+
+Dispatch has one explicitly registered read handler. Unknown names, unsupported
+actions, and denied catalog entries raise a structured-code dispatch exception
+without running the handler. Catalog membership does not enable a dispatcher
+handler. In particular, `runtime.syntax` remains absent from MCP and dispatch.
+
+Resolution order is fixed-name lookup, allowed-action check, pure catalog
+permission evaluation, then handler invocation. Missing or malformed permission
+entries deny with 403. A catalog evaluation failure or invalid catalog structure
+fails closed with a generic 503 and never invokes the handler or exposes policy
+exception details. The stdio adapter preserves its existing structured tool error
+for these denials and for runtime disconnection.

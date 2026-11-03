@@ -41,3 +41,13 @@ def test_capability_catalog_is_env_independent(monkeypatch) -> None:
     assert catalog["capabilities"]["github_runtime"]["configured"] is False
     live = capability_registry()
     assert live["capabilities"]["moltbook"]["propose"] is False
+
+
+def test_runtime_status_permissions_are_read_only_in_both_views():
+    for view in [capability_catalog(), capability_registry()]:
+        entry = view["capabilities"]["runtime_status"]
+        assert entry["configured"] is True
+        assert entry["read"] is True
+        assert entry["propose"] is False
+        assert entry["approve"] is False
+        assert entry["execute"] is False

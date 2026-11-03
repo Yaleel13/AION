@@ -46,9 +46,51 @@ async def test_status_policy_denied(runtime_transport, monkeypatch):
 
 async def test_status_missing_credentials(monkeypatch):
     monkeypatch.delenv("AION_OWNER_TOKEN", raising=False)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Missing credentials reached HTTP transport")
+
+    monkeypatch.setattr(mcp_server.httpx, "AsyncClient", forbidden)
     result = await mcp_server.mcp.call_tool("runtime_status", {})
     assert result.is_error
     assert "Policy denied" in result.content[0].text
+
+
+async def test_status_catalog_denial_never_builds_status(runtime_transport, monkeypatch):
+    from aion import capabilities
+    import aion.runtime_status
+
+    catalog = capabilities.capability_catalog()
+    catalog["capabilities"]["runtime_status"]["read"] = False
+    monkeypatch.setattr(capabilities, "capability_catalog", lambda: catalog)
+
+    def forbidden():
+        pytest.fail("Denied MCP capability reached its status handler")
+
+    monkeypatch.setattr(aion.runtime_status, "build_runtime_status", forbidden)
+    result = await mcp_server.mcp.call_tool("runtime_status", {})
+    assert result.is_error
+    assert "Policy denied" in result.content[0].text
+    assert result.structured_content is None
+
+
+async def test_status_policy_evaluation_failure_is_a_structured_denial(runtime_transport, monkeypatch):
+    from aion import capabilities
+    import aion.runtime_status
+
+    def failed_policy():
+        raise RuntimeError("private policy details")
+
+    def forbidden():
+        pytest.fail("Failed policy reached status handler")
+
+    monkeypatch.setattr(capabilities, "capability_catalog", failed_policy)
+    monkeypatch.setattr(aion.runtime_status, "build_runtime_status", forbidden)
+    result = await mcp_server.mcp.call_tool("runtime_status", {})
+    assert result.is_error
+    assert result.structured_content is None
+    assert "Policy denied" in result.content[0].text
+    assert "private" not in result.content[0].text
 
 
 async def test_status_disconnected(monkeypatch):
