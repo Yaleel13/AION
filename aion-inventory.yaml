@@ -1,5 +1,5 @@
 version: 1
-generated_at: '2026-10-08T20:28:52.354320+00:00'
+generated_at: '2026-11-03T09:45:54.317953+00:00'
 repository: Yaleel13/AION
 surfaces:
   fastapi_routes:
@@ -122,6 +122,11 @@ surfaces:
     path: /owner/revenue/attributed
     operation_id: owner_revenue_attributed_owner_revenue_attributed_get
     summary: Get revenue attributed to commercial executions
+    owner: fastapi
+  - method: GET
+    path: /owner/runtime/status
+    operation_id: owner_runtime_status_owner_runtime_status_get
+    summary: Owner-authorized runtime status
     owner: fastapi
   - method: GET
     path: /runtime/status

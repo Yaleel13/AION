@@ -225,6 +225,13 @@ def _require_owner(authorization: str | None) -> None:
         raise HTTPException(status_code=403, detail="Invalid owner token")
 
 
+@app.get("/owner/runtime/status", summary="Owner-authorized runtime status")
+async def owner_runtime_status(authorization: str | None = Header(default=None)) -> dict:
+    """Use the existing owner policy before reading the shared status handler."""
+    _require_owner(authorization)
+    return await runtime_status()
+
+
 @app.get("/owner/dashboard", summary="Phase 2 owner dashboard snapshot")
 async def owner_dashboard(authorization: str | None = Header(default=None)) -> dict:
     _require_owner(authorization)
