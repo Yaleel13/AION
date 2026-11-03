@@ -232,6 +232,46 @@ async def owner_runtime_status(authorization: str | None = Header(default=None))
     return await runtime_status()
 
 
+class LocalValidationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+@app.post("/local-executive/validate", summary="Run fixed runtime syntax validation")
+async def local_executive_validate(
+    body: LocalValidationRequest, http_request: Request,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """Owner-authorized, loopback-only validation. Empty JSON body required."""
+    import asyncio
+    from aion.local_executor import local_executor_available
+    from aion.local_validation import run_validation
+
+    _require_owner(authorization)
+    host = http_request.client.host if http_request.client else None
+    if host not in {"127.0.0.1", "::1"}:
+        raise HTTPException(status_code=403, detail="Local Executive is loopback-only")
+    if not local_executor_available() or os.name != "posix":
+        raise HTTPException(status_code=503, detail="Local validation is not enabled")
+    if http_request.query_params:
+        raise HTTPException(status_code=400, detail="Validation accepts no parameters")
+
+    async def watch_disconnect() -> None:
+        while not await http_request.is_disconnected():
+            await asyncio.sleep(0.1)
+
+    job = asyncio.create_task(run_validation())
+    disconnected = asyncio.create_task(watch_disconnect())
+    try:
+        await asyncio.wait({job, disconnected}, return_when=asyncio.FIRST_COMPLETED)
+        if disconnected.done():
+            raise HTTPException(status_code=499, detail="Validation caller disconnected")
+        return await job
+    finally:
+        disconnected.cancel()
+        job.cancel()
+        await asyncio.gather(job, disconnected, return_exceptions=True)
+
+
 @app.get("/owner/dashboard", summary="Phase 2 owner dashboard snapshot")
 async def owner_dashboard(authorization: str | None = Header(default=None)) -> dict:
     _require_owner(authorization)

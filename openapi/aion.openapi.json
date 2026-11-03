@@ -198,6 +198,12 @@
         "title": "LocalExecutiveRequest",
         "type": "object"
       },
+      "LocalValidationRequest": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "LocalValidationRequest",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -445,6 +451,65 @@
           }
         },
         "summary": "Execute one safe local capability"
+      }
+    },
+    "/local-executive/validate": {
+      "post": {
+        "description": "Owner-authorized, loopback-only validation. Empty JSON body required.",
+        "operationId": "local_executive_validate_local_executive_validate_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalValidationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Local Executive Validate Local Executive Validate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run fixed runtime syntax validation"
       }
     },
     "/owner/approvals/{request_id}/decide": {

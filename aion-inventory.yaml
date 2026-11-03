@@ -1,5 +1,5 @@
 version: 1
-generated_at: '2026-11-03T09:45:54.317953+00:00'
+generated_at: '2026-11-03T10:08:02.221999+00:00'
 repository: Yaleel13/AION
 surfaces:
   fastapi_routes:
@@ -32,6 +32,11 @@ surfaces:
     path: /local-executive/execute
     operation_id: local_executive_execute_local_executive_execute_post
     summary: Execute one safe local capability
+    owner: fastapi
+  - method: POST
+    path: /local-executive/validate
+    operation_id: local_executive_validate_local_executive_validate_post
+    summary: Run fixed runtime syntax validation
     owner: fastapi
   - method: POST
     path: /owner/approvals/{request_id}/decide
