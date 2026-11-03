@@ -35,6 +35,10 @@ without running the handler. Catalog membership does not enable a dispatcher
 handler. The fixed `runtime.syntax` HTTP job now uses the same resolver through
 an async adapter with the `execute` permission, but remains absent from MCP.
 
+The underlying runtime HTTP request is recorded in the existing owner audit
+history; see [runtime capability audit](CAPABILITY_AUDIT.md). The MCP payload
+contract remains unchanged and does not expose the HTTP correlation header.
+
 Resolution order is fixed-name lookup, allowed-action check, pure catalog
 permission evaluation, then handler invocation. Missing or malformed permission
 entries deny with 403. A catalog evaluation failure or invalid catalog structure

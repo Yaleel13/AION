@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
 from aion import config
+from aion.capability_audit import CapabilityAuditMiddleware
 from aion.agent_runtime import run_aion
 from aion.moltbook.errors import MoltbookConfigError
 from aion.moltbook.settings import load_moltbook_settings
@@ -64,6 +65,8 @@ app = FastAPI(
     version="0.2.0",
     lifespan=lifespan,
 )
+
+app.add_middleware(CapabilityAuditMiddleware)
 agent_rate_limiter = ClientSlidingWindowRateLimiter(
     max_requests=config.AGENT_RATE_LIMIT_PER_MINUTE
 )

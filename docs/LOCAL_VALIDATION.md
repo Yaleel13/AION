@@ -41,3 +41,6 @@ cancellation, and disconnect cleanup keep their existing behavior and response
 contract. The live capability registry reports this job eligible only on a local
 POSIX runtime with owner authentication configured; the stable catalog describes
 the installed job's permission ceiling. This does not register an MCP tool.
+
+See [runtime capability audit](CAPABILITY_AUDIT.md) for request correlation,
+policy/start/outcome events, privacy rules, and audit storage limitations.

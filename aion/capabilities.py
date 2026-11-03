@@ -184,19 +184,39 @@ def _resolve_capability(name: str, *, action: str) -> Callable[[], Any]:
     return handler
 
 
+def _authorized_handler(name: str, *, action: str) -> Callable[[], Any]:
+    from aion.capability_audit import policy_decision
+
+    try:
+        handler = _resolve_capability(name, action=action)
+    except CapabilityDispatchError as exc:
+        policy_decision(exc.code)
+        raise
+    policy_decision()
+    return handler
+
+
 def dispatch_capability(name: str, *, action: str = "read") -> dict[str, Any]:
     """Synchronous dispatch, preserving the status handler's return contract."""
-    handler = _resolve_capability(name, action=action)
+    from aion.capability_audit import handler_result
+
+    handler = _authorized_handler(name, action=action)
     if iscoroutinefunction(handler):
         raise CapabilityDispatchError("policy_denied", "Capability requires asynchronous dispatch.")
-    return handler()
+    result = handler()
+    handler_result(result)
+    return result
 
 
 async def dispatch_capability_async(name: str, *, action: str = "read") -> dict[str, Any]:
     """Await an allowed handler directly so cancellation reaches its cleanup."""
-    handler = _resolve_capability(name, action=action)
+    from aion.capability_audit import handler_result
+
+    handler = _authorized_handler(name, action=action)
     result = handler()
-    return await result if isawaitable(result) else result
+    result = await result if isawaitable(result) else result
+    handler_result(result)
+    return result
 
 
 def capability_registry() -> dict[str, Any]:

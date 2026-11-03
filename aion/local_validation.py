@@ -54,12 +54,20 @@ async def run_validation() -> dict[str, Any]:
 
     async def execute() -> None:
         nonlocal process
-        spawn = asyncio.create_task(asyncio.create_subprocess_exec(
-            *ARGV, cwd=PROJECT_ROOT, env=JOB_ENV.copy(),
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            start_new_session=True,
-        ))
+
+        async def start_process():
+            from aion.capability_audit import job_started
+
+            child = await asyncio.create_subprocess_exec(
+                *ARGV, cwd=PROJECT_ROOT, env=JOB_ENV.copy(),
+                stdin=asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                start_new_session=True,
+            )
+            job_started()
+            return child
+
+        spawn = asyncio.create_task(start_process())
         try:
             process = await asyncio.shield(spawn)
         except asyncio.CancelledError:

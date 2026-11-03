@@ -68,7 +68,7 @@ def process_running(pid):
     stat = Path(f"/proc/{pid}/stat")
     try:
         return stat.read_text().split(") ", 1)[1].split()[0] != "Z"
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
         return False
 
 
