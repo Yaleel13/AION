@@ -6,7 +6,8 @@ approve, and execute are reported separately and default closed.
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from inspect import isawaitable, iscoroutinefunction
 from typing import Any
 
 from aion.runtime_status import build_runtime_status
@@ -29,6 +30,7 @@ def _build_capabilities(
     storage_ready: bool,
     owner_ready: bool,
     terminal_ready: bool,
+    syntax_ready: bool,
     moltbook_configured: bool,
     moltbook_outbound: bool,
     moltbook_execute: bool,
@@ -43,6 +45,15 @@ def _build_capabilities(
             execute=False,
             scope="Non-secret runtime status snapshot only",
             note="Owner and MCP access retain the existing owner-token policy; this grants no execution authority.",
+        ),
+        "runtime.syntax": _entry(
+            configured=syntax_ready,
+            read=False,
+            propose=False,
+            approve=False,
+            execute=syntax_ready and owner_ready,
+            scope="Fixed local runtime Python syntax validation only",
+            note="Owner, loopback, and local-mode gates apply; server-defined command and limits; not exposed through MCP.",
         ),
         "conversation": _entry(
             configured=True,
@@ -116,6 +127,7 @@ def capability_catalog() -> dict[str, Any]:
         storage_ready=True,
         owner_ready=True,
         terminal_ready=False,
+        syntax_ready=True,
         moltbook_configured=True,
         moltbook_outbound=False,
         moltbook_execute=False,
@@ -137,18 +149,22 @@ class CapabilityDispatchError(RuntimeError):
         self.code = code
 
 
-def dispatch_capability(name: str, *, action: str = "read") -> dict[str, Any]:
-    """Dispatch a fixed handler only after its catalog permission allows it.
+def _resolve_capability(name: str, *, action: str) -> Callable[[], Any]:
+    """Resolve a fixed handler only after its catalog permission allows it.
 
     The catalog is pure policy: the live registry observes runtime status and
     would otherwise do handler work before authorization. Transport-specific
     caller authorization remains at the existing HTTP boundary.
     """
+    from aion.local_validation import run_validation
     from aion.runtime_status import build_runtime_status as read_runtime_status
 
-    # Catalog membership alone never registers executable behavior. There is
-    # intentionally no shell, Local Executive, or runtime.syntax handler here.
-    handlers = {"runtime_status": ("read", read_runtime_status)}
+    # Catalog membership alone never registers executable behavior. These are
+    # fixed handlers, with no shell or generic Local Executive dispatch.
+    handlers = {
+        "runtime_status": ("read", read_runtime_status),
+        "runtime.syntax": ("execute", run_validation),
+    }
     registered = handlers.get(name)
     if registered is None:
         raise CapabilityDispatchError("unknown_capability", "Unknown capability.")
@@ -165,10 +181,27 @@ def dispatch_capability(name: str, *, action: str = "read") -> dict[str, Any]:
         raise CapabilityDispatchError("policy_unavailable", "Capability policy is unavailable.") from exc
     if not permitted:
         raise CapabilityDispatchError("policy_denied", "Capability action is not permitted.")
+    return handler
+
+
+def dispatch_capability(name: str, *, action: str = "read") -> dict[str, Any]:
+    """Synchronous dispatch, preserving the status handler's return contract."""
+    handler = _resolve_capability(name, action=action)
+    if iscoroutinefunction(handler):
+        raise CapabilityDispatchError("policy_denied", "Capability requires asynchronous dispatch.")
     return handler()
 
 
+async def dispatch_capability_async(name: str, *, action: str = "read") -> dict[str, Any]:
+    """Await an allowed handler directly so cancellation reaches its cleanup."""
+    handler = _resolve_capability(name, action=action)
+    result = handler()
+    return await result if isawaitable(result) else result
+
+
 def capability_registry() -> dict[str, Any]:
+    from aion.local_executor import local_executor_available
+
     runtime = build_runtime_status()
     storage_ready = bool(runtime["storage"]["configured"])
     owner_ready = bool(runtime["operations"]["owner_token_configured"])
@@ -184,6 +217,7 @@ def capability_registry() -> dict[str, Any]:
         storage_ready=storage_ready,
         owner_ready=owner_ready,
         terminal_ready=terminal_ready,
+        syntax_ready=local_executor_available() and os.name == "posix",
         moltbook_configured=moltbook_configured,
         moltbook_outbound=moltbook_outbound,
         moltbook_execute=moltbook_execute,

@@ -19,6 +19,30 @@ def local_mode(monkeypatch):
     monkeypatch.setenv("AION_OWNER_TOKEN", "test-owner")
 
 
+@pytest.fixture(autouse=True)
+def endpoint_tasks_are_drained(monkeypatch):
+    native_create_task = asyncio.create_task
+    tasks = []
+
+    def create_task(coro, *args, **kwargs):
+        task = native_create_task(coro, *args, **kwargs)
+        if coro.__qualname__.endswith("watch_disconnect") or coro.__qualname__ == "dispatch_capability_async":
+            tasks.append(task)
+        return task
+
+    monkeypatch.setattr(asyncio, "create_task", create_task)
+    yield tasks
+    assert all(task.done() for task in tasks), "Endpoint left a watcher or validation task pending"
+
+
+@pytest.fixture(params=["executor", "dispatcher"])
+def run_job(request):
+    if request.param == "executor":
+        return validation.run_validation
+    from aion.capabilities import dispatch_capability_async
+    return lambda: dispatch_capability_async("runtime.syntax", action="execute")
+
+
 async def test_fixed_job_success_and_environment(monkeypatch):
     actual_spawn = asyncio.create_subprocess_exec
     captured = {}
@@ -81,16 +105,16 @@ async def assert_tree_stopped(path):
     pytest.fail("Validation process tree still running")
 
 
-async def test_timeout_cleans_process_tree(process_tree, monkeypatch):
+async def test_timeout_cleans_process_tree(process_tree, monkeypatch, run_job):
     monkeypatch.setattr(validation, "TIMEOUT_SECONDS", 2)
-    result = await asyncio.wait_for(validation.run_validation(), 5)
+    result = await asyncio.wait_for(run_job(), 5)
     assert result["status"] == "timeout"
     assert result["ok"] is False
     await assert_tree_stopped(process_tree)
 
 
-async def test_cancellation_cleans_process_tree(process_tree):
-    task = asyncio.create_task(validation.run_validation())
+async def test_cancellation_cleans_process_tree(process_tree, run_job):
+    task = asyncio.create_task(run_job())
     try:
         await wait_ready(process_tree)
     finally:
@@ -100,7 +124,7 @@ async def test_cancellation_cleans_process_tree(process_tree):
     await assert_tree_stopped(process_tree)
 
 
-async def test_cancellation_during_spawn_cleans_tree(process_tree, monkeypatch):
+async def test_cancellation_during_spawn_cleans_tree(process_tree, monkeypatch, run_job):
     real_spawn = asyncio.create_subprocess_exec
     release = asyncio.Event()
 
@@ -110,7 +134,7 @@ async def test_cancellation_during_spawn_cleans_tree(process_tree, monkeypatch):
         return process
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", slow_spawn)
-    task = asyncio.create_task(validation.run_validation())
+    task = asyncio.create_task(run_job())
     try:
         await wait_ready(process_tree)
         task.cancel()
@@ -124,7 +148,7 @@ async def test_cancellation_during_spawn_cleans_tree(process_tree, monkeypatch):
     await assert_tree_stopped(process_tree)
 
 
-async def test_timeout_during_startup_cleans_tree(process_tree, monkeypatch):
+async def test_timeout_during_startup_cleans_tree(process_tree, monkeypatch, run_job):
     real_spawn = asyncio.create_subprocess_exec
     release = asyncio.Event()
 
@@ -135,7 +159,7 @@ async def test_timeout_during_startup_cleans_tree(process_tree, monkeypatch):
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", slow_spawn)
     monkeypatch.setattr(validation, "TIMEOUT_SECONDS", 0.05)
-    task = asyncio.create_task(validation.run_validation())
+    task = asyncio.create_task(run_job())
     try:
         await wait_ready(process_tree)
         await asyncio.sleep(0.1)
@@ -148,27 +172,27 @@ async def test_timeout_during_startup_cleans_tree(process_tree, monkeypatch):
     await assert_tree_stopped(process_tree)
 
 
-async def test_child_does_not_inherit_owner_token(monkeypatch):
+async def test_child_does_not_inherit_owner_token(monkeypatch, run_job):
     monkeypatch.setattr(validation, "ARGV", (sys.executable, "-I", "-c",
         "import os; assert 'AION_OWNER_TOKEN' not in os.environ; print('environment isolated')"))
-    result = await validation.run_validation()
+    result = await run_job()
     assert result["ok"] is True
     assert result["output"].strip() == "environment isolated"
 
 
-async def test_invalid_utf8_output_stays_bounded(monkeypatch):
+async def test_invalid_utf8_output_stays_bounded(monkeypatch, run_job):
     monkeypatch.setattr(validation, "ARGV", (sys.executable, "-I", "-c",
         "import os; os.write(1,b'\\xff'*24000)"))
-    result = await validation.run_validation()
+    result = await run_job()
     assert result["ok"] is True
     assert len(result["output"].encode("utf-8")) <= validation.MAX_OUTPUT_BYTES
     assert result["truncated"] is True
 
 
-async def test_output_is_bounded_and_drained(monkeypatch):
+async def test_output_is_bounded_and_drained(monkeypatch, run_job):
     monkeypatch.setattr(validation, "ARGV", (sys.executable, "-I", "-c",
         "import os; os.write(1,b'x'*200000); os.write(2,b'y'*200000)"))
-    result = await asyncio.wait_for(validation.run_validation(), 5)
+    result = await asyncio.wait_for(run_job(), 5)
     assert result["ok"] is True
     assert len(result["output"].encode()) <= validation.MAX_OUTPUT_BYTES
     assert result["truncated"] is True
@@ -229,6 +253,24 @@ async def test_disconnect_cancels_and_cleans_tree(process_tree, monkeypatch):
     with pytest.raises(HTTPException) as exc:
         await asyncio.wait_for(local_executive_validate(LocalValidationRequest(), request, "Bearer test-owner"), 5)
     assert exc.value.status_code == 499
+    await assert_tree_stopped(process_tree)
+
+
+async def test_http_timeout_drains_watcher_and_cleans_tree(process_tree, monkeypatch, endpoint_tasks_are_drained):
+    from fastapi import Request
+    from aion.main import LocalValidationRequest, local_executive_validate
+
+    request = Request({"type": "http", "client": ("127.0.0.1", 123), "headers": [], "query_string": b""})
+
+    async def connected():
+        return False
+
+    monkeypatch.setattr(request, "is_disconnected", connected)
+    monkeypatch.setattr(validation, "TIMEOUT_SECONDS", 2)
+    result = await asyncio.wait_for(local_executive_validate(LocalValidationRequest(), request, "Bearer test-owner"), 5)
+    assert result["status"] == "timeout"
+    assert len(endpoint_tasks_are_drained) == 2
+    assert all(task.done() for task in endpoint_tasks_are_drained)
     await assert_tree_stopped(process_tree)
 
 

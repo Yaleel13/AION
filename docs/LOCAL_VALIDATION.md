@@ -31,3 +31,13 @@ The button stays disabled during the request and shows the result or runtime
 unavailability. The same-origin `/api/owner/runtime/syntax` bridge checks the
 existing owner session, CSRF header, and Origin before forwarding the fixed empty
 request to the loopback runtime. The owner bearer token stays on the server.
+
+After the existing endpoint gates pass, shared capability dispatch resolves
+`runtime.syntax` with the existing `execute` action and checks its pure catalog
+permission before invoking the async validator. Policy denial returns 403 and
+policy evaluation failure returns a redacted 503; neither starts a process.
+The async adapter directly awaits the existing runner so timeout, task
+cancellation, and disconnect cleanup keep their existing behavior and response
+contract. The live capability registry reports this job eligible only on a local
+POSIX runtime with owner authentication configured; the stable catalog describes
+the installed job's permission ceiling. This does not register an MCP tool.

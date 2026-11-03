@@ -25,7 +25,7 @@ def test_authorized_dispatch_returns_the_original_status_payload(monkeypatch):
     assert calls == [True]
 
 
-@pytest.mark.parametrize("name", ["unknown", "runtime.syntax", "terminal", "system.info", "shell"])
+@pytest.mark.parametrize("name", ["unknown", "runtime.syntax.unknown", "terminal", "system.info", "shell"])
 def test_unknown_or_unregistered_capabilities_do_not_reach_policy_or_handler(name, monkeypatch):
     monkeypatch.setattr(runtime_status, "build_runtime_status", forbidden)
     monkeypatch.setattr(capabilities, "capability_catalog", forbidden)

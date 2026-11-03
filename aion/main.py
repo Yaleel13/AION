@@ -247,8 +247,8 @@ async def local_executive_validate(
 ) -> dict:
     """Owner-authorized, loopback-only validation. Empty JSON body required."""
     import asyncio
+    from aion.capabilities import CapabilityDispatchError, dispatch_capability_async
     from aion.local_executor import local_executor_available
-    from aion.local_validation import run_validation
 
     _require_owner(authorization)
     host = http_request.client.host if http_request.client else None
@@ -261,15 +261,22 @@ async def local_executive_validate(
 
     async def watch_disconnect() -> None:
         while not await http_request.is_disconnected():
+            # Starlette's internal CancelScope can consume cancellation during
+            # its receive poll. Do not keep polling when endpoint cleanup began.
+            if asyncio.current_task().cancelling():
+                return
             await asyncio.sleep(0.1)
 
-    job = asyncio.create_task(run_validation())
+    job = asyncio.create_task(dispatch_capability_async("runtime.syntax", action="execute"))
     disconnected = asyncio.create_task(watch_disconnect())
     try:
         await asyncio.wait({job, disconnected}, return_when=asyncio.FIRST_COMPLETED)
         if disconnected.done():
             raise HTTPException(status_code=499, detail="Validation caller disconnected")
         return await job
+    except CapabilityDispatchError as exc:
+        status = {"unknown_capability": 404, "policy_unavailable": 503}.get(exc.code, 403)
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
     finally:
         disconnected.cancel()
         job.cancel()

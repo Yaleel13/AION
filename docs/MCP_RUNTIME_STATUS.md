@@ -29,10 +29,11 @@ the latter still checks the existing owner token first. The stdio tool retains
 its fixed HTTP transport, argument-free name, status payload, and MCP error
 contract. It does not import the runtime registry or load dotenv files.
 
-Dispatch has one explicitly registered read handler. Unknown names, unsupported
+Status dispatch has an explicitly registered read handler. Unknown names, unsupported
 actions, and denied catalog entries raise a structured-code dispatch exception
 without running the handler. Catalog membership does not enable a dispatcher
-handler. In particular, `runtime.syntax` remains absent from MCP and dispatch.
+handler. The fixed `runtime.syntax` HTTP job now uses the same resolver through
+an async adapter with the `execute` permission, but remains absent from MCP.
 
 Resolution order is fixed-name lookup, allowed-action check, pure catalog
 permission evaluation, then handler invocation. Missing or malformed permission

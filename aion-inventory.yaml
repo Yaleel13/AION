@@ -1,5 +1,5 @@
 version: 1
-generated_at: '2026-11-03T21:33:31.229010+00:00'
+generated_at: '2026-11-03T22:15:00.583948+00:00'
 repository: Yaleel13/AION
 surfaces:
   fastapi_routes:
@@ -478,6 +478,15 @@ integrations:
   execute: true
   scope: Virtual BTC/ETH paper simulation only
   note: Public price marks may be live; order execution is never live trading.
+- name: runtime.syntax
+  configured: true
+  read: false
+  propose: false
+  approve: false
+  execute: true
+  scope: Fixed local runtime Python syntax validation only
+  note: Owner, loopback, and local-mode gates apply; server-defined command and limits;
+    not exposed through MCP.
 - name: runtime_status
   configured: true
   read: true
