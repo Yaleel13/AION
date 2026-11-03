@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { AION_REQUEST_HEADER } from "@/lib/aion/request-headers"
+import { runtimeRequestId } from "@/lib/aion/runtime-correlation"
 
 type State = "idle" | "running" | "success" | "failure" | "unavailable"
 type SyntaxResult = { ok?: boolean; status?: string; output?: string; truncated?: boolean }
@@ -11,6 +12,7 @@ export function OwnerRuntimeSyntax() {
   const [state, setState] = useState<State>("idle")
   const [message, setMessage] = useState("Check the runtime’s Python syntax.")
   const [output, setOutput] = useState("")
+  const [requestId, setRequestId] = useState<string | undefined>()
   const pending = useRef<AbortController | null>(null)
 
   useEffect(() => () => pending.current?.abort(), [])
@@ -22,12 +24,14 @@ export function OwnerRuntimeSyntax() {
     setState("running")
     setMessage("Running syntax check…")
     setOutput("")
+    setRequestId(undefined)
     try {
       const response = await fetch("/api/owner/runtime/syntax", {
         method: "POST", credentials: "same-origin", cache: "no-store",
         headers: { "Content-Type": "application/json", ...AION_REQUEST_HEADER },
         body: "{}", signal: controller.signal,
       })
+      setRequestId(runtimeRequestId(response.headers.get("x-aion-request-id")))
       const data = await response.json() as SyntaxResult
       if (response.status === 401 || response.status === 403) {
         setState("failure")
@@ -63,6 +67,7 @@ export function OwnerRuntimeSyntax() {
           Run syntax check
         </button>
       </div>
+      {requestId ? <p className="break-all text-xs text-muted-foreground">Reference: <code>{requestId}</code></p> : null}
       {output ? <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words border border-cyan/15 bg-background/30 p-3 text-xs text-muted-foreground">{output}</pre> : null}
     </div>
   )

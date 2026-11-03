@@ -37,7 +37,9 @@ an async adapter with the `execute` permission, but remains absent from MCP.
 
 The underlying runtime HTTP request is recorded in the existing owner audit
 history; see [runtime capability audit](CAPABILITY_AUDIT.md). The MCP payload
-contract remains unchanged and does not expose the HTTP correlation header.
+contract remains unchanged. The validated runtime correlation ID is exposed
+separately as `_meta["aion/request_id"]` on successful and error results. No
+reference is invented for disconnected calls or missing/invalid headers.
 
 Resolution order is fixed-name lookup, allowed-action check, pure catalog
 permission evaluation, then handler invocation. Missing or malformed permission

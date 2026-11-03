@@ -1,8 +1,13 @@
 import { hasValidOwnerSession, requireCsrfHeader } from "@/lib/aion/owner-session"
+import { runtimeRequestId } from "@/lib/aion/runtime-correlation"
 
 export async function POST(req: Request) {
+  let requestId: string | undefined
   const reply = (body: object, status = 200) => Response.json(body, {
-    status, headers: { "Cache-Control": "no-store" },
+    status, headers: {
+      "Cache-Control": "no-store",
+      ...(requestId ? { "X-AION-Request-ID": requestId } : {}),
+    },
   })
   if (!hasValidOwnerSession(req.headers.get("cookie"))) {
     return reply({ error: "Owner authentication required." }, 401)
@@ -41,6 +46,7 @@ export async function POST(req: Request) {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${(process.env.AION_OWNER_TOKEN ?? "").trim()}` },
       body: "{}", signal: AbortSignal.any([req.signal, AbortSignal.timeout(35_000)]),
     })
+    requestId = runtimeRequestId(response.headers.get("x-aion-request-id"))
     if (!response.ok) return reply({ status: "unavailable", error: "Local runtime unavailable." }, 503)
     const data = await response.json() as Record<string, unknown>
     if (data.job !== "runtime.syntax" || typeof data.status !== "string" || !["succeeded", "failed", "timeout", "unavailable"].includes(data.status)) {

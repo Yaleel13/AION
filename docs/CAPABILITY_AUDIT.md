@@ -32,8 +32,12 @@ attempts exactly one terminal outcome write; a failed sink write is not retried
 or claimed as durable evidence.
 An unavailable sink therefore leaves a durable evidence gap. A process crash
 can also leave a policy/start event without a final outcome. No crash recovery
-or new audit viewer is introduced here. Existing Next.js bridges and the MCP
-result contract do not forward the runtime correlation header; their underlying
-HTTP calls are recorded, but their clients cannot yet use that header directly.
+or new audit viewer is introduced here. The Boardroom syntax bridge forwards
+only a validated `X-AION-Request-ID` (exactly 32 lowercase hex characters) and
+shows it beside the result. The stdio status tool exposes the same validated ID
+in result `_meta["aion/request_id"]`, without modifying content or the status
+payload. Both retain references on runtime error responses and omit them when
+the header is missing, invalid, or the runtime cannot be reached. Caller IDs and
+all other upstream headers are excluded; a new Boardroom run clears the old ID.
 MCP preflight rejection or an unreachable runtime never reaches this HTTP audit
 boundary. MCP discovery remains limited to `runtime_status`.
