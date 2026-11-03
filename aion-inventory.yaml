@@ -146,6 +146,10 @@ surfaces:
     handler: app/api/aion/owner-session/route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
+  - path: /api/aion/voice
+    handler: app/api/aion/voice/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
   - path: /api/owner/acceptance
     handler: app/api/owner/acceptance/route.ts
     methods: GET,POST,PATCH,DELETE
