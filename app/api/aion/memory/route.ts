@@ -6,22 +6,17 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json()) as MemoryBody
     const clientSessionId = body.clientSessionId?.trim()
-    const localRuntime =
-      (process.env.AION_RUNTIME_MODE ?? "").trim().toLowerCase() === "local"
-
     if (!clientSessionId) {
       return Response.json({ error: "A client session ID is required." }, { status: 400 })
     }
-    if (!localRuntime && !process.env.AION_OWNER_TOKEN) {
+    if (!process.env.AION_OWNER_TOKEN) {
       return Response.json({ error: "AION owner authentication is not configured." }, { status: 503 })
     }
 
     const memoryUrl = new URL("/api/internal/conversation", req.url)
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-    }
-    if (!localRuntime && process.env.AION_OWNER_TOKEN) {
-      headers.Authorization = `Bearer ${process.env.AION_OWNER_TOKEN}`
+      Authorization: `Bearer ${process.env.AION_OWNER_TOKEN}`,
     }
 
     const response = await fetch(memoryUrl, {

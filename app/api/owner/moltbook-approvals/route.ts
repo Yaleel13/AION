@@ -1,3 +1,4 @@
+import { fetchOwnerUpstream } from "@/lib/aion/owner-upstream"
 import { hasValidOwnerSession, requireCsrfHeader } from "@/lib/aion/owner-session"
 
 async function proxy(req: Request, method: "GET" | "POST") {
@@ -13,7 +14,7 @@ async function proxy(req: Request, method: "GET" | "POST") {
   }
   try {
     const body = method === "POST" ? await req.text() : undefined
-    const response = await fetch(new URL("/api/internal/moltbook-approvals", req.url), {
+    const response = await fetchOwnerUpstream(new URL("/api/internal/moltbook-approvals", req.url), {
       method,
       headers: {
         Authorization: `Bearer ${process.env.AION_OWNER_TOKEN}`,

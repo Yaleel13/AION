@@ -716,3 +716,9 @@ async def owner_autonomy_dry_run_post(
         raise HTTPException(status_code=423, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise owner_request_error(exc) from exc
+
+
+# Share the existing owner handlers with the local Next.js bridge.
+from aion.local_owner_api import register_local_owner_api  # noqa: E402
+
+register_local_owner_api(app)

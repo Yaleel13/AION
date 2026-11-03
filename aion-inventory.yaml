@@ -1,5 +1,5 @@
 version: 1
-generated_at: '2026-11-03T10:29:30.050317+00:00'
+generated_at: '2026-11-03T21:08:52.724890+00:00'
 repository: Yaleel13/AION
 surfaces:
   fastapi_routes:
@@ -7,6 +7,96 @@ surfaces:
     path: /agent
     operation_id: agent_endpoint_agent_post
     summary: Run AION
+    owner: fastapi
+  - method: GET
+    path: /api/internal/acceptance
+    operation_id: acceptance_api_internal_acceptance_get
+    summary: Acceptance
+    owner: fastapi
+  - method: GET
+    path: /api/internal/capabilities
+    operation_id: get_capabilities_api_internal_capabilities_get
+    summary: Get Capabilities
+    owner: fastapi
+  - method: GET
+    path: /api/internal/commercial-execution
+    operation_id: commercial_execution_status_api_internal_commercial_execution_get
+    summary: Commercial Execution Status
+    owner: fastapi
+  - method: POST
+    path: /api/internal/commercial-execution
+    operation_id: commercial_execution_action_api_internal_commercial_execution_post
+    summary: Commercial Execution Action
+    owner: fastapi
+  - method: POST
+    path: /api/internal/conversation
+    operation_id: local_owner_conversation_api_internal_conversation_post
+    summary: Local Owner Conversation
+    owner: fastapi
+  - method: GET
+    path: /api/internal/moltbook-approvals
+    operation_id: get_approvals_api_internal_moltbook_approvals_get
+    summary: Get Approvals
+    owner: fastapi
+  - method: POST
+    path: /api/internal/moltbook-approvals
+    operation_id: mutate_approvals_api_internal_moltbook_approvals_post
+    summary: Mutate Approvals
+    owner: fastapi
+  - method: GET
+    path: /api/internal/moltbook-preparation
+    operation_id: get_preparation_api_internal_moltbook_preparation_get
+    summary: Get Preparation
+    owner: fastapi
+  - method: POST
+    path: /api/internal/moltbook-preparation
+    operation_id: prepare_api_internal_moltbook_preparation_post
+    summary: Prepare
+    owner: fastapi
+  - method: GET
+    path: /api/internal/moltbook-research
+    operation_id: list_research_api_internal_moltbook_research_get
+    summary: List Research
+    owner: fastapi
+  - method: POST
+    path: /api/internal/moltbook-research
+    operation_id: scan_research_api_internal_moltbook_research_post
+    summary: Scan Research
+    owner: fastapi
+  - method: GET
+    path: /api/internal/moltbook-reviews
+    operation_id: get_reviews_api_internal_moltbook_reviews_get
+    summary: Get Reviews
+    owner: fastapi
+  - method: POST
+    path: /api/internal/moltbook-reviews
+    operation_id: set_review_api_internal_moltbook_reviews_post
+    summary: Set Review
+    owner: fastapi
+  - method: GET
+    path: /api/internal/operator-briefing
+    operation_id: operator_briefing_api_internal_operator_briefing_get
+    summary: Operator Briefing
+    owner: fastapi
+  - method: GET
+    path: /api/internal/outbound-gates
+    operation_id: get_gates_api_internal_outbound_gates_get
+    summary: Get Gates
+    owner: fastapi
+  - method: POST
+    path: /api/internal/outbound-gates
+    operation_id: set_gates_api_internal_outbound_gates_post
+    summary: Set Gates
+    owner: fastapi
+  - method: GET
+    path: /api/internal/sales-alerts
+    operation_id: list_sales_alerts_api_internal_sales_alerts_get
+    summary: List Sales Alerts
+    owner: fastapi
+  - method: POST
+    path: /api/internal/sales-alerts
+    operation_id: sales_alert_action_api_internal_sales_alerts_post
+    summary: Sales Alert Action
     owner: fastapi
   - method: POST
     path: /chatgpt

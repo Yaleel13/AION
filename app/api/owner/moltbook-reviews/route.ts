@@ -1,3 +1,4 @@
+import { fetchOwnerUpstream } from "@/lib/aion/owner-upstream"
 import { hasValidOwnerSession, requireCsrfHeader } from "@/lib/aion/owner-session"
 
 async function proxy(req: Request, method: "GET" | "POST") {
@@ -25,7 +26,7 @@ async function proxy(req: Request, method: "GET" | "POST") {
       }
       init.body = await req.text()
     }
-    const response = await fetch(new URL("/api/internal/moltbook-reviews", req.url), init)
+    const response = await fetchOwnerUpstream(new URL("/api/internal/moltbook-reviews", req.url), init)
     const data = await response.json()
     if (!response.ok) {
       return Response.json(

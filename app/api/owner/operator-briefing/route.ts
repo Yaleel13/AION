@@ -1,3 +1,4 @@
+import { fetchOwnerUpstream } from "@/lib/aion/owner-upstream"
 import { hasValidOwnerSession } from "@/lib/aion/owner-session"
 
 export async function GET(req: Request) {
@@ -8,7 +9,7 @@ export async function GET(req: Request) {
     return Response.json({ error: "AION owner authentication is not configured." }, { status: 503 })
   }
   try {
-    const response = await fetch(new URL("/api/internal/operator-briefing", req.url), {
+    const response = await fetchOwnerUpstream(new URL("/api/internal/operator-briefing", req.url), {
       headers: { Authorization: `Bearer ${process.env.AION_OWNER_TOKEN}` },
       cache: "no-store",
     })

@@ -1,4 +1,5 @@
 import { hasValidOwnerSession } from "@/lib/aion/owner-session"
+import { fetchOwnerUpstream } from "@/lib/aion/owner-upstream"
 
 const INSPECTOR_SESSION_ID = "owner-memory-inspector-v1"
 
@@ -13,7 +14,7 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url)
     const includeInactive = url.searchParams.get("includeInactive") === "true"
-    const response = await fetch(new URL("/api/internal/conversation", req.url), {
+    const response = await fetchOwnerUpstream(new URL("/api/internal/conversation", req.url), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.AION_OWNER_TOKEN}`,

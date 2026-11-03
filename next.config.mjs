@@ -20,8 +20,18 @@ const nextConfig = {
     if (localRuntime) {
       rewrites.push({
         source: "/api/internal/conversation",
-        destination: `${runtimeUrl}/local-memory`,
+        destination: `${runtimeUrl}/api/internal/conversation`,
       })
+      for (const name of [
+        "acceptance", "capabilities", "operator-briefing", "outbound-gates",
+        "sales-alerts", "moltbook-research", "moltbook-preparation",
+        "moltbook-reviews", "moltbook-approvals", "commercial-execution",
+      ]) {
+        rewrites.push({
+          source: `/api/internal/${name}`,
+          destination: `${runtimeUrl}/api/internal/${name}`,
+        })
+      }
     }
 
     return rewrites
