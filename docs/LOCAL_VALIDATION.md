@@ -25,3 +25,9 @@ before returning. Cleanup can therefore extend the response beyond the deadline.
 No caller controls the executable, arguments, environment, directory, or deadline.
 This endpoint does not expose arbitrary shell execution and is not registered in
 MCP. Existing Local Executive capability behavior is unchanged.
+
+In the authenticated Boardroom, use **Runtime Validation → Run syntax check**.
+The button stays disabled during the request and shows the result or runtime
+unavailability. The same-origin `/api/owner/runtime/syntax` bridge checks the
+existing owner session, CSRF header, and Origin before forwarding the fixed empty
+request to the loopback runtime. The owner bearer token stays on the server.

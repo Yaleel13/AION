@@ -1,5 +1,5 @@
 version: 1
-generated_at: '2026-11-03T10:08:02.221999+00:00'
+generated_at: '2026-11-03T10:29:30.050317+00:00'
 repository: Yaleel13/AION
 surfaces:
   fastapi_routes:
@@ -197,6 +197,10 @@ surfaces:
     owner: nextjs
   - path: /api/owner/payment-rail
     handler: app/api/owner/payment-rail/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: /api/owner/runtime/syntax
+    handler: app/api/owner/runtime/syntax/route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: /api/owner/sales-alerts

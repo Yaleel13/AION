@@ -29,6 +29,7 @@ import { OwnerOutboundGates } from "@/components/owner-outbound-gates"
 import { OwnerPaymentRail } from "@/components/owner-payment-rail"
 import { OwnerReliabilityAcceptance } from "@/components/owner-reliability-acceptance"
 import { OwnerSalesQueue } from "@/components/owner-sales-queue"
+import { OwnerRuntimeSyntax } from "@/components/owner-runtime-syntax"
 import { defer } from "@/lib/defer"
 import { cn } from "@/lib/utils"
 
@@ -194,6 +195,8 @@ export function Boardroom({ presence, working, focus, onSubmit, onVoiceToggle, l
             </div>
           ) : null}
         </Chamber>
+
+        <Chamber title="Runtime Validation" subtitle="owner only" className="lg:col-span-12"><OwnerRuntimeSyntax /></Chamber>
 
         {status ? <>
           <Chamber title="Runtime Gates" subtitle="verified systems" className="lg:col-span-8">
