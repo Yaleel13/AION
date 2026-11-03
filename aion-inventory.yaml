@@ -1,5 +1,5 @@
 version: 1
-generated_at: '2026-11-03T22:15:00.583948+00:00'
+generated_at: '2026-11-03T23:45:23.496379+00:00'
 repository: Yaleel13/AION
 surfaces:
   fastapi_routes:
@@ -133,6 +133,11 @@ surfaces:
     operation_id: owner_decide_owner_approvals__request_id__decide_post
     summary: Approve or reject a proposal
     owner: fastapi
+  - method: GET
+    path: /owner/audit
+    operation_id: owner_audit_lookup_owner_audit_get
+    summary: Look up capability audit by exact runtime request ID
+    owner: fastapi
   - method: POST
     path: /owner/autonomy/daily-report
     operation_id: owner_autonomy_daily_report_owner_autonomy_daily_report_post
@@ -247,6 +252,10 @@ surfaces:
     owner: nextjs
   - path: /api/owner/acceptance
     handler: app/api/owner/acceptance/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: /api/owner/audit
+    handler: app/api/owner/audit/route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: /api/owner/capabilities

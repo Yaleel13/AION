@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { AION_REQUEST_HEADER } from "@/lib/aion/request-headers"
 import { runtimeRequestId } from "@/lib/aion/runtime-correlation"
+import { OwnerAuditLookup } from "@/components/owner-audit-lookup"
 
 type State = "idle" | "running" | "success" | "failure" | "unavailable"
 type SyntaxResult = { ok?: boolean; status?: string; output?: string; truncated?: boolean }
@@ -13,6 +14,7 @@ export function OwnerRuntimeSyntax() {
   const [message, setMessage] = useState("Check the runtime’s Python syntax.")
   const [output, setOutput] = useState("")
   const [requestId, setRequestId] = useState<string | undefined>()
+  const [showAudit, setShowAudit] = useState(false)
   const pending = useRef<AbortController | null>(null)
 
   useEffect(() => () => pending.current?.abort(), [])
@@ -25,6 +27,7 @@ export function OwnerRuntimeSyntax() {
     setMessage("Running syntax check…")
     setOutput("")
     setRequestId(undefined)
+    setShowAudit(false)
     try {
       const response = await fetch("/api/owner/runtime/syntax", {
         method: "POST", credentials: "same-origin", cache: "no-store",
@@ -68,6 +71,8 @@ export function OwnerRuntimeSyntax() {
         </button>
       </div>
       {requestId ? <p className="break-all text-xs text-muted-foreground">Reference: <code>{requestId}</code></p> : null}
+      {requestId ? <button type="button" onClick={() => setShowAudit(true)} className="text-xs text-cyan underline">View audit records</button> : null}
+      {requestId && showAudit ? <OwnerAuditLookup key={requestId} initialRequestId={requestId} /> : null}
       {output ? <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words border border-cyan/15 bg-background/30 p-3 text-xs text-muted-foreground">{output}</pre> : null}
     </div>
   )

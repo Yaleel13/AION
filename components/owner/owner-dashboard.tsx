@@ -2,6 +2,7 @@
 
 import { useCallback, useState, startTransition } from "react"
 import { OwnerPaymentOrders } from "@/components/owner-payment-orders"
+import { OwnerAuditLookup } from "@/components/owner-audit-lookup"
 import { AION_REQUEST_HEADER } from "@/lib/aion/request-headers"
 
 type Dashboard = {
@@ -273,9 +274,7 @@ export function OwnerDashboard() {
           </Panel>
 
           <Panel title="Audit history">
-            <pre className="max-h-80 overflow-auto whitespace-pre-wrap text-[11px]">
-              {JSON.stringify(data?.audit_history || [], null, 2)}
-            </pre>
+            <OwnerAuditLookup />
           </Panel>
         </div>
       </div>

@@ -223,14 +223,21 @@ class Phase2Store:
         self._conn.commit()
         return int(cur.lastrowid)
 
-    def list_audit(self, *, limit: int = 100) -> list[dict[str, Any]]:
+    def list_audit(self, *, limit: int = 100, request_id: str | None = None) -> list[dict[str, Any]]:
+        where = ""
+        params: tuple = (limit,)
+        if request_id is not None:
+            field = "detail_json::jsonb ->> 'request_id'" if self.backend == "postgres" else "json_extract(detail_json, '$.request_id')"
+            where = f"WHERE module = ? AND ({field}) = ?"
+            params = ("capabilities", request_id, limit)
         cur = self._conn.execute(
-            """
+            f"""
             SELECT * FROM audit_events
+            {where}
             ORDER BY id DESC
             LIMIT ?
             """,
-            (limit,),
+            params,
         )
         rows = []
         for row in cur.fetchall():

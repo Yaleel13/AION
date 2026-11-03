@@ -183,12 +183,12 @@ function componentHarness() {
     useEffect() {},
   }
   function load(path, dependencies) {
-    const module = { exports: {} }
+    const loadedModule = { exports: {} }
     const code = ts.transpileModule(readFileSync(path, "utf8"), {
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
     }).outputText
     vm.runInNewContext(code, {
-      module, exports: module.exports,
+      module: loadedModule, exports: loadedModule.exports,
       require: name => dependencies[name] ?? loadDependency(name),
       AbortController,
       fetch: () => {
@@ -196,10 +196,11 @@ function componentHarness() {
         return new Promise((resolve, reject) => { resolveResponse = resolve; rejectResponse = reject })
       },
     }, { filename: path })
-    return module.exports
+    return loadedModule.exports
   }
   const component = load("components/owner-runtime-syntax.tsx", {
     react: hooks, "lucide-react": { Loader2: () => null },
+    "@/components/owner-audit-lookup": { OwnerAuditLookup: () => null },
     "@/lib/aion/request-headers": load("lib/aion/request-headers.ts", {}),
     "@/lib/aion/runtime-correlation": load("lib/aion/runtime-correlation.ts", {}),
   })

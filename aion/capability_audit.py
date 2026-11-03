@@ -9,10 +9,35 @@ from __future__ import annotations
 import asyncio
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from datetime import datetime
 import logging
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
+
+
+def audit_lookup_events(rows: list[dict]) -> list[dict]:
+    """Project fixed labels only; never expose arbitrary audit detail fields."""
+    events = []
+    labels = {"capability.policy": "policy", "capability.job_started": "job_started", "capability.outcome": "outcome"}
+    outcomes = {"succeeded", "failed", "timeout", "unavailable", "cancelled", "denied", "policy_unavailable", "rejected"}
+    for row in reversed(rows):
+        detail = row.get("detail")
+        if not isinstance(detail, dict) or row.get("module") != "capabilities":
+            continue
+        capability, decision = detail.get("capability"), detail.get("policy_decision")
+        event, outcome = labels.get(row.get("action")), detail.get("outcome")
+        if capability not in ("runtime.syntax", "runtime_status") or decision not in ("allowed", "denied", "unavailable", "not_evaluated") or event is None:
+            continue
+        if event == "outcome" and outcome not in tuple(outcomes):
+            continue
+        try:
+            timestamp = datetime.fromisoformat(row["timestamp"]).isoformat()
+        except (ValueError, TypeError, KeyError):
+            continue
+        events.append({"capability": capability, "policy_decision": decision, "event": event,
+                       "outcome": outcome if event == "outcome" else None, "timestamp": timestamp})
+    return events
 
 
 @dataclass

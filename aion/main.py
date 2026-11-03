@@ -243,6 +243,34 @@ class LocalValidationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class CapabilityAuditRecord(BaseModel):
+    capability: str
+    policy_decision: str
+    event: str
+    outcome: str | None
+    timestamp: str
+
+
+class CapabilityAuditLookup(BaseModel):
+    request_id: str
+    events: list[CapabilityAuditRecord]
+
+
+@app.get("/owner/audit", response_model=CapabilityAuditLookup, summary="Look up capability audit by exact runtime request ID")
+async def owner_audit_lookup(request_id: str = "", authorization: str | None = Header(default=None)) -> dict:
+    import re
+    from aion.capability_audit import audit_lookup_events
+
+    _require_owner(authorization)
+    if not re.fullmatch(r"[0-9a-f]{32}", request_id):
+        raise HTTPException(status_code=400, detail="Invalid runtime request ID")
+    try:
+        rows = get_services().store.list_audit(request_id=request_id, limit=100)
+        return {"request_id": request_id, "events": audit_lookup_events(rows)}
+    except Exception:
+        raise HTTPException(status_code=503, detail="Capability audit unavailable") from None
+
+
 @app.post("/local-executive/validate", summary="Run fixed runtime syntax validation")
 async def local_executive_validate(
     body: LocalValidationRequest, http_request: Request,

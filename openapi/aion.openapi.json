@@ -116,6 +116,67 @@
         "title": "AgentUsage",
         "type": "object"
       },
+      "CapabilityAuditLookup": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/CapabilityAuditRecord"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "events"
+        ],
+        "title": "CapabilityAuditLookup",
+        "type": "object"
+      },
+      "CapabilityAuditRecord": {
+        "properties": {
+          "capability": {
+            "title": "Capability",
+            "type": "string"
+          },
+          "event": {
+            "title": "Event",
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "policy_decision": {
+            "title": "Policy Decision",
+            "type": "string"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "capability",
+          "policy_decision",
+          "event",
+          "outcome",
+          "timestamp"
+        ],
+        "title": "CapabilityAuditRecord",
+        "type": "object"
+      },
       "ChatGPTRequest": {
         "description": "Legacy payload sent to the ChatGPT endpoint.",
         "properties": {
@@ -1620,6 +1681,62 @@
           }
         },
         "summary": "Approve or reject a proposal"
+      }
+    },
+    "/owner/audit": {
+      "get": {
+        "operationId": "owner_audit_lookup_owner_audit_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "request_id",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilityAuditLookup"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Look up capability audit by exact runtime request ID"
       }
     },
     "/owner/autonomy/daily-report": {
