@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Loader2, RefreshCw, ShieldCheck, XCircle } from "lucide-react"
 import { defer } from "@/lib/defer"
-import { AION_REQUEST_HEADER } from "@/lib/aion/owner-session"
+import { AION_REQUEST_HEADER } from "@/lib/aion/request-headers"
 
 type Approval = {
   request_id: string

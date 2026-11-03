@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { CheckCircle2, Loader2, Play, RefreshCw, Send, ShieldCheck, XCircle } from "lucide-react"
 import { defer } from "@/lib/defer"
-import { AION_REQUEST_HEADER } from "@/lib/aion/owner-session"
+import { AION_REQUEST_HEADER } from "@/lib/aion/request-headers"
 
 type ExecutionPlan = {
   opportunity_id: string

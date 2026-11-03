@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { CreditCard, Loader2 } from "lucide-react"
-import { AION_REQUEST_HEADER } from "@/lib/aion/owner-session"
+import { AION_REQUEST_HEADER } from "@/lib/aion/request-headers"
 
 type VerificationResult = {
   verified?: boolean

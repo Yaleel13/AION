@@ -2,7 +2,7 @@
 
 import { useCallback, useState, startTransition } from "react"
 import { OwnerPaymentOrders } from "@/components/owner-payment-orders"
-import { AION_REQUEST_HEADER } from "@/lib/aion/owner-session"
+import { AION_REQUEST_HEADER } from "@/lib/aion/request-headers"
 
 type Dashboard = {
   phase?: string

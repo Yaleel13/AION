@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { ExternalLink, FileCheck2, Loader2, RefreshCw, Send, ShieldCheck, XCircle } from "lucide-react"
 import { defer } from "@/lib/defer"
 import { cn } from "@/lib/utils"
-import { AION_REQUEST_HEADER } from "@/lib/aion/owner-session"
+import { AION_REQUEST_HEADER } from "@/lib/aion/request-headers"
 
 type PreparedItem = {
   lead_id: string

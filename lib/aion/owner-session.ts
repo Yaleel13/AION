@@ -37,7 +37,7 @@ export function createOwnerSessionValue(maxAgeSeconds: number) {
 
 /** Header that must be present on all owner state-changing requests.  Set this
  *  on every owner POST/DELETE fetch in Boardroom components. */
-export const AION_REQUEST_HEADER = { "X-AION-Request": "1" } as const
+export { AION_REQUEST_HEADER } from "./request-headers"
 
 /**
  * Verify the CSRF double-submit header for owner state-changing requests.
