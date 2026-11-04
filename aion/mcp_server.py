@@ -10,6 +10,7 @@ from typing import Any
 
 import httpx
 from mcp.server import MCPServer
+from mcp.server.mcpserver.context import Context
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 
 OWNER_MCP_MODE = "owner"
@@ -79,6 +80,58 @@ async def runtime_syntax_approval_request() -> CallToolResult:
     )
 
 
+async def runtime_syntax_approval_redeem(
+    execution_request_id: str,
+    ctx: Context,
+) -> CallToolResult:
+    """Redeem one approved local agent runtime.syntax approval."""
+    params = ctx.request_context.params or {}
+    arguments = params.get("arguments")
+    if not isinstance(arguments, dict) or set(arguments) != {"execution_request_id"}:
+        return _error("Policy denied: runtime syntax redemption accepts only an approval ID.")
+    if not re.fullmatch(r"[0-9a-f]{32}", execution_request_id):
+        return _error("Policy denied: invalid runtime syntax approval ID.")
+    token = (os.getenv("AION_LOCAL_AGENT_TOKEN") or "").strip()
+    if not token:
+        return _error("Policy denied: AION_LOCAL_AGENT_TOKEN is not configured.")
+    metadata = None
+    try:
+        async with httpx.AsyncClient(timeout=35, trust_env=False) as client:
+            response = await client.post(
+                f"http://127.0.0.1:8000/agent/runtime-syntax-approvals/{execution_request_id}/redeem",
+                json={},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        request_id = response.headers.get("x-aion-request-id", "")
+        if re.fullmatch(r"[0-9a-f]{32}", request_id):
+            metadata = {"aion/request_id": request_id}
+        if response.status_code in {401, 403, 503}:
+            return _error("Policy denied: runtime syntax approval cannot be redeemed.", metadata)
+        response.raise_for_status()
+        data: dict[str, Any] = response.json()
+        status = data.get("status")
+        if (
+            data.get("job") != "runtime.syntax"
+            or status not in {"succeeded", "failed", "timeout", "unavailable"}
+            or data.get("ok") is not (status == "succeeded")
+            or not isinstance(data.get("truncated"), bool)
+        ):
+            return _error("Runtime returned an invalid syntax redemption response.", metadata)
+    except (httpx.HTTPError, ValueError, AttributeError):
+        return _error("AION runtime is disconnected or unavailable.", metadata)
+    result = {
+        "execution_request_id": execution_request_id,
+        "ok": data["ok"],
+        "status": status,
+        "truncated": data["truncated"],
+    }
+    return CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(result))],
+        structured_content=result,
+        meta=metadata,
+    )
+
+
 def agent_stdio_environment(environ: Mapping[str, str] | None = None) -> dict[str, str]:
     """Build the agent-mode process environment without owner credentials."""
     source = os.environ if environ is None else environ
@@ -117,6 +170,14 @@ def create_mcp(mode: str | None = None) -> MCPServer:
                 open_world_hint=False,
             )
         )(runtime_syntax_approval_request)
+        server.tool(
+            annotations=ToolAnnotations(
+                read_only_hint=False,
+                destructive_hint=False,
+                idempotent_hint=False,
+                open_world_hint=False,
+            )
+        )(runtime_syntax_approval_redeem)
         return server
     raise ValueError(f"{MCP_MODE_ENV} must be {OWNER_MCP_MODE!r} or {AGENT_MCP_MODE!r}")
 

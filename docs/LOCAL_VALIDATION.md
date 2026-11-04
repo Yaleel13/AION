@@ -106,6 +106,9 @@ Use `aion.mcp_server.agent_stdio_environment()` when constructing a stdio
 client configuration; it intentionally strips owner credentials and all other
 environment values. Agent mode also refuses to start if an owner token reaches
 its process environment, including through dotenv loading. Agent mode exposes only
-`runtime_syntax_approval_request`, takes no execution parameters, and returns
-the server-issued pending approval ID and state. It cannot approve or redeem a
-request.
+`runtime_syntax_approval_request` and `runtime_syntax_approval_redeem`. Submission
+takes no execution parameters and returns the server-issued pending approval ID
+and state. Redemption accepts only that ID, forwards an empty request to the
+local runtime, and returns the fixed validator's successful status without raw
+output. Agent mode cannot approve a request; owner decisions remain in
+Boardroom.

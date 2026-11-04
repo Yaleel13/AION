@@ -159,9 +159,14 @@ async def test_agent_mode_exposes_only_fixed_approval_submission(monkeypatch):
     monkeypatch.delenv("AION_OWNER_TOKEN", raising=False)
     agent_mcp = mcp_server.create_mcp("agent")
     tools = await agent_mcp.list_tools()
-    assert [tool.name for tool in tools] == ["runtime_syntax_approval_request"]
-    assert tools[0].annotations.read_only_hint is False
+    assert [tool.name for tool in tools] == [
+        "runtime_syntax_approval_request",
+        "runtime_syntax_approval_redeem",
+    ]
+    assert all(tool.annotations.read_only_hint is False for tool in tools)
     assert tools[0].input_schema.get("properties", {}) == {}
+    assert tools[1].input_schema["properties"]["execution_request_id"]["type"] == "string"
+    assert tools[1].input_schema["required"] == ["execution_request_id"]
 
 
 async def test_agent_stdio_child_excludes_inherited_and_dotenv_owner_tokens(monkeypatch):
@@ -179,7 +184,10 @@ async def test_agent_stdio_child_excludes_inherited_and_dotenv_owner_tokens(monk
         async with ClientSession(read, write) as client:
             await client.initialize()
             tools = await client.list_tools()
-    assert [tool.name for tool in tools.tools] == ["runtime_syntax_approval_request"]
+    assert [tool.name for tool in tools.tools] == [
+        "runtime_syntax_approval_request",
+        "runtime_syntax_approval_redeem",
+    ]
 
 
 async def test_agent_mcp_submits_pending_approval_without_launching(
@@ -201,6 +209,97 @@ async def test_agent_mcp_submits_pending_approval_without_launching(
     assert row["decision"] == "pending"
     assert "test-agent" not in result.model_dump_json()
     assert "private-owner-credential" not in result.model_dump_json()
+
+
+async def test_agent_mcp_pending_redemption_is_denied_without_launching(
+    agent_runtime_transport, monkeypatch
+):
+    async def forbidden(*_args, **_kwargs):
+        pytest.fail("Pending agent MCP redemption launched a subprocess")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", forbidden)
+    agent_mcp = mcp_server.create_mcp("agent")
+    async with Client(agent_mcp) as client:
+        submitted = await client.call_tool("runtime_syntax_approval_request", {})
+        result = await client.call_tool(
+            "runtime_syntax_approval_redeem",
+            {"execution_request_id": submitted.structured_content["execution_request_id"]},
+        )
+    assert not submitted.is_error
+    assert result.is_error
+    assert "Policy denied" in result.content[0].text
+    assert result.meta and "aion/request_id" in result.meta
+
+
+async def test_agent_mcp_redeems_once_with_auditable_request_metadata(
+    agent_runtime_transport, monkeypatch
+):
+    native_spawn = asyncio.create_subprocess_exec
+    launches = []
+
+    async def counted_spawn(*args, **kwargs):
+        launches.append((args, kwargs))
+        return await native_spawn(*args, **kwargs)
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", counted_spawn)
+    agent_mcp = mcp_server.create_mcp("agent")
+    async with Client(agent_mcp) as client:
+        submitted = await client.call_tool("runtime_syntax_approval_request", {})
+        execution_request_id = submitted.structured_content["execution_request_id"]
+        assert agent_runtime_transport.decide_runtime_syntax_approval(
+            execution_request_id,
+            approved=True,
+            decided_by="owner",
+        )
+        redeemed = await client.call_tool(
+            "runtime_syntax_approval_redeem",
+            {"execution_request_id": execution_request_id},
+        )
+        replay = await client.call_tool(
+            "runtime_syntax_approval_redeem",
+            {"execution_request_id": execution_request_id},
+        )
+    assert redeemed.structured_content == {
+        "execution_request_id": execution_request_id,
+        "ok": True,
+        "status": "succeeded",
+        "truncated": False,
+    }
+    assert redeemed.meta and "aion/request_id" in redeemed.meta
+    assert replay.is_error
+    assert len(launches) == 1
+    request_id = redeemed.meta["aion/request_id"]
+    rows = [
+        row for row in agent_runtime_transport.list_audit()
+        if row["detail"].get("request_id") == request_id
+    ]
+    assert all(row["detail"].get("approval_request_id") == execution_request_id for row in rows)
+    assert "test-agent" not in redeemed.model_dump_json()
+    assert "output" not in redeemed.model_dump_json()
+
+
+async def test_agent_mcp_redeem_rejects_malformed_ids_and_execution_overrides(
+    agent_runtime_transport, monkeypatch
+):
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("Invalid agent MCP redemption reached HTTP transport")
+
+    monkeypatch.setattr(mcp_server.httpx, "AsyncClient", forbidden)
+    agent_mcp = mcp_server.create_mcp("agent")
+    async with Client(agent_mcp) as client:
+        malformed = await client.call_tool(
+            "runtime_syntax_approval_redeem",
+            {"execution_request_id": "not-an-approval-id"},
+        )
+        overridden = await client.call_tool(
+            "runtime_syntax_approval_redeem",
+            {
+                "execution_request_id": "a" * 32,
+                "argv": ["caller-selected"],
+            },
+        )
+    assert malformed.is_error
+    assert overridden.is_error
 
 
 async def test_agent_mcp_rejects_missing_or_owner_credentials(agent_runtime_transport, monkeypatch):
