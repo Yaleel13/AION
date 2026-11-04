@@ -1,12 +1,16 @@
 """Exercise MCP dispatch and the real HTTP owner policy without a live service."""
 
+import asyncio
 import json
+import sys
+from types import SimpleNamespace
 
 import httpx
 import pytest
-from mcp import Client
+from mcp import Client, ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
-from aion import mcp_server
+from aion import main, mcp_server
 from aion.main import app
 from tests.test_capability_audit import audit_store
 
@@ -19,6 +23,22 @@ def runtime_transport(monkeypatch):
         mcp_server.httpx, "AsyncClient",
         lambda **kwargs: original_client(transport=httpx.ASGITransport(app=app), **kwargs),
     )
+
+
+@pytest.fixture
+def agent_runtime_transport(audit_store, monkeypatch):
+    original_client = httpx.AsyncClient
+    monkeypatch.delenv("AION_OWNER_TOKEN", raising=False)
+    monkeypatch.setattr(main, "get_services", lambda: SimpleNamespace(store=audit_store))
+    monkeypatch.setenv("AION_RUNTIME_MODE", "local")
+    monkeypatch.setenv("AION_LOCAL_AGENT_TOKEN", "test-agent")
+    monkeypatch.setenv("AION_LOCAL_AGENT_PRINCIPAL", "agent:mcp-test")
+    monkeypatch.setattr(
+        mcp_server.httpx,
+        "AsyncClient",
+        lambda **kwargs: original_client(transport=httpx.ASGITransport(app=app), **kwargs),
+    )
+    return audit_store
 
 
 async def test_status_success(runtime_transport, monkeypatch):
@@ -119,6 +139,82 @@ async def test_only_read_only_status_is_exposed():
     assert [tool.name for tool in tools] == ["runtime_status"]
     assert tools[0].annotations.read_only_hint is True
     assert tools[0].input_schema.get("properties", {}) == {}
+
+
+def test_agent_mode_process_environment_excludes_owner_credential():
+    environment = mcp_server.agent_stdio_environment(
+        {
+            "AION_LOCAL_AGENT_TOKEN": "test-agent",
+            "AION_OWNER_TOKEN": "private-owner-token",
+            "PATH": "/private/path",
+        }
+    )
+    assert environment == {
+        "AION_MCP_MODE": "agent",
+        "AION_LOCAL_AGENT_TOKEN": "test-agent",
+    }
+
+
+async def test_agent_mode_exposes_only_fixed_approval_submission(monkeypatch):
+    monkeypatch.delenv("AION_OWNER_TOKEN", raising=False)
+    agent_mcp = mcp_server.create_mcp("agent")
+    tools = await agent_mcp.list_tools()
+    assert [tool.name for tool in tools] == ["runtime_syntax_approval_request"]
+    assert tools[0].annotations.read_only_hint is False
+    assert tools[0].input_schema.get("properties", {}) == {}
+
+
+async def test_agent_stdio_child_excludes_inherited_and_dotenv_owner_tokens(monkeypatch):
+    monkeypatch.setenv("AION_OWNER_TOKEN", "parent-owner-token")
+    environment = mcp_server.agent_stdio_environment(
+        {"AION_LOCAL_AGENT_TOKEN": "child-agent-token"}
+    )
+    parameters = StdioServerParameters(
+        command=sys.executable,
+        args=["-m", "aion.mcp_server"],
+        env=environment,
+    )
+    async with stdio_client(parameters) as streams:
+        read, write = streams
+        async with ClientSession(read, write) as client:
+            await client.initialize()
+            tools = await client.list_tools()
+    assert [tool.name for tool in tools.tools] == ["runtime_syntax_approval_request"]
+
+
+async def test_agent_mcp_submits_pending_approval_without_launching(
+    agent_runtime_transport, monkeypatch
+):
+    async def forbidden(*_args, **_kwargs):
+        pytest.fail("Agent MCP approval submission launched a subprocess")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", forbidden)
+    agent_mcp = mcp_server.create_mcp("agent")
+    async with Client(agent_mcp) as client:
+        result = await client.call_tool("runtime_syntax_approval_request", {})
+    assert not result.is_error
+    assert result.structured_content["state"] == "pending"
+    execution_request_id = result.structured_content["execution_request_id"]
+    row = agent_runtime_transport.get_runtime_syntax_approval(execution_request_id)
+    assert row is not None
+    assert row["requester_principal"] == "agent:mcp-test"
+    assert row["decision"] == "pending"
+    assert "test-agent" not in result.model_dump_json()
+    assert "private-owner-credential" not in result.model_dump_json()
+
+
+async def test_agent_mcp_rejects_missing_or_owner_credentials(agent_runtime_transport, monkeypatch):
+    agent_mcp = mcp_server.create_mcp("agent")
+    monkeypatch.delenv("AION_LOCAL_AGENT_TOKEN")
+    async with Client(agent_mcp) as client:
+        missing = await client.call_tool("runtime_syntax_approval_request", {})
+    assert missing.is_error
+    assert "Policy denied" in missing.content[0].text
+
+    monkeypatch.setenv("AION_LOCAL_AGENT_TOKEN", "private-owner-credential")
+    monkeypatch.setenv("AION_OWNER_TOKEN", "private-owner-credential")
+    with pytest.raises(ValueError, match="must not receive AION_OWNER_TOKEN"):
+        mcp_server.create_mcp("agent")
 
 
 @pytest.mark.parametrize("token,status", [(None, 401), ("wrong", 403), ("test-owner", 200)])

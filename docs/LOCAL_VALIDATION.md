@@ -90,3 +90,22 @@ coverage.
 The claim is irreversible even if process startup fails or the caller
 disconnects. Audit records attach the approval request ID to the runtime's
 server-generated request ID without recording credentials or validation output.
+
+## Agent-mode MCP submission
+
+The stdio MCP bridge has separate modes. Its default owner mode exposes only
+the read-only `runtime_status` tool. To run the opt-in agent mode, launch
+`python -m aion.mcp_server` with only these MCP process variables:
+
+```bash
+AION_MCP_MODE=agent
+AION_LOCAL_AGENT_TOKEN=...
+```
+
+Use `aion.mcp_server.agent_stdio_environment()` when constructing a stdio
+client configuration; it intentionally strips owner credentials and all other
+environment values. Agent mode also refuses to start if an owner token reaches
+its process environment, including through dotenv loading. Agent mode exposes only
+`runtime_syntax_approval_request`, takes no execution parameters, and returns
+the server-issued pending approval ID and state. It cannot approve or redeem a
+request.
