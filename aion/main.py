@@ -1,7 +1,10 @@
 """FastAPI application – entry point for the AION server."""
 
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
+import hmac
 import math
+import re
 
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
@@ -217,6 +220,8 @@ from aion.moltbook.errors import MoltbookOutboundDisabledError
 from aion.moltbook.limits import QuotaExceededError
 from aion.phase2_services import dashboard_snapshot, get_services
 
+RUNTIME_SYNTAX_APPROVAL_TTL = timedelta(minutes=5)
+
 
 def _require_owner(authorization: str | None) -> None:
     expected = (os.getenv("AION_OWNER_TOKEN") or "").strip()
@@ -228,8 +233,33 @@ def _require_owner(authorization: str | None) -> None:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing bearer token")
     provided = authorization.removeprefix("Bearer ").strip()
-    if provided != expected:
+    agent_token = (os.getenv("AION_LOCAL_AGENT_TOKEN") or "").strip()
+    if agent_token and hmac.compare_digest(provided, agent_token):
+        raise HTTPException(status_code=403, detail="Agent credentials cannot authorize owner operations")
+    if not hmac.compare_digest(provided, expected):
         raise HTTPException(status_code=403, detail="Invalid owner token")
+
+
+def _require_local_agent(authorization: str | None, http_request: Request) -> str:
+    """Return the configured local agent principal after strict role checks."""
+    if (os.getenv("AION_RUNTIME_MODE") or "").strip().lower() != "local":
+        raise HTTPException(status_code=503, detail="Local agent approvals are not enabled")
+    host = http_request.client.host if http_request.client else None
+    if host not in {"127.0.0.1", "::1"}:
+        raise HTTPException(status_code=403, detail="Local agent approvals are loopback-only")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    provided = authorization.removeprefix("Bearer ").strip()
+    owner_token = (os.getenv("AION_OWNER_TOKEN") or "").strip()
+    if owner_token and hmac.compare_digest(provided, owner_token):
+        raise HTTPException(status_code=403, detail="Owner credentials cannot submit agent requests")
+    agent_token = (os.getenv("AION_LOCAL_AGENT_TOKEN") or "").strip()
+    principal = (os.getenv("AION_LOCAL_AGENT_PRINCIPAL") or "").strip()
+    if not agent_token or not principal or (owner_token and hmac.compare_digest(agent_token, owner_token)):
+        raise HTTPException(status_code=503, detail="Local agent identity is not configured")
+    if not hmac.compare_digest(provided, agent_token):
+        raise HTTPException(status_code=403, detail="Invalid local agent credential")
+    return principal
 
 
 @app.get("/owner/runtime/status", summary="Owner-authorized runtime status")
@@ -241,6 +271,115 @@ async def owner_runtime_status(authorization: str | None = Header(default=None))
 
 class LocalValidationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class RuntimeSyntaxApprovalRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class RuntimeSyntaxApprovalDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    approved: bool
+
+
+class RuntimeSyntaxApprovalResponse(BaseModel):
+    execution_request_id: str
+    capability: str
+    requester_principal: str
+    decision: str
+    created_at: str
+    expires_at: str
+    decided_at: str | None
+    decided_by: str | None
+    consumed_at: str | None
+    consumed_by: str | None
+
+
+def _runtime_syntax_approval_response(row: dict) -> dict:
+    return {
+        key: row.get(key)
+        for key in RuntimeSyntaxApprovalResponse.model_fields
+    }
+
+
+def _valid_runtime_syntax_approval_id(execution_request_id: str) -> bool:
+    return re.fullmatch(r"[0-9a-f]{32}", execution_request_id) is not None
+
+
+@app.post(
+    "/agent/runtime-syntax-approvals",
+    response_model=RuntimeSyntaxApprovalResponse,
+    summary="Submit one local agent runtime syntax approval request",
+)
+async def submit_runtime_syntax_approval(
+    body: RuntimeSyntaxApprovalRequest,
+    http_request: Request,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    del body
+    principal = _require_local_agent(authorization, http_request)
+    try:
+        execution_request_id = get_services().store.create_runtime_syntax_approval(
+            requester_principal=principal,
+            expires_at=datetime.now(timezone.utc) + RUNTIME_SYNTAX_APPROVAL_TTL,
+        )
+        row = get_services().store.get_runtime_syntax_approval(execution_request_id)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Runtime syntax approval storage unavailable") from exc
+    if row is None:
+        raise HTTPException(status_code=503, detail="Runtime syntax approval storage unavailable")
+    return _runtime_syntax_approval_response(row)
+
+
+@app.get(
+    "/owner/runtime-syntax-approvals/{execution_request_id}",
+    response_model=RuntimeSyntaxApprovalResponse,
+    summary="Review one runtime syntax approval request",
+)
+async def owner_get_runtime_syntax_approval(
+    execution_request_id: str,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    _require_owner(authorization)
+    if not _valid_runtime_syntax_approval_id(execution_request_id):
+        raise HTTPException(status_code=400, detail="Invalid runtime syntax approval ID")
+    try:
+        row = get_services().store.get_runtime_syntax_approval(execution_request_id)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Runtime syntax approval storage unavailable") from exc
+    if row is None:
+        raise HTTPException(status_code=404, detail="Runtime syntax approval request not found")
+    return _runtime_syntax_approval_response(row)
+
+
+@app.post(
+    "/owner/runtime-syntax-approvals/{execution_request_id}/decision",
+    response_model=RuntimeSyntaxApprovalResponse,
+    summary="Approve or deny one runtime syntax approval request",
+)
+async def owner_decide_runtime_syntax_approval(
+    execution_request_id: str,
+    body: RuntimeSyntaxApprovalDecision,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    _require_owner(authorization)
+    if not _valid_runtime_syntax_approval_id(execution_request_id):
+        raise HTTPException(status_code=400, detail="Invalid runtime syntax approval ID")
+    try:
+        decided = get_services().store.decide_runtime_syntax_approval(
+            execution_request_id,
+            approved=body.approved,
+            decided_by="owner",
+        )
+        row = get_services().store.get_runtime_syntax_approval(execution_request_id)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Runtime syntax approval storage unavailable") from exc
+    if not decided:
+        raise HTTPException(status_code=409, detail="Runtime syntax approval is no longer pending")
+    if row is None:
+        raise HTTPException(status_code=503, detail="Runtime syntax approval storage unavailable")
+    return _runtime_syntax_approval_response(row)
 
 
 class CapabilityAuditRecord(BaseModel):

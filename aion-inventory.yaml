@@ -1,5 +1,5 @@
 version: 1
-generated_at: '2026-11-03T23:45:23.496379+00:00'
+generated_at: '2026-11-04T01:07:56.792687+00:00'
 repository: Yaleel13/AION
 surfaces:
   fastapi_routes:
@@ -7,6 +7,11 @@ surfaces:
     path: /agent
     operation_id: agent_endpoint_agent_post
     summary: Run AION
+    owner: fastapi
+  - method: POST
+    path: /agent/runtime-syntax-approvals
+    operation_id: submit_runtime_syntax_approval_agent_runtime_syntax_approvals_post
+    summary: Submit one local agent runtime syntax approval request
     owner: fastapi
   - method: GET
     path: /api/internal/acceptance
@@ -224,6 +229,16 @@ surfaces:
     summary: Get revenue attributed to commercial executions
     owner: fastapi
   - method: GET
+    path: /owner/runtime-syntax-approvals/{execution_request_id}
+    operation_id: owner_get_runtime_syntax_approval_owner_runtime_syntax_approvals__execution_request_id__get
+    summary: Review one runtime syntax approval request
+    owner: fastapi
+  - method: POST
+    path: /owner/runtime-syntax-approvals/{execution_request_id}/decision
+    operation_id: owner_decide_runtime_syntax_approval_owner_runtime_syntax_approvals__execution_request_id__decision_post
+    summary: Approve or deny one runtime syntax approval request
+    owner: fastapi
+  - method: GET
     path: /owner/runtime/status
     operation_id: owner_runtime_status_owner_runtime_status_get
     summary: Owner-authorized runtime status
@@ -296,6 +311,10 @@ surfaces:
     owner: nextjs
   - path: /api/owner/payment-rail
     handler: app/api/owner/payment-rail/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: /api/owner/runtime/syntax/approvals/[executionRequestId]
+    handler: app/api/owner/runtime/syntax/approvals/[executionRequestId]/route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: /api/owner/runtime/syntax

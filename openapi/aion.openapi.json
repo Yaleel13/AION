@@ -451,6 +451,112 @@
         "title": "LocalValidationRequest",
         "type": "object"
       },
+      "RuntimeSyntaxApprovalDecision": {
+        "additionalProperties": false,
+        "properties": {
+          "approved": {
+            "title": "Approved",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "approved"
+        ],
+        "title": "RuntimeSyntaxApprovalDecision",
+        "type": "object"
+      },
+      "RuntimeSyntaxApprovalRequest": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "RuntimeSyntaxApprovalRequest",
+        "type": "object"
+      },
+      "RuntimeSyntaxApprovalResponse": {
+        "properties": {
+          "capability": {
+            "title": "Capability",
+            "type": "string"
+          },
+          "consumed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consumed At"
+          },
+          "consumed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consumed By"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decision": {
+            "title": "Decision",
+            "type": "string"
+          },
+          "execution_request_id": {
+            "title": "Execution Request Id",
+            "type": "string"
+          },
+          "expires_at": {
+            "title": "Expires At",
+            "type": "string"
+          },
+          "requester_principal": {
+            "title": "Requester Principal",
+            "type": "string"
+          }
+        },
+        "required": [
+          "execution_request_id",
+          "capability",
+          "requester_principal",
+          "decision",
+          "created_at",
+          "expires_at",
+          "decided_at",
+          "decided_by",
+          "consumed_at",
+          "consumed_by"
+        ],
+        "title": "RuntimeSyntaxApprovalResponse",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -537,6 +643,62 @@
           }
         },
         "summary": "Run AION"
+      }
+    },
+    "/agent/runtime-syntax-approvals": {
+      "post": {
+        "operationId": "submit_runtime_syntax_approval_agent_runtime_syntax_approvals_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeSyntaxApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeSyntaxApprovalResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit one local agent runtime syntax approval request"
       }
     },
     "/api/internal/acceptance": {
@@ -2616,6 +2778,126 @@
           }
         },
         "summary": "Get revenue attributed to commercial executions"
+      }
+    },
+    "/owner/runtime-syntax-approvals/{execution_request_id}": {
+      "get": {
+        "operationId": "owner_get_runtime_syntax_approval_owner_runtime_syntax_approvals__execution_request_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "execution_request_id",
+            "required": true,
+            "schema": {
+              "title": "Execution Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeSyntaxApprovalResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review one runtime syntax approval request"
+      }
+    },
+    "/owner/runtime-syntax-approvals/{execution_request_id}/decision": {
+      "post": {
+        "operationId": "owner_decide_runtime_syntax_approval_owner_runtime_syntax_approvals__execution_request_id__decision_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "execution_request_id",
+            "required": true,
+            "schema": {
+              "title": "Execution Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeSyntaxApprovalDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeSyntaxApprovalResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve or deny one runtime syntax approval request"
       }
     },
     "/owner/runtime/status": {

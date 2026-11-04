@@ -57,5 +57,20 @@ state, unexpired time, and an unconsumed row.
 Claim success is reported only after commit. Storage failures deny the claim.
 A committed claim is spent even if a later syntax launch fails, so a failed
 launch must not be retried with the same approval. This storage primitive does
-not yet change Boardroom, agent authentication, the syntax launch route, or MCP
-exposure.
+not claim or launch syntax validation, and it does not change MCP exposure.
+
+## Local agent approval requests
+
+Set distinct `AION_LOCAL_AGENT_TOKEN` and `AION_LOCAL_AGENT_PRINCIPAL` values
+only in local runtime configuration to enable `POST
+/agent/runtime-syntax-approvals`. The endpoint accepts an empty JSON object,
+uses the configured principal rather than caller input, and is loopback-only.
+The owner token is explicitly rejected there.
+
+Boardroom uses the session-authenticated owner bridge at
+`/api/owner/runtime/syntax/approvals/{execution_request_id}` to review an exact
+request and post its single owner decision. That bridge requires the existing
+owner session, CSRF header, and same-origin check. Agent credentials are
+rejected by the runtime owner endpoints. These paths only create and decide
+approvals; they do not claim or launch syntax validation, and MCP remains
+read-only with only `runtime_status`.

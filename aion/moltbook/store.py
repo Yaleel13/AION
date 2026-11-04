@@ -319,6 +319,14 @@ class Phase2Store:
             self._conn.rollback()
             raise
 
+    def get_runtime_syntax_approval(self, execution_request_id: str) -> dict[str, Any] | None:
+        cursor = self._conn.execute(
+            "SELECT * FROM runtime_syntax_approvals WHERE execution_request_id = ?",
+            (execution_request_id,),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row is not None else None
+
     def claim_runtime_syntax_approval(
         self,
         execution_request_id: str,
