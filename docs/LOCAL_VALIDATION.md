@@ -44,3 +44,18 @@ the installed job's permission ceiling. This does not register an MCP tool.
 
 See [runtime capability audit](CAPABILITY_AUDIT.md) for request correlation,
 policy/start/outcome events, privacy rules, and audit storage limitations.
+
+## Internal syntax approval claims
+
+The durable `runtime_syntax_approvals` table is an internal storage primitive
+for a future agent-request and owner-approval flow. It issues a server-generated
+execution request ID bound to the fixed `runtime.syntax` capability and a trusted
+requester principal. Owner decisions expire, and a claim is a single conditional
+database update that requires the exact ID, capability, requester, approved
+state, unexpired time, and an unconsumed row.
+
+Claim success is reported only after commit. Storage failures deny the claim.
+A committed claim is spent even if a later syntax launch fails, so a failed
+launch must not be retried with the same approval. This storage primitive does
+not yet change Boardroom, agent authentication, the syntax launch route, or MCP
+exposure.

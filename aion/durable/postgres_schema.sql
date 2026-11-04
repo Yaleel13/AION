@@ -28,6 +28,44 @@ CREATE TABLE IF NOT EXISTS aion.approvals (
   injection_flags_json TEXT NOT NULL DEFAULT '[]'
 );
 
+CREATE TABLE IF NOT EXISTS aion.runtime_syntax_approvals (
+  execution_request_id TEXT PRIMARY KEY,
+  capability TEXT NOT NULL CHECK (capability = 'runtime.syntax'),
+  requester_principal TEXT NOT NULL CHECK (length(btrim(requester_principal)) > 0),
+  decision TEXT NOT NULL CHECK (decision IN ('pending', 'approved', 'denied')),
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  decided_at TEXT,
+  decided_by TEXT,
+  consumed_at TEXT,
+  consumed_by TEXT
+);
+
+CREATE OR REPLACE FUNCTION aion.runtime_syntax_approval_bindings_immutable()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF OLD.decision = 'approved'
+     AND (
+       NEW.execution_request_id IS DISTINCT FROM OLD.execution_request_id
+       OR NEW.capability IS DISTINCT FROM OLD.capability
+       OR NEW.requester_principal IS DISTINCT FROM OLD.requester_principal
+     ) THEN
+    RAISE EXCEPTION 'Approved runtime syntax approval bindings are immutable';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS runtime_syntax_approvals_bindings_immutable
+  ON aion.runtime_syntax_approvals;
+CREATE TRIGGER runtime_syntax_approvals_bindings_immutable
+BEFORE UPDATE OF execution_request_id, capability, requester_principal
+ON aion.runtime_syntax_approvals
+FOR EACH ROW
+EXECUTE FUNCTION aion.runtime_syntax_approval_bindings_immutable();
+
 CREATE TABLE IF NOT EXISTS aion.audit_events (
   id BIGSERIAL PRIMARY KEY,
   timestamp TEXT NOT NULL,

@@ -135,6 +135,10 @@ class _PgCursor:
     def close(self):
         self._cur.close()
 
+    @property
+    def rowcount(self) -> int:
+        return self._cur.rowcount
+
 
 class PostgresConn:
     """psycopg connection wrapper with sqlite-like ``?`` / ``:name`` placeholders."""

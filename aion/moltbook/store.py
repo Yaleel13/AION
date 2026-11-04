@@ -6,12 +6,26 @@ Backed by durable SQLite by default, or Postgres schema ``aion`` when
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime, timezone
 import json
+import logging
 from pathlib import Path
 from typing import Any, Iterable
+from uuid import uuid4
 
 from aion.durable.db import connect_phase2, database_url
 from aion.moltbook.security import utc_now_iso
+
+logger = logging.getLogger(__name__)
+
+RUNTIME_SYNTAX_CAPABILITY = "runtime.syntax"
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeSyntaxApprovalClaim:
+    claimed: bool
+    reason: str
 
 
 def default_phase2_db_path() -> str:
@@ -63,6 +77,32 @@ class Phase2Store:
               executed_at TEXT,
               injection_flags_json TEXT NOT NULL DEFAULT '[]'
             );
+
+            CREATE TABLE IF NOT EXISTS runtime_syntax_approvals (
+              execution_request_id TEXT PRIMARY KEY,
+              capability TEXT NOT NULL CHECK (capability = 'runtime.syntax'),
+              requester_principal TEXT NOT NULL CHECK (length(trim(requester_principal)) > 0),
+              decision TEXT NOT NULL CHECK (decision IN ('pending', 'approved', 'denied')),
+              created_at TEXT NOT NULL,
+              expires_at TEXT NOT NULL,
+              decided_at TEXT,
+              decided_by TEXT,
+              consumed_at TEXT,
+              consumed_by TEXT
+            );
+
+            CREATE TRIGGER IF NOT EXISTS runtime_syntax_approvals_bindings_immutable
+            BEFORE UPDATE OF execution_request_id, capability, requester_principal
+            ON runtime_syntax_approvals
+            WHEN OLD.decision = 'approved'
+             AND (
+               OLD.execution_request_id IS NOT NEW.execution_request_id
+               OR OLD.capability IS NOT NEW.capability
+               OR OLD.requester_principal IS NOT NEW.requester_principal
+             )
+            BEGIN
+              SELECT RAISE(ABORT, 'Approved runtime syntax approval bindings are immutable');
+            END;
 
             CREATE TABLE IF NOT EXISTS audit_events (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -184,6 +224,167 @@ class Phase2Store:
             params,
         )
         return int(cur.fetchone()["c"])
+
+    # --- internal runtime.syntax approvals -----------------------------------
+
+    @staticmethod
+    def _approval_time(value: datetime | None = None) -> str:
+        timestamp = value or datetime.now(timezone.utc)
+        if timestamp.tzinfo is None:
+            raise ValueError("Approval timestamps must be timezone-aware")
+        return timestamp.astimezone(timezone.utc).isoformat()
+
+    def create_runtime_syntax_approval(
+        self,
+        *,
+        requester_principal: str,
+        expires_at: datetime,
+        created_at: datetime | None = None,
+    ) -> str:
+        """Create a server-issued, pending approval for one syntax execution."""
+        principal = requester_principal.strip()
+        if not principal:
+            raise ValueError("requester_principal is required")
+        execution_request_id = uuid4().hex
+        self._conn.execute(
+            """
+            INSERT INTO runtime_syntax_approvals (
+              execution_request_id, capability, requester_principal, decision,
+              created_at, expires_at
+            ) VALUES (?, ?, ?, 'pending', ?, ?)
+            """,
+            (
+                execution_request_id,
+                RUNTIME_SYNTAX_CAPABILITY,
+                principal,
+                self._approval_time(created_at),
+                self._approval_time(expires_at),
+            ),
+        )
+        self._conn.commit()
+        return execution_request_id
+
+    def decide_runtime_syntax_approval(
+        self,
+        execution_request_id: str,
+        *,
+        approved: bool,
+        decided_by: str,
+        now: datetime | None = None,
+    ) -> bool:
+        """Record one owner decision only while the pending record is unexpired."""
+        owner = decided_by.strip()
+        if not owner:
+            raise ValueError("decided_by is required")
+        try:
+            if now is None:
+                if self.backend == "postgres":
+                    timestamp_sql = "CURRENT_TIMESTAMP::text"
+                    expiry_sql = "expires_at::timestamptz > CURRENT_TIMESTAMP"
+                else:
+                    timestamp_sql = "strftime('%Y-%m-%dT%H:%M:%f+00:00', 'now')"
+                    expiry_sql = "julianday(expires_at) > julianday('now')"
+                params = (
+                    "approved" if approved else "denied",
+                    owner,
+                    execution_request_id,
+                    RUNTIME_SYNTAX_CAPABILITY,
+                )
+            else:
+                decided_at = self._approval_time(now)
+                timestamp_sql = "?"
+                expiry_sql = "expires_at > ?"
+                params = (
+                    "approved" if approved else "denied",
+                    decided_at,
+                    owner,
+                    execution_request_id,
+                    RUNTIME_SYNTAX_CAPABILITY,
+                    decided_at,
+                )
+            cursor = self._conn.execute(
+                f"""
+                UPDATE runtime_syntax_approvals
+                SET decision = ?, decided_at = {timestamp_sql}, decided_by = ?
+                WHERE execution_request_id = ?
+                  AND capability = ?
+                  AND decision = 'pending'
+                  AND {expiry_sql}
+                """,
+                params,
+            )
+            self._conn.commit()
+            return cursor.rowcount == 1
+        except Exception:
+            self._conn.rollback()
+            raise
+
+    def claim_runtime_syntax_approval(
+        self,
+        execution_request_id: str,
+        *,
+        capability: str,
+        requester_principal: str,
+        now: datetime | None = None,
+    ) -> RuntimeSyntaxApprovalClaim:
+        """Atomically spend one approved record before a later launch.
+
+        A committed claim is intentionally irreversible: callers must not retry
+        the capability if a subsequent launch fails.
+        """
+        principal = requester_principal.strip()
+        if not principal:
+            raise ValueError("requester_principal is required")
+        try:
+            if now is None:
+                if self.backend == "postgres":
+                    timestamp_sql = "CURRENT_TIMESTAMP::text"
+                    expiry_sql = "expires_at::timestamptz > CURRENT_TIMESTAMP"
+                else:
+                    timestamp_sql = "strftime('%Y-%m-%dT%H:%M:%f+00:00', 'now')"
+                    expiry_sql = "julianday(expires_at) > julianday('now')"
+                params = (
+                    principal,
+                    execution_request_id,
+                    capability,
+                    principal,
+                )
+            else:
+                claimed_at = self._approval_time(now)
+                timestamp_sql = "?"
+                expiry_sql = "expires_at > ?"
+                params = (
+                    claimed_at,
+                    principal,
+                    execution_request_id,
+                    capability,
+                    principal,
+                    claimed_at,
+                )
+            cursor = self._conn.execute(
+                f"""
+                UPDATE runtime_syntax_approvals
+                SET consumed_at = {timestamp_sql}, consumed_by = ?
+                WHERE execution_request_id = ?
+                  AND capability = ?
+                  AND requester_principal = ?
+                  AND decision = 'approved'
+                  AND {expiry_sql}
+                  AND consumed_at IS NULL
+                """,
+                params,
+            )
+            self._conn.commit()
+            if cursor.rowcount == 1:
+                return RuntimeSyntaxApprovalClaim(claimed=True, reason="claimed")
+            return RuntimeSyntaxApprovalClaim(claimed=False, reason="denied")
+        except Exception:
+            try:
+                self._conn.rollback()
+            except Exception:
+                pass
+            logger.warning("Runtime syntax approval storage unavailable")
+            return RuntimeSyntaxApprovalClaim(claimed=False, reason="storage_unavailable")
 
     # --- audit ---------------------------------------------------------------
 
