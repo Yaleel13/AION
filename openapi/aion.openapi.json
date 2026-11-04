@@ -3126,6 +3126,54 @@
         "summary": "Owner-authorized runtime status"
       }
     },
+    "/owner/voice/turn": {
+      "post": {
+        "operationId": "owner_voice_turn_owner_voice_turn_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Owner Voice Turn Owner Voice Turn Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run one owner-authorized local voice turn"
+      }
+    },
     "/runtime/status": {
       "get": {
         "description": "Real storage / Moltbook / autonomy / paper gates for UI honesty.",

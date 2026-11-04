@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 import hmac
 import math
+import os
 import re
 
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -415,6 +416,30 @@ async def _run_local_syntax_execution(http_request: Request, execute) -> dict:
         disconnected.cancel()
         job.cancel()
         await asyncio.gather(job, disconnected, return_exceptions=True)
+
+
+@app.post("/owner/voice/turn", summary="Run one owner-authorized local voice turn")
+async def owner_voice_turn(
+    http_request: Request,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    _require_owner(authorization)
+    client_host = http_request.client.host if http_request.client else None
+    if client_host not in {"127.0.0.1", "::1"}:
+        raise HTTPException(status_code=403, detail="Local voice is loopback-only")
+    if http_request.query_params:
+        raise HTTPException(status_code=400, detail="Voice turn accepts no parameters")
+    if (os.getenv("AION_RUNTIME_MODE") or "").strip().lower() != "local":
+        raise HTTPException(status_code=503, detail="Voice is unavailable")
+    try:
+        body = await http_request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Voice turn requires an empty JSON object") from None
+    if body != {}:
+        raise HTTPException(status_code=400, detail="Voice turn requires an empty JSON object")
+    from aion.owner_voice import run_owner_voice_turn
+
+    return await _run_local_syntax_execution(http_request, run_owner_voice_turn)
 
 
 @app.post(

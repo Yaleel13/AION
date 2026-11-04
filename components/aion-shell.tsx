@@ -10,6 +10,7 @@ import { Boardroom } from "@/components/boardroom"
 import { ConnectionSheet } from "@/components/connection-sheet"
 import { RuntimeStatusBanner } from "@/components/runtime-status-banner"
 import { OwnerAuthDialog } from "@/components/owner-auth-dialog"
+import { AION_REQUEST_HEADER } from "@/lib/aion/request-headers"
 
 let idCounter = 0
 const uid = () => `m${++idCounter}-${Date.now()}`
@@ -231,7 +232,8 @@ export function AionShell() {
     try {
       const res = await fetch("/api/aion/voice", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...AION_REQUEST_HEADER },
+        body: "{}",
       })
       const data = (await res.json()) as LocalVoiceResponse
       if (!res.ok || !data.transcript || !data.reply) {

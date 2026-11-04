@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server"
+import { hasValidOwnerSession, requireCsrfHeader } from "@/lib/aion/owner-session"
+import { runtimeRequestId } from "@/lib/aion/runtime-correlation"
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"])
 
@@ -58,10 +60,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ available: false, reason: "local-runtime-disabled" })
   }
 
-  return NextResponse.json({
-    available: false,
-    reason: "scoped-voice-authorization-required",
-  })
+  return NextResponse.json({ available: hasValidOwnerSession(request.headers.get("cookie")) })
 }
 
 export async function POST(request: Request) {
@@ -72,8 +71,44 @@ export async function POST(request: Request) {
   if (!localRuntimeEnabled()) {
     return NextResponse.json({ error: "Local voice is unavailable outside AION local mode." }, { status: 503 })
   }
-  return NextResponse.json(
-    { error: "Local voice is unavailable until scoped voice authorization is implemented." },
-    { status: 503 },
-  )
+  if (!hasValidOwnerSession(request.headers.get("cookie"))) {
+    return NextResponse.json({ error: "Owner authentication required." }, { status: 401 })
+  }
+  const csrfError = requireCsrfHeader(request)
+  if (csrfError) return csrfError
+  const target = new URL(request.url)
+  if (request.headers.get("host")) target.host = request.headers.get("host")!
+  if (request.headers.get("origin") !== target.origin || new URL(request.url).search) {
+    return NextResponse.json({ error: "Same-origin voice request required." }, { status: 403 })
+  }
+  try {
+    const body: unknown = await request.json()
+    if (!body || Array.isArray(body) || typeof body !== "object" || Object.keys(body).length) {
+      return NextResponse.json({ error: "Voice turn requires an empty JSON object." }, { status: 400 })
+    }
+  } catch {
+    return NextResponse.json({ error: "Voice turn requires an empty JSON object." }, { status: 400 })
+  }
+  try {
+    const runtime = new URL(process.env.AION_RUNTIME_URL ?? "http://127.0.0.1:8000")
+    if (runtime.protocol !== "http:" || !isLoopbackHostname(runtime.hostname) || runtime.username || runtime.password || runtime.search || runtime.hash || runtime.pathname !== "/") {
+      return NextResponse.json({ error: "Local voice unavailable." }, { status: 503 })
+    }
+    const response = await fetch(new URL("/owner/voice/turn", runtime), {
+      method: "POST", cache: "no-store", redirect: "error",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.AION_OWNER_TOKEN ?? ""}` },
+      body: "{}", signal: AbortSignal.any([request.signal, AbortSignal.timeout(400_000)]),
+    })
+    const requestId = runtimeRequestId(response.headers.get("x-aion-request-id"))
+    const data = await response.json() as Record<string, unknown>
+    if (!response.ok || data.ok !== true || data.status !== "succeeded" || typeof data.transcript !== "string" || typeof data.reply !== "string") {
+      return NextResponse.json({ error: "Local voice unavailable." }, { status: 503 })
+    }
+    return NextResponse.json({
+      transcript: data.transcript.slice(0, 2_000), reply: data.reply.slice(0, 2_000),
+      status: "succeeded", ...(requestId ? { requestId } : {}),
+    }, { headers: { "Cache-Control": "no-store" } })
+  } catch {
+    return NextResponse.json({ error: "Local voice unavailable." }, { status: 503 })
+  }
 }

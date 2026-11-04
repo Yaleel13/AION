@@ -33,6 +33,7 @@ VOICE_FILES = (
     Path.home() / ".local/share/aion/piper/en_US-ryan-medium.onnx",
     Path.home() / ".local/share/aion/piper/en_US-ryan-medium.onnx.json",
 )
+VOICE_TOOLS = ("ffmpeg", "ffplay", "piper")
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -60,7 +61,7 @@ def _port_available(port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
         try:
             listener.bind(("127.0.0.1", port))
-        except OSError:
+        except (OSError, subprocess.TimeoutExpired):
             return False
     return True
 
@@ -140,7 +141,7 @@ def _emeet_source() -> bool | None:
             (pactl, "list", "short", "sources"),
             capture_output=True, text=True, timeout=3, check=False,
         )
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
         return None
     return completed.returncode == 0 and "emeet_smartcam_c950" in completed.stdout.lower()
 
@@ -163,7 +164,7 @@ def collect(root: Path = ROOT) -> dict[str, Any]:
             )
             if completed.returncode == 0:
                 missing_modules = []
-        except OSError:
+        except (OSError, subprocess.TimeoutExpired):
             pass
     checks.append(_check(
         "python-dependencies", "ok" if not missing_modules else "missing",
@@ -207,8 +208,9 @@ def collect(root: Path = ROOT) -> dict[str, Any]:
     else:
         checks.append(_check("ollama", "ok", "Loopback Ollama and aion:latest are available.", "No action required."))
     missing_voice = [str(path) for path in VOICE_FILES if not path.is_file()]
-    piper = shutil.which("piper")
+    voice_tools_ready = all(shutil.which(tool) for tool in VOICE_TOOLS)
     capture_enabled = local_mode and env.get("AION_AUDIO_CAPTURE_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+    owner_configured = configuration_available and _configured(env, "AION_OWNER_TOKEN") and _configured(local_env, "AION_OWNER_TOKEN")
     emeet = _emeet_source()
     checks.append(_check(
         "emeet-input", "ok" if emeet is True else "unavailable",
@@ -217,13 +219,13 @@ def collect(root: Path = ROOT) -> dict[str, Any]:
         "voice",
     ))
     checks.append(_check(
-        "voice-prerequisites", "ok" if not missing_voice and piper and capture_enabled else "incomplete",
-        "Voice prerequisites are present, but the voice flow is not implemented." if not missing_voice and piper and capture_enabled else "Voice remains unavailable; Piper, voice artifacts, or the explicit capture gate is unavailable.",
-        "Install/configure Piper, verify model files, and enable capture only before an explicit owner-initiated test.",
+        "voice-prerequisites", "ok" if not missing_voice and voice_tools_ready and capture_enabled and owner_configured else "incomplete",
+        "The owner-authorized voice flow is configured for an explicit one-shot test." if not missing_voice and voice_tools_ready and capture_enabled and owner_configured else "Voice remains unavailable; owner authorization, required tools, voice artifacts, or the explicit capture gate is unavailable.",
+        "Install/configure the required voice tools and models, then enable capture only before an explicit owner-initiated test.",
         "voice",
     ))
     local_ready = all(item["status"] == "ok" for item in checks if item["scope"] == "startup")
-    voice_ready = False
+    voice_ready = all(item["status"] == "ok" for item in checks if item["scope"] == "voice")
     return {
         "ok": local_ready,
         "local_ready": local_ready,
@@ -242,7 +244,7 @@ def main() -> int:
     else:
         print(
             f"Local startup readiness: {'READY' if report['local_ready'] else 'NOT READY'}; "
-            "voice: UNAVAILABLE (the authorized voice flow is not implemented)."
+            f"voice: {'READY' if report['voice_ready'] else 'UNAVAILABLE'}."
         )
         for item in report["checks"]:
             print(f"{item['status'].upper():11} {item['name']}: {item['detail']} Next: {item['next_step']}")

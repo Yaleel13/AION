@@ -23,8 +23,9 @@ listener from the preflight.
 The command exits `0` only when the required local startup checks pass, and
 `1` if startup is blocked by a missing dependency, configuration, local model,
 or occupied port. Voice checks are reported separately and do not make a
-startup-ready host fail: the voice flow is currently unavailable regardless of
-prerequisite status.
+startup-ready host fail. They report ready only when every required local
+capture, transcription, local-model, synthesis, and playback prerequisite is
+present.
 
 ## Start and stop
 
@@ -57,8 +58,13 @@ alternative loopback ports when necessary.
 
 ## Voice
 
-Voice remains unavailable until the dedicated owner-authorized voice flow is
-implemented and configured. The preflight reports passive EMEET discovery,
-Whisper/Piper artifacts, Piper executable availability, and the explicit
-capture gate. Do not enable capture or test recording unless the owner has
-explicitly chosen to do so.
+Voice remains unavailable unless the dedicated owner-authorized flow and every
+prerequisite are configured: local mode, the explicit capture gate, EMEET,
+ffmpeg, Whisper CLI/model, loopback Ollama with `aion:latest`, Piper with its
+voice model, and ffplay. An authenticated owner initiates one capture from the
+interface; audio and transcript files remain in a private temporary directory
+and are removed after playback. The bounded transcript is sent only to
+loopback Ollama, then the bounded reply is sent only to local Piper. Neither
+is automatically stored in durable memory. Ollama's own retention and logging
+configuration is outside AION's control. Do not enable capture or test
+recording unless the owner has explicitly chosen to do so.

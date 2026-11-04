@@ -1,5 +1,5 @@
 version: 1
-generated_at: '2026-11-04T01:25:52.595766+00:00'
+generated_at: '2026-11-04T06:38:41.130581+00:00'
 repository: Yaleel13/AION
 surfaces:
   fastapi_routes:
@@ -252,6 +252,11 @@ surfaces:
     path: /owner/runtime/status
     operation_id: owner_runtime_status_owner_runtime_status_get
     summary: Owner-authorized runtime status
+    owner: fastapi
+  - method: POST
+    path: /owner/voice/turn
+    operation_id: owner_voice_turn_owner_voice_turn_post
+    summary: Run one owner-authorized local voice turn
     owner: fastapi
   - method: GET
     path: /runtime/status

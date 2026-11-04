@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import subprocess
 
 
 SPEC = importlib.util.spec_from_file_location(
@@ -27,7 +28,11 @@ def _ready(monkeypatch, tmp_path):
     monkeypatch.setattr(preflight, "_port_occupant", lambda _port: "available")
     monkeypatch.setattr(preflight, "_ollama_models", lambda: {"aion:latest"})
     monkeypatch.setattr(preflight, "_emeet_source", lambda: True)
-    monkeypatch.setattr(preflight.shutil, "which", lambda name: "/bin/tool" if name in {"node", "piper"} else None)
+    monkeypatch.setattr(
+        preflight.shutil,
+        "which",
+        lambda name: "/bin/tool" if name in {"node", "ffmpeg", "ffplay", "piper"} else None,
+    )
     monkeypatch.setattr(preflight.subprocess, "run", lambda *_a, **_kw: type("R", (), {"returncode": 0})())
 
 
@@ -41,6 +46,14 @@ def test_preflight_hides_secret_values(monkeypatch, tmp_path):
     assert _status(report, "runtime-configuration") == "ok"
     assert "secret-owner-token" not in repr(report)
     assert report["local_ready"] is True
+    assert report["voice_ready"] is True
+
+
+def test_preflight_requires_owner_authorization_for_voice(monkeypatch, tmp_path):
+    _ready(monkeypatch, tmp_path)
+    (tmp_path / ".env.local").write_text("AION_OWNER_TOKEN=\n")
+    report = preflight.collect(tmp_path)
+    assert _status(report, "voice-prerequisites") == "incomplete"
     assert report["voice_ready"] is False
 
 
@@ -52,6 +65,17 @@ def test_preflight_reports_missing_dependencies(monkeypatch, tmp_path):
     assert _status(report, "python-venv") == "missing"
     assert _status(report, "node-dependencies") == "missing"
     assert _status(report, "voice-prerequisites") == "incomplete"
+
+
+def test_preflight_handles_dependency_timeout(monkeypatch, tmp_path):
+    _ready(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        preflight.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(subprocess.TimeoutExpired("python", 10)),
+    )
+    report = preflight.collect(tmp_path)
+    assert _status(report, "python-dependencies") == "missing"
 
 
 def test_preflight_reports_occupied_ports(monkeypatch, tmp_path):
