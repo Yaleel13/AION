@@ -196,6 +196,25 @@ def _authorized_handler(name: str, *, action: str) -> Callable[[], Any]:
     return handler
 
 
+def authorize_capability(name: str, *, action: str) -> Callable[[], Any]:
+    """Authorize a fixed handler without invoking it.
+
+    Callers that need to atomically claim a separate approval must authorize
+    before spending it, then use ``execute_authorized_capability_async``.
+    """
+    return _authorized_handler(name, action=action)
+
+
+async def execute_authorized_capability_async(handler: Callable[[], Any]) -> dict[str, Any]:
+    """Invoke an already-authorized handler and preserve audit result handling."""
+    from aion.capability_audit import handler_result
+
+    result = handler()
+    result = await result if isawaitable(result) else result
+    handler_result(result)
+    return result
+
+
 def dispatch_capability(name: str, *, action: str = "read") -> dict[str, Any]:
     """Synchronous dispatch, preserving the status handler's return contract."""
     from aion.capability_audit import handler_result
@@ -210,13 +229,9 @@ def dispatch_capability(name: str, *, action: str = "read") -> dict[str, Any]:
 
 async def dispatch_capability_async(name: str, *, action: str = "read") -> dict[str, Any]:
     """Await an allowed handler directly so cancellation reaches its cleanup."""
-    from aion.capability_audit import handler_result
-
-    handler = _authorized_handler(name, action=action)
-    result = handler()
-    result = await result if isawaitable(result) else result
-    handler_result(result)
-    return result
+    return await execute_authorized_capability_async(
+        authorize_capability(name, action=action)
+    )
 
 
 def capability_registry() -> dict[str, Any]:

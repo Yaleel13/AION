@@ -283,6 +283,10 @@ class RuntimeSyntaxApprovalDecision(BaseModel):
     approved: bool
 
 
+class RuntimeSyntaxApprovalRedemptionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
 class RuntimeSyntaxApprovalResponse(BaseModel):
     execution_request_id: str
     capability: str
@@ -382,6 +386,90 @@ async def owner_decide_runtime_syntax_approval(
     return _runtime_syntax_approval_response(row)
 
 
+async def _run_local_syntax_execution(http_request: Request, execute) -> dict:
+    """Preserve disconnect cancellation through the fixed validator lifecycle."""
+    import asyncio
+
+    async def watch_disconnect() -> None:
+        while not await http_request.is_disconnected():
+            if asyncio.current_task().cancelling():
+                return
+            await asyncio.sleep(0.1)
+
+    job = asyncio.create_task(execute())
+    disconnected = asyncio.create_task(watch_disconnect())
+    try:
+        await asyncio.wait({job, disconnected}, return_when=asyncio.FIRST_COMPLETED)
+        if disconnected.done():
+            raise HTTPException(status_code=499, detail="Validation caller disconnected")
+        return await job
+    finally:
+        disconnected.cancel()
+        job.cancel()
+        await asyncio.gather(job, disconnected, return_exceptions=True)
+
+
+@app.post(
+    "/agent/runtime-syntax-approvals/{execution_request_id}/redeem",
+    summary="Redeem one approved local agent runtime syntax request",
+)
+async def redeem_runtime_syntax_approval(
+    execution_request_id: str,
+    body: RuntimeSyntaxApprovalRedemptionRequest,
+    http_request: Request,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """Claim an approved request before invoking the fixed syntax validator."""
+    del body
+    principal = _require_local_agent(authorization, http_request)
+    if not _valid_runtime_syntax_approval_id(execution_request_id):
+        raise HTTPException(status_code=400, detail="Invalid runtime syntax approval ID")
+    if http_request.query_params:
+        raise HTTPException(status_code=400, detail="Runtime syntax redemption accepts no parameters")
+
+    from aion.capabilities import (
+        CapabilityDispatchError,
+        authorize_capability,
+        execute_authorized_capability_async,
+    )
+    from aion.capability_audit import approval_request
+    from aion.local_executor import local_executor_available
+    from aion.moltbook.store import RUNTIME_SYNTAX_CAPABILITY
+
+    if not local_executor_available() or os.name != "posix":
+        raise HTTPException(status_code=503, detail="Local validation is not enabled")
+    try:
+        store = get_services().store
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Runtime syntax approval storage unavailable") from exc
+    if getattr(store, "backend", None) != "sqlite":
+        raise HTTPException(status_code=503, detail="Runtime syntax redemption requires local SQLite storage")
+    approval_request(execution_request_id)
+    try:
+        handler = authorize_capability(RUNTIME_SYNTAX_CAPABILITY, action="execute")
+    except CapabilityDispatchError as exc:
+        status = {"unknown_capability": 404, "policy_unavailable": 503}.get(exc.code, 403)
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+
+    try:
+        claim = store.claim_runtime_syntax_approval(
+            execution_request_id,
+            capability=RUNTIME_SYNTAX_CAPABILITY,
+            requester_principal=principal,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Runtime syntax approval storage unavailable") from exc
+    if not claim.claimed:
+        if claim.reason == "storage_unavailable":
+            raise HTTPException(status_code=503, detail="Runtime syntax approval storage unavailable")
+        raise HTTPException(status_code=403, detail="Runtime syntax approval cannot be redeemed")
+
+    return await _run_local_syntax_execution(
+        http_request,
+        lambda: execute_authorized_capability_async(handler),
+    )
+
+
 class CapabilityAuditRecord(BaseModel):
     capability: str
     policy_decision: str
@@ -416,7 +504,6 @@ async def local_executive_validate(
     authorization: str | None = Header(default=None),
 ) -> dict:
     """Owner-authorized, loopback-only validation. Empty JSON body required."""
-    import asyncio
     from aion.capabilities import CapabilityDispatchError, dispatch_capability_async
     from aion.local_executor import local_executor_available
 
@@ -429,28 +516,14 @@ async def local_executive_validate(
     if http_request.query_params:
         raise HTTPException(status_code=400, detail="Validation accepts no parameters")
 
-    async def watch_disconnect() -> None:
-        while not await http_request.is_disconnected():
-            # Starlette's internal CancelScope can consume cancellation during
-            # its receive poll. Do not keep polling when endpoint cleanup began.
-            if asyncio.current_task().cancelling():
-                return
-            await asyncio.sleep(0.1)
-
-    job = asyncio.create_task(dispatch_capability_async("runtime.syntax", action="execute"))
-    disconnected = asyncio.create_task(watch_disconnect())
     try:
-        await asyncio.wait({job, disconnected}, return_when=asyncio.FIRST_COMPLETED)
-        if disconnected.done():
-            raise HTTPException(status_code=499, detail="Validation caller disconnected")
-        return await job
+        return await _run_local_syntax_execution(
+            http_request,
+            lambda: dispatch_capability_async("runtime.syntax", action="execute"),
+        )
     except CapabilityDispatchError as exc:
         status = {"unknown_capability": 404, "policy_unavailable": 503}.get(exc.code, 403)
         raise HTTPException(status_code=status, detail=str(exc)) from exc
-    finally:
-        disconnected.cancel()
-        job.cancel()
-        await asyncio.gather(job, disconnected, return_exceptions=True)
 
 
 @app.get("/owner/dashboard", summary="Phase 2 owner dashboard snapshot")

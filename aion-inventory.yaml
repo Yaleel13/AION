@@ -1,5 +1,5 @@
 version: 1
-generated_at: '2026-11-04T01:07:56.792687+00:00'
+generated_at: '2026-11-04T01:25:52.595766+00:00'
 repository: Yaleel13/AION
 surfaces:
   fastapi_routes:
@@ -12,6 +12,11 @@ surfaces:
     path: /agent/runtime-syntax-approvals
     operation_id: submit_runtime_syntax_approval_agent_runtime_syntax_approvals_post
     summary: Submit one local agent runtime syntax approval request
+    owner: fastapi
+  - method: POST
+    path: /agent/runtime-syntax-approvals/{execution_request_id}/redeem
+    operation_id: redeem_runtime_syntax_approval_agent_runtime_syntax_approvals__execution_request_id__redeem_post
+    summary: Redeem one approved local agent runtime syntax request
     owner: fastapi
   - method: GET
     path: /api/internal/acceptance

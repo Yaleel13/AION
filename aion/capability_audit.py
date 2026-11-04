@@ -11,6 +11,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime
 import logging
+import re
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ class CapabilityAudit:
     policy_decision: str = "not_evaluated"
     job_started: bool = False
     outcome: str | None = None
+    approval_request_id: str | None = None
 
     def record(self, event: str, *, success: bool, **extra) -> None:
         detail = {
@@ -58,6 +60,8 @@ class CapabilityAudit:
             "policy_decision": self.policy_decision, "job_started": self.job_started,
             **extra,
         }
+        if self.approval_request_id is not None:
+            detail["approval_request_id"] = self.approval_request_id
         try:
             from aion.phase2_services import get_services
 
@@ -92,6 +96,12 @@ def job_started() -> None:
         audit.record("job_started", success=True)
 
 
+def approval_request(execution_request_id: str) -> None:
+    """Attach the redeemed approval ID to fixed runtime audit events only."""
+    if audit := _current.get():
+        audit.approval_request_id = execution_request_id
+
+
 def handler_result(result: dict) -> None:
     if audit := _current.get():
         if audit.capability == "runtime.syntax":
@@ -114,7 +124,13 @@ class CapabilityAuditMiddleware:
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        labels = self.routes.get(scope.get("path"))
+        path = scope.get("path")
+        labels = self.routes.get(path)
+        if labels is None and isinstance(path, str) and re.fullmatch(
+            r"/agent/runtime-syntax-approvals/[0-9a-f]{32}/redeem",
+            path,
+        ):
+            labels = ("runtime.syntax", "execute")
         if scope["type"] != "http" or labels is None:
             return await self.app(scope, receive, send)
         audit = CapabilityAudit(*labels, path=scope["path"], method=(

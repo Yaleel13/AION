@@ -74,3 +74,19 @@ owner session, CSRF header, and same-origin check. Agent credentials are
 rejected by the runtime owner endpoints. These paths only create and decide
 approvals; they do not claim or launch syntax validation, and MCP remains
 read-only with only `runtime_status`.
+
+## Local agent approval redemption
+
+The local agent redeems an approved request with an empty JSON object at `POST
+/agent/runtime-syntax-approvals/{execution_request_id}/redeem`. The path ID
+must be the server-issued 32-character request ID; query parameters and
+caller-supplied capability, principal, execution, or audit fields are rejected.
+The runtime derives the requester from the verified local agent credential,
+checks the fixed `runtime.syntax` capability policy, then atomically claims the
+approval from local SQLite before starting the fixed validator. Other database
+backends are rejected until they have equivalent redemption integration
+coverage.
+
+The claim is irreversible even if process startup fails or the caller
+disconnects. Audit records attach the approval request ID to the runtime's
+server-generated request ID without recording credentials or validation output.

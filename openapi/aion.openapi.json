@@ -465,6 +465,12 @@
         "title": "RuntimeSyntaxApprovalDecision",
         "type": "object"
       },
+      "RuntimeSyntaxApprovalRedemptionRequest": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "RuntimeSyntaxApprovalRedemptionRequest",
+        "type": "object"
+      },
       "RuntimeSyntaxApprovalRequest": {
         "additionalProperties": false,
         "properties": {},
@@ -699,6 +705,74 @@
           }
         },
         "summary": "Submit one local agent runtime syntax approval request"
+      }
+    },
+    "/agent/runtime-syntax-approvals/{execution_request_id}/redeem": {
+      "post": {
+        "description": "Claim an approved request before invoking the fixed syntax validator.",
+        "operationId": "redeem_runtime_syntax_approval_agent_runtime_syntax_approvals__execution_request_id__redeem_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "execution_request_id",
+            "required": true,
+            "schema": {
+              "title": "Execution Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeSyntaxApprovalRedemptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Redeem Runtime Syntax Approval Agent Runtime Syntax Approvals  Execution Request Id  Redeem Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Redeem one approved local agent runtime syntax request"
       }
     },
     "/api/internal/acceptance": {
