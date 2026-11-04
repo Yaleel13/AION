@@ -2,8 +2,9 @@
 
 The existing Phase 2 owner audit history (`audit_history` in the owner dashboard)
 now includes module `capabilities` for `/runtime/status`,
-`/owner/runtime/status`, and `/local-executive/validate`. It uses the existing
-`Phase2Store.append_audit` sink and schema; no database migration is required.
+`/owner/runtime/status`, `/local-executive/validate`, and
+`/local-executive/tests`. It uses the existing `Phase2Store.append_audit` sink
+and schema; no database migration is required.
 
 Each HTTP request receives a server-generated `X-AION-Request-ID` response header.
 The same ID appears in every related audit row's `detail.request_id`, alongside

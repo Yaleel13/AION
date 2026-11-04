@@ -45,6 +45,24 @@ the installed job's permission ceiling. This does not register an MCP tool.
 See [runtime capability audit](CAPABILITY_AUDIT.md) for request correlation,
 policy/start/outcome events, privacy rules, and audit storage limitations.
 
+## Fixed runtime safety tests
+
+`POST /local-executive/tests` accepts the same empty JSON body and owner,
+loopback, local POSIX gates as syntax validation. It runs only this server-owned
+manifest:
+
+- `tests/test_local_validation.py`
+- `tests/test_syntax_dispatch.py`
+- `tests/test_capability_audit.py`
+
+This is a focused local-execution safety manifest, not the full repository test
+suite. The runner has a 180-second deadline, fixed checkout root, isolated
+temporary directory, and minimal environment. It drains bounded subprocess
+output but never returns or audits that output. Its safe result contains only
+the fixed job label, status, duration, and success flag; the request ID header
+is used for the policy/job/outcome audit lookup. It is owner-only through the
+Boardroom and is not exposed through MCP or agent approvals.
+
 ## Internal syntax approval claims
 
 The durable `runtime_syntax_approvals` table is an internal storage primitive

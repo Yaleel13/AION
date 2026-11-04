@@ -134,6 +134,11 @@ surfaces:
     summary: Execute one safe local capability
     owner: fastapi
   - method: POST
+    path: /local-executive/tests
+    operation_id: local_executive_tests_local_executive_tests_post
+    summary: Run fixed runtime safety test manifest
+    owner: fastapi
+  - method: POST
     path: /local-executive/validate
     operation_id: local_executive_validate_local_executive_validate_post
     summary: Run fixed runtime syntax validation
@@ -324,6 +329,10 @@ surfaces:
     owner: nextjs
   - path: /api/owner/runtime/syntax
     handler: app/api/owner/runtime/syntax/route.ts
+    methods: GET,POST,PATCH,DELETE
+    owner: nextjs
+  - path: /api/owner/runtime/tests
+    handler: app/api/owner/runtime/tests/route.ts
     methods: GET,POST,PATCH,DELETE
     owner: nextjs
   - path: /api/owner/sales-alerts
@@ -520,6 +529,15 @@ integrations:
   scope: Fixed local runtime Python syntax validation only
   note: Owner, loopback, and local-mode gates apply; server-defined command and limits;
     not exposed through MCP.
+- name: runtime.tests
+  configured: true
+  read: false
+  propose: false
+  approve: false
+  execute: true
+  scope: Fixed local runtime safety test manifest only
+  note: Owner, loopback, and local-mode gates apply; no caller-selected tests, paths,
+    commands, arguments, environment, or timeout; not exposed through MCP.
 - name: runtime_status
   configured: true
   read: true

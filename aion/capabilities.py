@@ -55,6 +55,15 @@ def _build_capabilities(
             scope="Fixed local runtime Python syntax validation only",
             note="Owner, loopback, and local-mode gates apply; server-defined command and limits; not exposed through MCP.",
         ),
+        "runtime.tests": _entry(
+            configured=syntax_ready,
+            read=False,
+            propose=False,
+            approve=False,
+            execute=syntax_ready and owner_ready,
+            scope="Fixed local runtime safety test manifest only",
+            note="Owner, loopback, and local-mode gates apply; no caller-selected tests, paths, commands, arguments, environment, or timeout; not exposed through MCP.",
+        ),
         "conversation": _entry(
             configured=True,
             read=True,
@@ -157,6 +166,7 @@ def _resolve_capability(name: str, *, action: str) -> Callable[[], Any]:
     caller authorization remains at the existing HTTP boundary.
     """
     from aion.local_validation import run_validation
+    from aion.local_tests import run_runtime_tests
     from aion.runtime_status import build_runtime_status as read_runtime_status
 
     # Catalog membership alone never registers executable behavior. These are
@@ -164,6 +174,7 @@ def _resolve_capability(name: str, *, action: str) -> Callable[[], Any]:
     handlers = {
         "runtime_status": ("read", read_runtime_status),
         "runtime.syntax": ("execute", run_validation),
+        "runtime.tests": ("execute", run_runtime_tests),
     }
     registered = handlers.get(name)
     if registered is None:

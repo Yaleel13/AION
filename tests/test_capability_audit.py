@@ -67,7 +67,7 @@ def events(store, request_id=None):
 
 async def call(path, **kwargs):
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app, client=("127.0.0.1", 123)), base_url="http://test") as client:
-        method = "POST" if path == "/local-executive/validate" else "GET"
+        method = "POST" if path in {"/local-executive/validate", "/local-executive/tests"} else "GET"
         kwargs.setdefault("headers", {"Authorization": "Bearer private-owner-credential"})
         if method == "POST":
             kwargs.setdefault("json", {})
@@ -77,6 +77,7 @@ async def call(path, **kwargs):
 @pytest.mark.parametrize("path,capability", [
     ("/runtime/status", "runtime_status"), ("/owner/runtime/status", "runtime_status"),
     ("/local-executive/validate", "runtime.syntax"),
+    ("/local-executive/tests", "runtime.tests"),
 ])
 @pytest.mark.parametrize("failure", ["denied", "failure"])
 async def test_http_policy_decision_and_outcome_without_process_start(path, capability, failure, audit_store, monkeypatch):

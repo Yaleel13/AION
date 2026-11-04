@@ -28,7 +28,7 @@ def audit_lookup_events(rows: list[dict]) -> list[dict]:
             continue
         capability, decision = detail.get("capability"), detail.get("policy_decision")
         event, outcome = labels.get(row.get("action")), detail.get("outcome")
-        if capability not in ("runtime.syntax", "runtime_status") or decision not in ("allowed", "denied", "unavailable", "not_evaluated") or event is None:
+        if capability not in ("runtime.syntax", "runtime.tests", "runtime_status") or decision not in ("allowed", "denied", "unavailable", "not_evaluated") or event is None:
             continue
         if event == "outcome" and outcome not in tuple(outcomes):
             continue
@@ -104,7 +104,7 @@ def approval_request(execution_request_id: str) -> None:
 
 def handler_result(result: dict) -> None:
     if audit := _current.get():
-        if audit.capability == "runtime.syntax":
+        if audit.capability in {"runtime.syntax", "runtime.tests"}:
             status = result.get("status")
             audit.outcome = status if status in {"succeeded", "failed", "timeout", "unavailable"} else "failed"
         else:
@@ -118,6 +118,7 @@ class CapabilityAuditMiddleware:
         "/runtime/status": ("runtime_status", "read"),
         "/owner/runtime/status": ("runtime_status", "read"),
         "/local-executive/validate": ("runtime.syntax", "execute"),
+        "/local-executive/tests": ("runtime.tests", "execute"),
     }
 
     def __init__(self, app):

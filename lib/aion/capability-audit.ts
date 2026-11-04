@@ -1,5 +1,5 @@
 export type AuditEvent = {
-  capability: "runtime.syntax" | "runtime_status"
+  capability: "runtime.syntax" | "runtime.tests" | "runtime_status"
   policy_decision: "allowed" | "denied" | "unavailable" | "not_evaluated"
   event: "policy" | "job_started" | "outcome"
   outcome: string | null
@@ -16,7 +16,7 @@ export function auditLookup(value: unknown, requestId: string): AuditLookup | nu
   for (const value of data.events) {
     if (!value || typeof value !== "object") return null
     const row = value as Record<string, unknown>
-    if (typeof row.capability !== "string" || !["runtime.syntax", "runtime_status"].includes(row.capability) ||
+    if (typeof row.capability !== "string" || !["runtime.syntax", "runtime.tests", "runtime_status"].includes(row.capability) ||
         typeof row.policy_decision !== "string" || !["allowed", "denied", "unavailable", "not_evaluated"].includes(row.policy_decision) ||
         typeof row.event !== "string" || !["policy", "job_started", "outcome"].includes(row.event) ||
         typeof row.timestamp !== "string" || !Number.isFinite(Date.parse(row.timestamp)) ||

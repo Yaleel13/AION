@@ -273,6 +273,13 @@ class LocalValidationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class RuntimeTestsResult(BaseModel):
+    ok: bool
+    job: str
+    status: str
+    duration_ms: int
+
+
 class RuntimeSyntaxApprovalRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -520,6 +527,40 @@ async def local_executive_validate(
         return await _run_local_syntax_execution(
             http_request,
             lambda: dispatch_capability_async("runtime.syntax", action="execute"),
+        )
+    except CapabilityDispatchError as exc:
+        status = {"unknown_capability": 404, "policy_unavailable": 503}.get(exc.code, 403)
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+
+
+@app.post(
+    "/local-executive/tests",
+    response_model=RuntimeTestsResult,
+    summary="Run fixed runtime safety test manifest",
+)
+async def local_executive_tests(
+    body: LocalValidationRequest,
+    http_request: Request,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """Owner-authorized, loopback-only fixed runtime tests."""
+    del body
+    from aion.capabilities import CapabilityDispatchError, dispatch_capability_async
+    from aion.local_executor import local_executor_available
+
+    _require_owner(authorization)
+    host = http_request.client.host if http_request.client else None
+    if host not in {"127.0.0.1", "::1"}:
+        raise HTTPException(status_code=403, detail="Local Executive is loopback-only")
+    if not local_executor_available() or os.name != "posix":
+        raise HTTPException(status_code=503, detail="Local runtime tests are not enabled")
+    if http_request.query_params:
+        raise HTTPException(status_code=400, detail="Runtime tests accept no parameters")
+
+    try:
+        return await _run_local_syntax_execution(
+            http_request,
+            lambda: dispatch_capability_async("runtime.tests", action="execute"),
         )
     except CapabilityDispatchError as exc:
         status = {"unknown_capability": 404, "policy_unavailable": 503}.get(exc.code, 403)
