@@ -6,7 +6,7 @@ import hmac
 import math
 import re
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
 from aion import config
@@ -137,7 +137,9 @@ async def local_executive_capabilities(http_request: Request) -> dict:
 
 @app.post("/local-executive/execute", summary="Execute one safe local capability")
 async def local_executive_execute(
-    body: LocalExecutiveRequest, http_request: Request
+    body: LocalExecutiveRequest,
+    http_request: Request,
+    authorization: str | None = Header(default=None),
 ) -> dict:
     """Execute one predefined Local Executive capability.
 
@@ -146,6 +148,7 @@ async def local_executive_execute(
     """
     from aion.local_executor import execute_capability
 
+    _require_owner(authorization)
     client_host = http_request.client.host if http_request.client else None
     if client_host not in {"127.0.0.1", "::1"}:
         raise HTTPException(status_code=403, detail="Local Executive is loopback-only")
@@ -154,7 +157,7 @@ async def local_executive_execute(
     if not capability:
         raise HTTPException(status_code=400, detail="A capability ID is required")
 
-    result = execute_capability(capability)
+    result = await execute_capability(capability)
 
     if result.get("error") == "Unsupported local capability.":
         raise HTTPException(status_code=400, detail="Unsupported local capability")
@@ -213,8 +216,6 @@ async def gemini_endpoint(request: GeminiRequest) -> AIResponse:
 # ---------------------------------------------------------------------------
 
 import os
-
-from fastapi import Header
 
 from aion.moltbook.errors import MoltbookOutboundDisabledError
 from aion.moltbook.limits import QuotaExceededError

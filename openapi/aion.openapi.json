@@ -1782,6 +1782,24 @@
       "post": {
         "description": "Execute one predefined Local Executive capability.\n\nCallers may select a capability ID only. They cannot provide executables,\nargv, paths, shell fragments, environment overrides, or sudo.",
         "operationId": "local_executive_execute_local_executive_execute_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {

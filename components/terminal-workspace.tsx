@@ -150,16 +150,12 @@ export function TerminalWorkspace({
 
         if (connected && mode === "local-controlled") {
           setExecutorMode("local-controlled")
-          setSession({
-            configured: true,
-            authenticated: true,
-          })
-          setError(null)
-          return
+        } else {
+          setExecutorMode("vercel-sandbox")
         }
+      } else {
+        setExecutorMode("vercel-sandbox")
       }
-
-      setExecutorMode("vercel-sandbox")
 
       const response = await fetch("/api/aion/owner-session", {
         cache: "no-store",

@@ -24,7 +24,31 @@ before returning. Cleanup can therefore extend the response beyond the deadline.
 
 No caller controls the executable, arguments, environment, directory, or deadline.
 This endpoint does not expose arbitrary shell execution and is not registered in
-MCP. Existing Local Executive capability behavior is unchanged.
+MCP.
+
+## Authenticated Local Executive diagnostics
+
+`POST /local-executive/execute` remains limited to its fixed capability
+registry, but now requires the existing owner bearer before its loopback and
+local-mode gates. The runtime starts every fixed command in a new POSIX process
+group, supplies only `PATH`, `LANG`, and `LC_ALL`, drains at most 12,000 bytes
+of combined child output, and kills and reaps the group on deadline or
+cancellation. Child stdout and stderr are never returned by this endpoint.
+
+Boardroom Terminal requires an owner session, CSRF marker, and same-origin
+request in local mode as well as cloud mode. It forwards the bearer only
+server-side to a validated loopback runtime origin. Terminal results contain
+fixed status and limited server-derived summaries, not child output. Local
+voice no longer invokes this general executor: it returns unavailable until a
+separate scoped voice authorization design exists. MCP and agent approval
+flows are unchanged.
+
+The fixed registry remains owner-authorized rather than read-only:
+`project.test`, `project.lint`, and `project.build` can create their normal
+project/tool artifacts, and the media capabilities can use locally configured
+devices and durable media paths. This hardening slice prevents caller-selected
+execution inputs and child credential inheritance; it does not change those
+fixed capability effects or add generic-executor audit correlation.
 
 In the authenticated Boardroom, use **Runtime Validation → Run syntax check**.
 The button stays disabled during the request and shows the result or runtime

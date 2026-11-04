@@ -7,10 +7,6 @@ const AION_REPO = "https://github.com/Yaleel13/AION.git"
 const MAX_OUTPUT = 12_000
 const ALLOWED_CHECKS = new Set(["inspect", "lint", "build", "all"])
 
-const RUNTIME_URL = (
-  process.env.AION_RUNTIME_URL ?? "http://127.0.0.1:8000"
-).replace(/\/+$/, "")
-
 const LOCAL_RUNTIME =
   (process.env.AION_RUNTIME_MODE ?? "").trim().toLowerCase() === "local"
 
@@ -36,9 +32,9 @@ type LocalCapabilityResult = {
   mode?: string
   capability: string
   classification?: string
+  status: "succeeded" | "failed" | "timeout"
   exit_code: number
-  stdout: string
-  stderr: string
+  summary?: string | null
   cwd?: string
   arbitrary_commands_enabled?: boolean
   sudo_enabled?: boolean
@@ -50,18 +46,58 @@ function trimOutput(value: string) {
     : value
 }
 
+function requestOrigin(req: Request) {
+  const target = new URL(req.url)
+  const host = req.headers.get("host")
+  if (host) target.host = host
+  return target
+}
+
 function isLoopbackRequest(req: Request) {
-  const hostname = new URL(req.url).hostname
+  const hostname = requestOrigin(req).hostname
   return ["localhost", "127.0.0.1", "[::1]", "::1"].includes(hostname)
+}
+
+function isSameOriginRequest(req: Request) {
+  return req.headers.get("origin") === requestOrigin(req).origin
+}
+
+function loopbackRuntimeOrigin(): string | null {
+  try {
+    const runtime = new URL(process.env.AION_RUNTIME_URL ?? "http://127.0.0.1:8000")
+    if (
+      !["http:", "https:"].includes(runtime.protocol) ||
+      !["localhost", "127.0.0.1", "[::1]", "::1"].includes(runtime.hostname) ||
+      runtime.username ||
+      runtime.password ||
+      runtime.search ||
+      runtime.hash ||
+      (runtime.pathname !== "/" && runtime.pathname !== "")
+    ) {
+      return null
+    }
+    return runtime.origin
+  } catch {
+    return null
+  }
 }
 
 async function runLocalCapability(
   capability: LocalCapabilityName,
 ): Promise<LocalCapabilityResult> {
-  const response = await fetch(`${RUNTIME_URL}/local-executive/execute`, {
+  const runtime = loopbackRuntimeOrigin()
+  const ownerToken = (process.env.AION_OWNER_TOKEN ?? "").trim()
+  if (!runtime || !ownerToken) {
+    throw new Error("Local runtime unavailable.")
+  }
+  const response = await fetch(`${runtime}/local-executive/execute`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${ownerToken}`,
+    },
     cache: "no-store",
+    redirect: "error",
     body: JSON.stringify({ capability }),
   })
 
@@ -70,16 +106,14 @@ async function runLocalCapability(
   }
 
   if (!response.ok) {
-    throw new Error(
-      payload.detail ?? `Local capability ${capability} failed.`,
-    )
+    throw new Error("Local capability unavailable.")
   }
 
   if (
-    typeof payload.capability !== "string" ||
+    payload.capability !== capability ||
     typeof payload.exit_code !== "number" ||
-    typeof payload.stdout !== "string" ||
-    typeof payload.stderr !== "string"
+    !["succeeded", "failed", "timeout"].includes(String(payload.status)) ||
+    (payload.summary !== undefined && payload.summary !== null && typeof payload.summary !== "string")
   ) {
     throw new Error(`Local capability ${capability} returned an invalid response.`)
   }
@@ -91,8 +125,8 @@ function summarizeLocal(result: LocalCapabilityResult): CommandSummary {
   return {
     name: result.capability,
     exitCode: result.exit_code,
-    stdout: trimOutput(result.stdout),
-    stderr: trimOutput(result.stderr),
+    stdout: result.summary ? trimOutput(result.summary) : "",
+    stderr: "",
   }
 }
 
@@ -133,9 +167,9 @@ async function runLocalDiagnostic(check: CheckName) {
     mode: "local-controlled",
     check,
     repository: "Yaleel13/AION",
-    revision: revision?.stdout.trim() || "unknown",
-    workingTree: status?.stdout.trim() || "clean",
-    system: system?.stdout.trim() || "unknown",
+    revision: revision?.summary?.trim() || "unknown",
+    workingTree: status?.summary?.trim() || "unknown",
+    system: system?.summary?.trim() || "unknown",
     cwd: executed[0]?.cwd ?? null,
     persistent: true,
     results: executed.map(summarizeLocal),
@@ -267,29 +301,23 @@ async function runSandboxDiagnostic(check: CheckName) {
 }
 
 export async function POST(req: Request) {
-  /*
-   * Local AION OS:
-   *   localhost presence + CSRF header.
-   *
-   * Cloud:
-   *   authenticated owner session + CSRF header.
-   */
-  if (LOCAL_RUNTIME) {
-    if (!isLoopbackRequest(req)) {
-      return Response.json(
-        { error: "Local Executive UI access is localhost-only." },
-        { status: 403 },
-      )
-    }
-  } else if (!hasValidOwnerSession(req.headers.get("cookie"))) {
+  if (!hasValidOwnerSession(req.headers.get("cookie"))) {
     return Response.json(
       { error: "Owner authentication required." },
       { status: 401 },
     )
   }
-
   const csrfError = requireCsrfHeader(req)
   if (csrfError) return csrfError
+  if (!isSameOriginRequest(req)) {
+    return Response.json({ error: "Same-origin request required." }, { status: 403 })
+  }
+  if (LOCAL_RUNTIME && !isLoopbackRequest(req)) {
+    return Response.json(
+      { error: "Local Executive UI access is localhost-only." },
+      { status: 403 },
+    )
+  }
 
   let check: CheckName = "inspect"
 
@@ -316,18 +344,10 @@ export async function POST(req: Request) {
     }
 
     return await runSandboxDiagnostic(check)
-  } catch (error) {
-    console.error(
-      "[AION] terminal diagnostic failed:",
-      error instanceof Error ? error.message : String(error),
-    )
-
+  } catch {
     return Response.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "The controlled executor could not complete the run.",
+        error: "The controlled executor could not complete the run.",
       },
       { status: 502 },
     )
