@@ -9,17 +9,17 @@ const loadDependency = createRequire(import.meta.url)
 
 function loadVoiceRoute() {
   function load(path, dependencies = {}) {
-    const module = { exports: {} }
+    const loadedModule = { exports: {} }
     const source = ts.transpileModule(readFileSync(path, "utf8"), {
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     }).outputText
     vm.runInNewContext(source, {
-      module, exports: module.exports,
+      module: loadedModule, exports: loadedModule.exports,
       require: name => dependencies[name] ?? loadDependency(name),
       process: { env: { AION_OWNER_TOKEN: "test-owner", AION_RUNTIME_MODE: "local" } },
       Buffer,
     }, { filename: path })
-    return module.exports
+    return loadedModule.exports
   }
   const requestHeaders = load("lib/aion/request-headers.ts")
   const ownerSession = load("lib/aion/owner-session.ts", { "./request-headers": requestHeaders })

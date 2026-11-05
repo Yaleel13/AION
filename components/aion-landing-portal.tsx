@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import {
   ArrowRight,
   BrainCircuit,
@@ -95,9 +96,13 @@ export function AionLandingPortal({
 
           <div className="relative mx-auto mt-3 flex w-full max-w-[330px] items-start justify-center">
             <div className="absolute inset-x-5 top-8 h-52 rounded-full bg-blue-600/20 blur-3xl" aria-hidden />
-            <img
+            <Image
               src="/aion-portrait"
               alt="Aion"
+              width={260}
+              height={369}
+              sizes="260px"
+              loading="eager"
               className="relative z-10 max-h-[42dvh] w-auto rounded-[44%_44%_38%_38%/28%_28%_18%_18%] object-contain drop-shadow-[0_0_38px_rgba(20,113,255,.38)]"
             />
           </div>

@@ -28,17 +28,17 @@ function harness(overrides = {}, upstream = () => Response.json(approval)) {
   }
   const calls = []
   function load(path, dependencies = {}) {
-    const module = { exports: {} }
+    const loadedModule = { exports: {} }
     const code = ts.transpileModule(readFileSync(path, "utf8"), {
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     }).outputText
     vm.runInNewContext(code, {
-      module, exports: module.exports,
+      module: loadedModule, exports: loadedModule.exports,
       require: name => dependencies[name] ?? dependency(name),
       process: { env }, Buffer, URL, Response, AbortSignal,
       fetch: (...args) => { calls.push(args); return upstream(...args) },
     }, { filename: path })
-    return module.exports
+    return loadedModule.exports
   }
   const session = load("lib/aion/owner-session.ts", {
     "./request-headers": load("lib/aion/request-headers.ts"),
