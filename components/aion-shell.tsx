@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import type { Message, PresenceState, InterfaceMode } from "@/lib/aion/types"
 import { routeCommand } from "@/lib/aion/mock"
 import { TopBar } from "@/components/top-bar"
@@ -418,7 +418,12 @@ export function AionShell() {
   }, [])
 
   const isBusy = busyStates.includes(working)
-  const conversationDisabled = isBusy || listening || speaking || !conversationHydrated
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  )
+  const conversationDisabled = mounted && (isBusy || listening || speaking || !conversationHydrated)
 
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden bg-background">

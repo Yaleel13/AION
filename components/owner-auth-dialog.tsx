@@ -45,6 +45,13 @@ export function OwnerAuthDialog({ open, onClose, onAuthenticated }: { open: bool
         throw new Error(data.error || "Owner authentication failed.")
       }
       setToken("")
+      const sessionResponse = await fetch("/api/aion/owner-session", {
+        credentials: "same-origin", cache: "no-store",
+      })
+      const session = await sessionResponse.json()
+      if (!sessionResponse.ok || session.authenticated !== true) {
+        throw new Error("Your browser did not retain the owner session. Use HTTPS, or localhost for local development, and allow cookies.")
+      }
       setAuthenticated(true)
       onAuthenticated()
       onClose()
@@ -62,7 +69,7 @@ export function OwnerAuthDialog({ open, onClose, onAuthenticated }: { open: bool
           <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Owner Access</p>
           <h2 id="owner-auth-title" className="mt-1 text-xl font-semibold text-foreground">Unlock the Boardroom</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Enter the AION owner token. It is exchanged for a secure HttpOnly owner session and is not stored in the browser.
+            Paste the AION owner token or its complete <code>AION_OWNER_TOKEN=...</code> line. It is exchanged for a secure HttpOnly owner session and is not stored in the browser.
           </p>
         </div>
 
@@ -73,12 +80,13 @@ export function OwnerAuthDialog({ open, onClose, onAuthenticated }: { open: bool
         ) : authenticated ? (
           <p className="rounded-xl border border-border bg-muted/40 p-3 text-sm text-foreground">Owner session is active.</p>
         ) : (
-          <form onSubmit={submit} className="space-y-4">
+          <form onSubmit={submit} autoComplete="off" className="space-y-4">
             <label className="block text-sm font-medium text-foreground" htmlFor="owner-token">Owner token</label>
             <input
               id="owner-token"
+              name="aion-owner-token"
               type="password"
-              autoComplete="current-password"
+              autoComplete="off"
               value={token}
               onChange={(event) => setToken(event.target.value)}
               className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none ring-offset-background focus:ring-2 focus:ring-violet"
